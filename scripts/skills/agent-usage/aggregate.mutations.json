@@ -18,6 +18,20 @@
       ]
     },
     {
+      "id": "price-period-ignored",
+      "why": "応答の時刻で単価の期間を選ばず、最後の期間の単価を使う（単価を変える前の応答の費用が変わる）",
+      "file": "skills/agent-usage/scripts/lib/pricing.mjs",
+      "find": "    if (p.since !== null && p.since > at) break;",
+      "replace": "    if (false) break;",
+      "occurrences": 1,
+      "expect_failing": [
+        "単価 時刻に有効な期間の単価を選び、最初の since より前は単価が無いとする",
+        "単価 設定が同じモデルを持てば、設定の期間が時刻を含まなくても同梱の期間を使わない",
+        "費用 応答の時刻に有効な期間の単価で数え、単価を変えた日より前の応答の費用を変えない",
+        "停止の分類 report: 計算し直す行は、行の開始時刻に有効な期間の単価を使う"
+      ]
+    },
+    {
       "id": "cost-state-ignored",
       "why": "cost-state があっても、その値に合わせない",
       "file": "skills/agent-usage/scripts/lib/sources/usage.mjs",
@@ -44,12 +58,13 @@
       "id": "report-no-reprice",
       "why": "記録の時点で単価の無かった行を、report で計算し直さない",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "  if (cost === null) {\n    const { price, source }",
-      "replace": "  if (false) {\n    const { price, source }",
+      "find": "  if (cost === null) {\n    const at = parseTime(r.start) ?? 0;",
+      "replace": "  if (false) {\n    const at = parseTime(r.start) ?? 0;",
       "occurrences": 1,
       "expect_failing": [
         "停止の分類 report: 記録の時点で単価の無かった行は、今の単価表で計算し直し、それでも無ければ単価不明として数える",
-        "report の集計（欄の欠け・期間・時刻） 別名で人をまとめ、欄の無い usage は空の値と 0 として数え、単価があれば計算し直す"
+        "report の集計（欄の欠け・期間・時刻） 別名で人をまとめ、欄の無い usage は空の値と 0 として数え、単価があれば計算し直す",
+        "停止の分類 report: 計算し直す行は、行の開始時刻に有効な期間の単価を使う"
       ]
     },
     {

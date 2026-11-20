@@ -21,7 +21,7 @@ export function options(
       "copilot-pull-request-reviewer": "copilot",
       "chatgpt-codex-connector": "codex-cloud",
     },
-    bundledPricing: { "gpt-5.5": { input: 5, output: 30 } },
+    bundledPricing: { "gpt-5.5": [{ since: null, price: { input: 5, output: 30 } }] },
     bundledReviewPricing: { "codex-cloud": 0.1 },
     commands: [],
     billing: "none",

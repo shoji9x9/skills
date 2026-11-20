@@ -17,6 +17,7 @@ import {
   hasPerson,
   loadRepoConfig,
   loadUserConfig,
+  parsePricePeriods,
   parseRepoConfig,
   parseUserConfig,
   saveUserConfig,
@@ -25,6 +26,7 @@ import {
 import {
   costOf,
   normalizeModel,
+  priceAt,
   resolvePrice,
 } from "../../../skills/agent-usage/scripts/lib/pricing.mjs";
 import { changedRows, latestByKey } from "../../../skills/agent-usage/scripts/lib/records.mjs";
@@ -55,6 +57,8 @@ import { sectionTableRows } from "./aggregate-helpers.ts";
 import { ms as H, isoMs as iso } from "./utc-day-helpers.ts";
 
 const zero = { input: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0, reasoning: 0 };
+/** 最初から有効な 1 つの期間（今の書き方の単価）。 */
+const always = (price: { input: number; output: number }) => [{ since: null, price }];
 
 describe("単価", () => {
   test.each([
@@ -66,11 +70,107 @@ describe("単価", () => {
   });
 
   test("リポジトリの設定を同梱より優先し、どちらにも無ければ unknown", () => {
-    const repo = { x: { input: 1, output: 2 } };
-    const bundled = { x: { input: 9, output: 9 }, y: { input: 3, output: 4 } };
-    expect(resolvePrice("x", repo, bundled).source).toBe("repo");
-    expect(resolvePrice("y[1m]", repo, bundled).source).toBe("bundled");
-    expect(resolvePrice("z", repo, bundled)).toEqual({ price: null, source: "unknown" });
+    const tables = {
+      repo: { x: always({ input: 1, output: 2 }) },
+      bundled: { x: always({ input: 9, output: 9 }), y: always({ input: 3, output: 4 }) },
+    };
+    expect(resolvePrice("x", tables, 0).source).toBe("repo");
+    expect(resolvePrice("y[1m]", tables, 0).source).toBe("bundled");
+    expect(resolvePrice("z", tables, 0)).toEqual({ price: null, source: "unknown" });
+  });
+
+  // 単価の期間の軸は次のとおりである。
+  // - 書き方: オブジェクト・配列
+  // - since: 無い・先頭・先頭以外・同じ・逆順・形の誤り・実在しない日・型の誤り
+  // - 配列: 空・要素がオブジェクトでない
+  // - 時刻: 最初の since より前・since ちょうど・期間の間・最後の期間の後
+  // - 出所: 設定だけ・同梱だけ・設定の期間が時刻を含まない
+  test("単価のオブジェクトは最初から有効な 1 つの期間、配列は since ごとの期間として読む", () => {
+    expect(parsePricePeriods({ input: 1, output: 2 }, "m")).toEqual([
+      { since: null, price: { input: 1, output: 2 } },
+    ]);
+    expect(
+      parsePricePeriods(
+        [
+          { input: 1, output: 2 },
+          { since: "2026-12-01", input: 3, output: 4 },
+          { since: "2027-01-01", input: 5, output: 6 },
+        ],
+        "m",
+      ),
+    ).toEqual([
+      { since: null, price: { input: 1, output: 2 } },
+      { since: Date.parse("2026-12-01T00:00:00Z"), price: { input: 3, output: 4 } },
+      { since: Date.parse("2027-01-01T00:00:00Z"), price: { input: 5, output: 6 } },
+    ]);
+    expect(parsePricePeriods([{ since: "2026-12-01", input: 3, output: 4 }], "m")).toEqual([
+      { since: Date.parse("2026-12-01T00:00:00Z"), price: { input: 3, output: 4 } },
+    ]);
+  });
+
+  test.each([
+    ["空の配列", [], /m: 期間の配列が空/],
+    ["要素がオブジェクトでない", [1], /m\[0\]: オブジェクトでない/],
+    [
+      "同じ since が 2 つ",
+      [
+        { since: "2026-12-01", input: 1, output: 1 },
+        { since: "2026-12-01", input: 2, output: 2 },
+      ],
+      /m\[1\]\.since: 前の期間の since と同じか、それより前/,
+    ],
+    [
+      "日付順でない",
+      [
+        { since: "2027-01-01", input: 1, output: 1 },
+        { since: "2026-12-01", input: 2, output: 2 },
+      ],
+      /m\[1\]\.since: 前の期間の since と同じか、それより前/,
+    ],
+    [
+      "先頭以外の since が無い",
+      [
+        { since: "2026-12-01", input: 1, output: 1 },
+        { input: 2, output: 2 },
+      ],
+      /m\[1\]: 先頭以外の期間に since が無い/,
+    ],
+    ["形が違う", [{ since: "2026-1-01", input: 1, output: 1 }], /m\[0\]\.since: 実在する日/],
+    ["実在しない日", [{ since: "2026-02-30", input: 1, output: 1 }], /m\[0\]\.since: 実在する日/],
+    ["文字列でない", [{ since: 20261201, input: 1, output: 1 }], /m\[0\]\.since: 実在する日/],
+    ["期間の単価の誤り", [{ since: "2026-12-01", input: 1 }], /m\[0\]: input と output は必須/],
+  ])("単価の期間が決まらない書き方は例外にする（%s）", (_, value, error) => {
+    expect(() => parsePricePeriods(value, "m")).toThrow(error);
+  });
+
+  test("時刻に有効な期間の単価を選び、最初の since より前は単価が無いとする", () => {
+    const dec = Date.parse("2026-12-01T00:00:00Z");
+    const jan = Date.parse("2027-01-01T00:00:00Z");
+    const periods = [
+      { since: dec, price: { input: 1, output: 1 } },
+      { since: jan, price: { input: 2, output: 2 } },
+    ];
+    expect(priceAt(periods, dec - 1)).toBeNull();
+    expect(priceAt(periods, dec)).toEqual({ input: 1, output: 1 });
+    expect(priceAt(periods, jan - 1)).toEqual({ input: 1, output: 1 });
+    expect(priceAt(periods, jan)).toEqual({ input: 2, output: 2 });
+    expect(priceAt([{ since: null, price: { input: 3, output: 3 } }], 0)).toEqual({
+      input: 3,
+      output: 3,
+    });
+  });
+
+  test("設定が同じモデルを持てば、設定の期間が時刻を含まなくても同梱の期間を使わない", () => {
+    const dec = Date.parse("2026-12-01T00:00:00Z");
+    const tables = {
+      repo: { x: [{ since: dec, price: { input: 1, output: 1 } }] },
+      bundled: { x: always({ input: 9, output: 9 }) },
+    };
+    expect(resolvePrice("x", tables, dec - 1)).toEqual({ price: null, source: "unknown" });
+    expect(resolvePrice("x", tables, dec)).toEqual({
+      price: { input: 1, output: 1 },
+      source: "repo",
+    });
   });
 
   test("欄の無い種類のトークンは近い欄の単価で数える", () => {
@@ -87,7 +187,7 @@ describe("費用", () => {
     person: "p-00000001",
     tz: "UTC",
     repoPricing: {},
-    bundledPricing: { "claude-opus-5-5": { input: 1, output: 1 } },
+    bundledPricing: { "claude-opus-5-5": always({ input: 1, output: 1 }) },
   };
   const msg = (key: string, h: number, { model, input }: { model: string; input: number }) => ({
     key,
@@ -111,6 +211,30 @@ describe("費用", () => {
       ["2026-10-01T01:00:00.000Z", "2.000000", "log"],
       ["2026-10-01T02:00:00.000Z", "6.000000", "log"],
       ["2026-10-01T05:00:00.000Z", "1.000000", "bundled"],
+    ]);
+  });
+
+  test("応答の時刻に有効な期間の単価で数え、単価を変えた日より前の応答の費用を変えない", () => {
+    const changed = Date.parse("2026-10-02T00:00:00Z");
+    const periodCtx = {
+      ...ctx,
+      bundledPricing: {
+        "claude-opus-5-5": [
+          { since: null, price: { input: 1, output: 1 } },
+          { since: changed, price: { input: 5, output: 5 } },
+        ],
+      },
+    };
+    const s = {
+      ...emptySummary("codex", "s"),
+      messages: [
+        { key: "a", ts: changed - 1, model: "claude-opus-5-5", tokens: { ...zero, input: 1e6 } },
+        { key: "b", ts: changed, model: "claude-opus-5-5", tokens: { ...zero, input: 1e6 } },
+      ],
+    };
+    expect(messageCosts(s, periodCtx)).toEqual([
+      { cost: 1, source: "bundled" },
+      { cost: 5, source: "bundled" },
     ]);
   });
 
@@ -311,6 +435,16 @@ describe("設定", () => {
     expect(() => parseRepoConfig({ pricing: { x: { input: 1 } } })).toThrow(
       /pricing\.x: output が無い/,
     );
+    expect(() =>
+      parseRepoConfig({
+        pricing: {
+          x: [
+            { since: "2026-12-01", input: 1, output: 1 },
+            { since: "2026-12-01", input: 2, output: 2 },
+          ],
+        },
+      }),
+    ).toThrow(/pricing\.x\[1\]\.since: 前の期間の since と同じか、それより前/);
     expect(() => parseRepoConfig({ aliases: { a: "b", b: "c" } })).toThrow(/p-\[0-9a-f\]\{8\}/);
     expect(() =>
       parseRepoConfig({ aliases: { "p-00000001": "p-00000002", "p-00000002": "p-00000003" } }),
@@ -796,6 +930,45 @@ describe("停止の分類", () => {
       ["still-unknown", "0.000000", "1", "unknown"],
     ]);
     expect(r.unknownCostBuckets).toBe(1);
+  });
+
+  test("report: 計算し直す行は、行の開始時刻に有効な期間の単価を使う", () => {
+    const row = (key: string, start: string) => ({
+      observed_at: "2026-10-03T00:00:00.000Z",
+      person: "p-00000001",
+      tz: "UTC",
+      kind: "usage",
+      agent: "codex",
+      key,
+      start,
+      end: start,
+      model: "m",
+      input_tokens: "1000000",
+      output_tokens: "0",
+      cost_usd: "",
+      cost_source: "unknown",
+    });
+    const config = parseRepoConfig({
+      pricing: {
+        m: [
+          { input: 1, output: 1 },
+          { since: "2026-10-02", input: 5, output: 5 },
+        ],
+      },
+    });
+    const report = (start: string) =>
+      buildReport([row("u", start)], {
+        config,
+        bundledPricing: {},
+        bundledReviewPricing: {},
+        tz: "UTC",
+        now: Date.parse("2026-10-03T00:00:00Z"),
+        since: null,
+        until: null,
+        recordFiles: 1,
+      }).usage.map((u) => [u.cost_usd, u.cost_unknown_buckets]);
+    expect(report("2026-10-01T23:00:00.000Z")).toEqual([["1.000000", "0"]]);
+    expect(report("2026-10-02T00:00:00.000Z")).toEqual([["5.000000", "0"]]);
   });
 
   test("report: 推定額の無いレビューは、今の単価（リポジトリの設定・同梱）で推定し直す", () => {
