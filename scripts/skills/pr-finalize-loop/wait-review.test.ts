@@ -219,14 +219,16 @@ function wait(f: Fixture, extra: string[] = [], o: Opts = {}) {
   const out: Record<string, string> = {};
   const evidence: string[][] = [];
   const unnamed: string[][] = [];
+  const unverified: string[][] = [];
   for (const l of lines) {
     const k = l.slice(0, l.indexOf("="));
     const v = l.slice(l.indexOf("=") + 1);
     if (k === "evidence") evidence.push(v.split("\t"));
     else if (k === "unnamed_check_run") unnamed.push(v.split("\t"));
+    else if (k === "unverified") unverified.push(v.split("\t"));
     else out[k] = v;
   }
-  return { status: r.status, out, evidence, unnamed, stderr: r.stderr };
+  return { status: r.status, out, evidence, unnamed, unverified, stderr: r.stderr };
 }
 
 const NAME = "Review pull request";
@@ -286,6 +288,8 @@ describe("届いた方法", () => {
     expect(r.status).toBe(1);
     expect(r.out.result).toBe("timeout");
     expect(r.stderr).toMatch(/a1b2c3d を完全な SHA に解決できない/);
+    // 照会に失敗した根拠は stdout にも出し、届いていないと判定させない
+    expect(r.unverified).toEqual([["bot-comment", "9", "a1b2c3d"]]);
   });
 
   test("HEAD の前方と一致しない短縮した SHA は、解決しても数えない（API も呼ばない）", () => {
@@ -340,6 +344,14 @@ describe("数えないもの", () => {
     const r = wait({ reviews: [[{ id: 1, login: "eve" }]] });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/eve の権限を取得できない/);
+    // 照会に失敗した根拠は stdout にも出し、届いていないと判定させない
+    expect(r.unverified).toEqual([["review", "1", "eve"]]);
+  });
+
+  test("権限を取得でき、書き込み権限が無いと分かった人のレビューは、unverified に出さない", () => {
+    const r = wait({ reviews: [[{ id: 1, login: "eve" }]], perms: { eve: "read" } });
+    expect(r.status).toBe(1);
+    expect(r.unverified).toEqual([]);
   });
 
   test("権限を一時的に取得できなくても、次の取得で書き込み権限を確かめられれば arrived", () => {

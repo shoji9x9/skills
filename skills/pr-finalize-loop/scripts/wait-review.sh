@@ -33,7 +33,8 @@
 #   head=<sha>          待った HEAD。
 #   result=<value>      arrived・timeout・head-changed・closed・check-run-failed のどれか。
 #                       arrived: 3 つの方法のどれかで届いた。evidence の行を読む。
-#                       timeout: 上限まで、どの方法でも届かなかった。
+#                       timeout: 上限まで、どの方法でも届いたと確かめられなかった。unverified の行があれば、照会に失敗して
+#                       確かめられなかった根拠が残っている。
 #                       head-changed: PR の HEAD が --head-file の SHA と違う（別の push があった）。待たずに状態を取得し直す。
 #                       closed: PR が OPEN でない。
 #                       check-run-failed: 名前を渡したレビュー用の check-run が、success・neutral 以外で完了した。
@@ -49,6 +50,10 @@
 #   unnamed_check_run=<id>\t<名前>\t<app>\t<conclusion>
 #                       timeout のときに、名前を渡していない check-run のうち、--since より後に HEAD で完了したもの。
 #                       レビュー用かを app・名前・出力から仕分ける材料にする（この行だけでは届いた根拠にしない）。
+#   unverified=<種類>\t<id>\t<値>
+#                       timeout のときに、最後の取得で照会に失敗して、届いたかを確かめられなかった根拠。
+#                       review は <値> がレビューした人の login（書き込み権限を取得できない）、bot-comment は <値> が本文の
+#                       短縮した SHA（完全な SHA に解決できない）である。この行があれば、届いていないと判定しない。
 #   failed_check_run=<id>\t<名前>\t<conclusion>
 #                       check-run-failed のときの、その check-run。
 #
@@ -169,13 +174,15 @@ cache_get() {
 # login の書き込み権限を確かめる（admin か write）。取得できなければ、その取得では権限が無いとして扱う。
 # 失敗した結果は覚えず、次の取得で問い合わせ直す（一時的な失敗で、届いたレビューを上限まで数えなくならないようにする）
 perm_cache=""
+# 取得できなかったときは、第 2 引数の根拠（review の id）とともに unverified に記録する
 has_write() {
-	local login="$1" p
+	local login="$1" ref="$2" p
 	if ! p=$(cache_get "${perm_cache}" "${login}"); then
 		if p=$(gh api ${host_args[@]+"${host_args[@]}"} "${repo_path}/collaborators/${login}/permission" --jq '.permission' </dev/null 2>"${err}"); then
 			perm_cache="${perm_cache}${login}"$'\x1f'"${p}"$'\n'
 		else
 			echo "note: ${login} の権限を取得できないので、そのレビューを数えない: $(tr '\n' ' ' <"${err}")" >&2
+			unverified+=("review"$'\t'"${ref}"$'\t'"${login}")
 			p=""
 		fi
 	fi
@@ -185,13 +192,15 @@ has_write() {
 # 短縮した SHA を完全な SHA に解決し、HEAD と一致するかを返す。解決できなければ、その取得では一致しないとして扱う。
 # 失敗した結果は覚えず、次の取得で問い合わせ直す
 sha_cache=""
+# 取得できなかったときは、第 2 引数の根拠（コメントの id）とともに unverified に記録する
 resolves_to_head() {
-	local token="$1" full
+	local token="$1" ref="$2" full
 	if ! full=$(cache_get "${sha_cache}" "${token}"); then
 		if full=$(gh api ${host_args[@]+"${host_args[@]}"} "${repo_path}/commits/${token}" --jq '.sha' </dev/null 2>"${err}"); then
 			sha_cache="${sha_cache}${token}"$'\x1f'"${full}"$'\n'
 		else
 			echo "note: ${token} を完全な SHA に解決できない: $(tr '\n' ' ' <"${err}")" >&2
+			unverified+=("bot-comment"$'\t'"${ref}"$'\t'"${token}")
 			full=""
 		fi
 	fi
@@ -205,6 +214,7 @@ poll() {
 	evidence=()
 	pending=""
 	unnamed=()
+	unverified=()
 	failed_run=""
 	failed_cands=()
 	result_now=""
@@ -249,7 +259,7 @@ poll() {
 		[ "${login}" != "${author}" ] || continue
 		[ "${commit_id}" = "${head}" ] || continue
 		[[ ! "${submitted}" < "${since}" ]] || continue
-		if [ "${type}" = "Bot" ] || has_write "${login}"; then
+		if [ "${type}" = "Bot" ] || has_write "${login}" "${id}"; then
 			evidence+=("review"$'\t'"${id}"$'\t'"${submitted}"$'\t'"${html_url}")
 		fi
 	done <<<"${reviews}"
@@ -308,7 +318,7 @@ poll() {
 		for token in ${tokens}; do
 			if [ "${token}" = "${head}" ]; then
 				matched=yes
-			elif [ "${#token}" -lt 40 ] && [ "${head#"${token}"}" != "${head}" ] && resolves_to_head "${token}"; then
+			elif [ "${#token}" -lt 40 ] && [ "${head#"${token}"}" != "${head}" ] && resolves_to_head "${token}" "${id}"; then
 				# HEAD の前方と一致する短縮した SHA だけを、API で完全な SHA に解決して確かめる
 				matched=yes
 			fi
@@ -340,6 +350,9 @@ finish() {
 		for e in ${unnamed[@]+"${unnamed[@]}"}; do
 			echo "unnamed_check_run=${e}"
 		done
+		for e in ${unverified[@]+"${unverified[@]}"}; do
+			echo "unverified=${e}"
+		done
 	fi
 	[ "${result_now}" != "check-run-failed" ] || echo "failed_check_run=${failed_run}"
 	exit "${code}"
@@ -348,6 +361,7 @@ finish() {
 polls=0
 evidence=()
 unnamed=()
+unverified=()
 pending=""
 failed_run=""
 result_now=""

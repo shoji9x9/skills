@@ -44,7 +44,8 @@
       "expect_failing": [
         "数えないもの 書き込み権限のある人のレビューは数え、権限の無い人のレビューは数えない",
         "数えないもの 権限を取得できない人のレビューは数えない",
-        "数えないもの 権限を一時的に取得できなくても、次の取得で書き込み権限を確かめられれば arrived"
+        "数えないもの 権限を一時的に取得できなくても、次の取得で書き込み権限を確かめられれば arrived",
+        "数えないもの 権限を取得でき、書き込み権限が無いと分かった人のレビューは、unverified に出さない"
       ]
     },
     {
@@ -159,7 +160,7 @@
       "id": "comment-short-sha-not-resolved",
       "why": "短縮した SHA を API で解決せずに数える（同じ前方を持つ別の commit で届いたと判定する）",
       "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
-      "find": "&& resolves_to_head \"${token}\"; then",
+      "find": "&& resolves_to_head \"${token}\" \"${id}\"; then",
       "replace": "; then",
       "occurrences": 1,
       "expect_failing": ["届いた方法 短縮した SHA が HEAD に解決できなければ数えない"]
