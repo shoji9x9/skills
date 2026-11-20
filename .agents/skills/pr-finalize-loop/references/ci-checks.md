@@ -183,8 +183,22 @@ push した後の CI で同じ失敗が残ったら、判定が誤っていた�
   run の ID・ジョブの名前・状態・待った時間を書き、`waiting` のジョブなら待っている environment の名前と `reviewers`（空なら空と）も書いて、「行き詰まり」として止まり、利用者に知らせる。
 - runner が割り当てられなかったことが原因で止まり、その原因を除いた後に再開したら、run を取り消してから再実行する。原因を除いた後も、`queued` のままのジョブが動き出さないことがあるからである。
   取り消しは `gh run cancel <run-id> --repo <owner>/<repo>` で行う。取り消しは非同期で、`completed` になる前の run は再実行できない。
-  `gh run view <run-id> --repo <owner>/<repo> --json status` が `completed` になるのを上限を決めて待ってから、`gh run rerun <run-id> --repo <owner>/<repo>` を実行する。
+  run が `completed` になるのを、下の「個別の run の完了を待つ」で上限を決めて待ってから、`gh run rerun <run-id> --repo <owner>/<repo>` を実行する。
 - step が 0 件のまま失敗したジョブも、runner が割り当てられなかったことを示す場合がある。CI の失敗として直す前と再実行する前に、同じように `runner_name` と `labels` を確かめる。
+
+## 個別の run の完了を待つ
+
+1 つの run（取り消した run や、ID の分かっている run）を追うときは、同梱の `scripts/wait-run.sh` を使う。`gh run view` を呼び直すループは書かない。
+完了・人の操作待ち・上限のどれかになるまで待つ。終わったら、run の ID と `head_sha`、終わったときの `status` と `conclusion` を 1 回だけ返す。
+
+```bash
+bash <このスキルのディレクトリ>/scripts/wait-run.sh --repo <owner>/<repo> --run <run-id> --timeout <上限の秒数>
+```
+
+- exit 0（`result=completed`）は、run が完了したことだけを表す。成功したかは `conclusion` で判定する。
+- exit 4（`result=waiting`）は、run が人の操作を待っている（`status` が `waiting` か、`conclusion` が `action_required`）。承認などの待ちとして、「CI の完了を待つ」の上限で扱う。
+- exit 1（`result=timeout`）は、上限の後にもう 1 回取得しても終わっていないことを表す。`status` を報告に書く。
+- exit 2 は、取得に続けて失敗して判定できないことを表す。終わったとも終わっていないとも扱わない。間隔を空けて呼び直し、それでも exit 2 なら `SKILL.md` の「停止条件」のとおり「行き詰まり」として止まる。exit 64 は引数の誤りである。
 
 ## `no checks` を確かめ直す
 
