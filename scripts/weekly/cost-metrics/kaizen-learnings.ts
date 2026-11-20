@@ -437,10 +437,11 @@ function recurrences(
     if (note.recurrenceOf.length === 0) continue;
     const at = history.get(name)?.[0]?.at ?? 0;
     for (const of of note.recurrenceOf) {
+      // 挙げた学びは、後で消した（kaizen の delete）ものでもよい。履歴に、再発の学びを書く前に適用した事象があれば足りる。
       const applied = firstAt(history.get(of) ?? [], "applied");
-      if (!notes.has(of) || applied === undefined || applied > at) {
+      if (applied === undefined || applied > at) {
         throw new Error(
-          `${name} の recurrence-of の ${of} が、無いか、${name} を書く前に適用していない学び`,
+          `${name} の recurrence-of の ${of} が、履歴に無いか、${name} を書く前に適用していない学び`,
         );
       }
     }

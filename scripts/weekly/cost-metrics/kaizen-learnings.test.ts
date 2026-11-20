@@ -710,7 +710,7 @@ describe("数える", () => {
   });
 
   test.each([
-    ["無い学び", { "r.md": note("pending", ["gone.md"]) }, { "r.md": [ev(2, "pending")] }],
+    ["履歴に無い学び", { "r.md": note("pending", ["gone.md"]) }, { "r.md": [ev(2, "pending")] }],
     [
       "適用していない学び",
       { "r.md": note("pending", ["base.md"]), "base.md": note("pending") },
@@ -723,6 +723,17 @@ describe("数える", () => {
     ],
   ])("recurrence-of が%sを挙げていれば例外", (_name, notes, history) => {
     expect(() => metrics(notes, history)).toThrow("recurrence-of の");
+  });
+
+  test("recurrence-of が、適用した後に消した（kaizen の delete）学びを挙げても数える", () => {
+    const m = metrics(
+      { "r.md": note("pending", ["deleted.md"]) },
+      {
+        "r.md": [ev(3, "pending")],
+        "deleted.md": [ev(20, "pending"), ev(10, "applied"), ev(1, null)],
+      },
+    );
+    expect(m.recurrences).toEqual([{ name: "r.md", of: ["deleted.md"], at: ago(3) }]);
   });
 });
 
