@@ -1,8 +1,8 @@
 ---
 date: 2026-09-29
 type: doc
-priority: medium
-status: forgotten
+priority: high
+status: pending
 applied-to: []
 session: claude-code
 ---
@@ -31,6 +31,12 @@ eval の assertion 差し替えで、未作成であるはずのディレクト�
 
 issue-batch の #689 で、kaizen の候補のスキャナを単独で呼び出し、候補 0 件（期待される exit 1）をそのまま呼び出し全体の終了コードにした。
 走査そのものは成功していたが、ツールのエラーとして記録され、次の走査が候補として拾った。
+
+### 追記（2026-11-20・再発）
+
+Issue #1093 で、カバレッジの要約を読む探索のコマンドの末尾に `[ -n "$f" ] && node ...` を置いた。
+要約のファイルが無かったので `[ -n ]` が偽になり、探索は済んだのに呼び出し全体が exit 1 になった。
+ツールのエラーとして記録され、commit 前のチェックが候補として拾った。4 回目の再発なので、status を forgotten から pending に戻し、priority を high に上げた。
 
 ## 根本原因
 

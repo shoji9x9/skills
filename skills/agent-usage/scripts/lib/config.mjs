@@ -38,8 +38,14 @@ export const PRICE_FIELDS = /** @type {const} */ ([
 /** @typedef {Partial<Record<(typeof PRICE_FIELDS)[number], number>>} Price */
 
 /**
+ * 単価が有効な期間。since は有効になる時刻（UTC の 0 時、エポックからのミリ秒）で、null は最初から有効を表す。
+ * 期間は、since から次の期間の since の直前まで続く。最後の期間は、それ以降ずっと続く。
+ * @typedef {{ since: number | null; price: Price }} PricePeriod
+ */
+
+/**
  * @typedef {object} RepoConfig
- * @property {Record<string, Price>} pricing モデルごとの単価
+ * @property {Record<string, PricePeriod[]>} pricing モデルごとの単価（期間の古い順）
  * @property {Record<string, number>} reviewPricing レビューツールごとの 1 回あたりの推定額（USD）
  * @property {{ external: boolean }} ci
  * @property {number} activityWindowMinutes 人の活動の前後に「人がいた」とみなす幅（分）
@@ -112,6 +118,50 @@ export function parsePrice(v, where) {
     throw new Error(`${where}: input と output は必須`);
   }
   return price;
+}
+
+const SINCE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * `YYYY-MM-DD` を、その日の UTC の 0 時にする。実在しない日（2 月 30 日など）は例外にする。
+ * @param {unknown} v
+ * @param {string} where
+ * @returns {number}
+ */
+function parseSince(v, where) {
+  const ms = typeof v === "string" && SINCE_RE.test(v) ? Date.parse(`${v}T00:00:00Z`) : Number.NaN;
+  if (Number.isNaN(ms) || new Date(ms).toISOString().slice(0, 10) !== v) {
+    throw new Error(`${where}.since: 実在する日を YYYY-MM-DD の形で書いていない`);
+  }
+  return ms;
+}
+
+/**
+ * 1 つのモデルの単価を、期間の一覧にする。単価のオブジェクト 1 つは、最初から有効な 1 つの期間として読む。
+ * 配列は、要素ごとに since（有効になる日）を持つ期間として読む。since を省けるのは先頭の要素だけである。
+ * 期間が決まらない書き方（空の配列・同じ since・日付順でない・先頭以外の since の省略）は例外にする。
+ * 並べ替えたり片方を選んだりすると、書き誤りに気付けないからである。
+ * @param {unknown} v
+ * @param {string} where
+ * @returns {PricePeriod[]}
+ */
+export function parsePricePeriods(v, where) {
+  if (!isArray(v)) return [{ since: null, price: parsePrice(v, where) }];
+  if (v.length === 0) throw new Error(`${where}: 期間の配列が空`);
+  return v.map((item, i) => {
+    const at = `${where}[${i}]`;
+    if (!isRecord(item)) throw new Error(`${at}: オブジェクトでない`);
+    const { since: rawSince, ...rest } = item;
+    if (rawSince === undefined && i > 0) throw new Error(`${at}: 先頭以外の期間に since が無い`);
+    const since = rawSince === undefined ? null : parseSince(rawSince, at);
+    const prev = i > 0 ? v[i - 1] : undefined;
+    if (since !== null && isRecord(prev) && prev.since !== undefined) {
+      if (parseSince(prev.since, `${where}[${i - 1}]`) >= since) {
+        throw new Error(`${at}.since: 前の期間の since と同じか、それより前`);
+      }
+    }
+    return { since, price: parsePrice(rest, at) };
+  });
 }
 
 const SCHEMA_DIR = fileURLToPath(new URL("../../config-schemas", import.meta.url));
@@ -217,7 +267,7 @@ export function parseRepoConfig(raw, where = CONFIG_NAME) {
 function readPricing(cfg, raw, where) {
   if (isRecord(raw.pricing)) {
     for (const [model, p] of Object.entries(raw.pricing))
-      cfg.pricing[model] = parsePrice(p, `${where}: pricing.${model}`);
+      cfg.pricing[model] = parsePricePeriods(p, `${where}: pricing.${model}`);
   }
   if (isRecord(raw.reviewPricing)) {
     for (const [k, n] of Object.entries(raw.reviewPricing))

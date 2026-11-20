@@ -1,10 +1,12 @@
 // 単価の解決と、トークン数からの費用の計算。単価はリポジトリの設定 → 同梱の単価表の順に探し、どちらにも無ければ「単価不明」。
+// 単価は期間（since）ごとに持ち、応答の時刻に有効な期間の単価を使う。単価を直しても、前の期間の応答の費用は変わらない。
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isRecord, parsePrice } from "./config.mjs";
+import { isRecord, parsePricePeriods } from "./config.mjs";
 
 /** @typedef {import("./config.mjs").Price} Price */
+/** @typedef {import("./config.mjs").PricePeriod} PricePeriod */
 
 /**
  * トークン数。Anthropic と OpenAI の数え方の違いは、ここに入れる前にそろえる。
@@ -50,19 +52,19 @@ export function normalizeModel(model) {
 }
 
 /**
- * 同梱の単価表を読む。
+ * 同梱の単価表を読む。モデルごとに、期間の古い順の一覧にする。
  * @param {string} path
- * @returns {Record<string, Price>}
+ * @returns {Record<string, PricePeriod[]>}
  */
 export function loadBundledPricing(
   path = fileURLToPath(new URL("../../assets/pricing.json", import.meta.url)),
 ) {
   const raw = JSON.parse(readFileSync(path, "utf8"));
   if (!isRecord(raw) || !isRecord(raw.models)) throw new Error(`${path}: models が無い`);
-  /** @type {Record<string, Price>} */
+  /** @type {Record<string, PricePeriod[]>} */
   const out = {};
   for (const [model, p] of Object.entries(raw.models))
-    out[model] = parsePrice(p, `${path}.models.${model}`);
+    out[model] = parsePricePeriods(p, `${path}.models.${model}`);
   return out;
 }
 
@@ -106,19 +108,45 @@ export function resolveReviewPrice(tool, repo, bundled) {
  */
 
 /**
+ * 時刻 at に有効な期間の単価。at が最初の期間の since より前なら null にする。
+ * @param {readonly PricePeriod[]} periods 期間の古い順（parsePricePeriods が確かめる）
+ * @param {number} at エポックからのミリ秒
+ * @returns {Price | null}
+ */
+export function priceAt(periods, at) {
+  let found = null;
+  for (const p of periods) {
+    if (p.since !== null && p.since > at) break;
+    found = p.price;
+  }
+  return found;
+}
+
+/**
+ * @typedef {object} PricingTables
+ * @property {Record<string, PricePeriod[]>} repo リポジトリの設定の pricing
+ * @property {Record<string, PricePeriod[]>} bundled 同梱の単価表
+ */
+
+/**
+ * 時刻 at の応答に使う単価。リポジトリの設定が同じモデルを持てば、設定の期間だけを使い、同梱の期間と混ぜない。
+ * 設定の期間が at を含まなければ、同梱を探さずに単価不明にする。
  * @param {string} model
- * @param {Record<string, Price>} repoPricing
- * @param {Record<string, Price>} bundledPricing
+ * @param {PricingTables} tables
+ * @param {number} at エポックからのミリ秒
  * @returns {{ price: Price | null; source: PriceSource }}
  */
-export function resolvePrice(model, repoPricing, bundledPricing) {
+export function resolvePrice(model, tables, at) {
   const name = normalizeModel(model);
-  for (const key of [model, name]) {
-    if (Object.hasOwn(repoPricing, key)) return { price: repoPricing[key], source: "repo" };
-  }
-  for (const key of [model, name]) {
-    if (Object.hasOwn(bundledPricing, key))
-      return { price: bundledPricing[key], source: "bundled" };
+  for (const [table, source] of /** @type {const} */ ([
+    [tables.repo, "repo"],
+    [tables.bundled, "bundled"],
+  ])) {
+    for (const key of [model, name]) {
+      if (!Object.hasOwn(table, key)) continue;
+      const price = priceAt(table[key], at);
+      return price === null ? { price: null, source: "unknown" } : { price, source };
+    }
   }
   return { price: null, source: "unknown" };
 }

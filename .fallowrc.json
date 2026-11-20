@@ -10,6 +10,7 @@
     "scripts/gates/**/*.ts",
     "scripts/hooks/**/*.ts",
     "scripts/mutation/**/*.ts",
+    "scripts/monthly/**/*.ts",
     "scripts/tools/**/*.ts",
     "scripts/weekly/**/*.ts",
     ".agents/skills/*/scripts/**/*.ts",
@@ -347,6 +348,10 @@
         "patterns": ["scripts/mutation/**"]
       },
       {
+        "name": "scripts/monthly",
+        "patterns": ["scripts/monthly/**"]
+      },
+      {
         "name": "scripts/tools",
         "patterns": ["scripts/tools/**"]
       },
@@ -383,6 +388,10 @@
       },
       {
         "from": "scripts/mutation",
+        "allow": ["lib", "skills"]
+      },
+      {
+        "from": "scripts/monthly",
         "allow": ["lib", "skills"]
       },
       {

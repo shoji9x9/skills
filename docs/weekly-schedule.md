@@ -16,6 +16,12 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 | 火 | 11:30（02:30） | セキュリティ | `security-audit.yml` |
 | 水 | 09:30（00:30） | 点検 | `self-review-fix.yml` |
 
+月に 1 回の処理は、曜日ではなく日で決める。
+
+| 日 | JST（UTC） | 系統 | 処理 |
+| --- | --- | --- | --- |
+| 毎月 1 日 | 09:30（00:30） | 点検 | `check-pricing-drift.yml`（[`pricing-drift.md`](pricing-drift.md)） |
+
 月曜には、人の対応が要る依存の処理を集める。
 `mutation-proof.yml` の全件の実行は、依存のバージョンを上げて検査が変わった宣言を確かめるためのものなので、月曜に依存の PR をマージした後の火曜に置く。
 `security-audit.yml` は、`self-review.yml` と同じ Claude のプランの使用量で、エージェントを数十分動かす。2 つのエージェントが同時に動きにくいよう、`self-review.yml` の 1 時間後に置く。重なっても、どちらの結果も変わらない。
@@ -48,11 +54,11 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 
 ## 時刻を決めるときの決まり
 
-週次の処理を足すときや時刻を変えるときは、次に従い、上の一覧も同じ変更で直す。
+週次と月次の処理を足すときや時刻を変えるときは、次に従い、上の一覧も同じ変更で直す。
 
 - JST の 09:00〜11:59（UTC の 00:00〜02:59）に置く。この時間帯なら UTC と JST で曜日が変わらないので、一覧と各ファイルのコメントを曜日 1 つで書ける。
   追跡 Issue を書くワークフローは、タイトルの日付を UTC で採り（`date -u +%F`）、JST でも同じ日付になることを前提にしている。
-  当たるのは、`outdated.yml`・`kaizen-schedule.yml`・`ignored-advisories.yml`・`check-cost-metrics.yml`・`self-review.yml`・`security-audit.yml` である。
+  当たるのは、`outdated.yml`・`kaizen-schedule.yml`・`ignored-advisories.yml`・`check-cost-metrics.yml`・`check-pricing-drift.yml`・`self-review.yml`・`security-audit.yml` である。
   `self-review-fix.yml` も、点検の run の日付を UTC で採り、前の日の日付と比べる
 - 分は :00 を避けて :30 にする。GitHub の[ドキュメント](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)は、`schedule` が毎時 0 分に混みあって遅れると書いている。
   このリポジトリでも、:00 の起動は 6〜28 分遅れた

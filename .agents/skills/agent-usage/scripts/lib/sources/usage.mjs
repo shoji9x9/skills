@@ -28,8 +28,8 @@ import { HOUR, localHourStart, toIso } from "../time.mjs";
  * @typedef {object} Context
  * @property {string} person
  * @property {string} tz
- * @property {Record<string, Price>} repoPricing
- * @property {Record<string, Price>} bundledPricing
+ * @property {Record<string, import("../config.mjs").PricePeriod[]>} repoPricing
+ * @property {Record<string, import("../config.mjs").PricePeriod[]>} bundledPricing
  */
 
 /**
@@ -41,7 +41,11 @@ import { HOUR, localHourStart, toIso } from "../time.mjs";
 export function messageCosts(s, ctx) {
   /** @type {{ cost: number | null; source: string }[]} */
   const priced = s.messages.map((m) => {
-    const { price, source } = resolvePrice(m.model, ctx.repoPricing, ctx.bundledPricing);
+    const { price, source } = resolvePrice(
+      m.model,
+      { repo: ctx.repoPricing, bundled: ctx.bundledPricing },
+      m.ts,
+    );
     return { cost: price ? costOf(m.tokens, price) : null, source };
   });
   const snap = s.costSnapshots.length > 0 ? s.costSnapshots[s.costSnapshots.length - 1] : null;

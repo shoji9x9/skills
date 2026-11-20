@@ -520,7 +520,7 @@ export function runRows(runs, o) {
  * @property {string} tz
  * @property {RepoConfig} config
  * @property {Record<string, string>} bundledTools
- * @property {Record<string, Price>} bundledPricing
+ * @property {Record<string, import("../config.mjs").PricePeriod[]>} bundledPricing
  * @property {Record<string, number>} bundledReviewPricing 同梱のレビュー 1 回あたりの推定額
  * @property {readonly { ts: number; text: string }[]} commands エージェントが実行したコマンド
  * @property {"none" | "user"} billing
@@ -1007,7 +1007,11 @@ function codexLogRows(ctx, name, buf) {
   /** @type {Map<string, { tokens: import("../pricing.mjs").Tokens; cost: number | null; source: string }>} */
   const byModel = new Map();
   for (const m of s.messages) {
-    const { price, source } = resolvePrice(m.model, o.config.pricing, o.bundledPricing);
+    const { price, source } = resolvePrice(
+      m.model,
+      { repo: o.config.pricing, bundled: o.bundledPricing },
+      m.ts,
+    );
     const cur = byModel.get(m.model) ?? { tokens: zeroTokens(), cost: 0, source };
     addTokens(cur.tokens, m.tokens);
     cur.cost = price && cur.cost !== null ? cur.cost + costOf(m.tokens, price) : null;
