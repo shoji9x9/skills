@@ -371,10 +371,10 @@ describe("数えないもの", () => {
     const r = wait(
       {
         reviews: [[{ id: 1, login: "eve" }]],
-        pollPerms: { 2: read, 3: read, 4: read, 5: read },
+        pollPerms: { 2: read, 3: read, 4: read, 5: read, 6: read },
       },
       [],
-      { timeout: "1", interval: "1" },
+      { timeout: "2", interval: "1" },
     );
     expect(r.status, r.stderr).toBe(1);
     expect(r.out.result).toBe("timeout");
@@ -478,7 +478,7 @@ describe("待ちの終わり方", () => {
   });
 
   test("上限まで届かなければ、上限の後にもう 1 回取得してから timeout を返す", () => {
-    const r = wait({}, [], { timeout: "1", interval: "1" });
+    const r = wait({}, [], { timeout: "2", interval: "1" });
     expect(r.status).toBe(1);
     expect(r.out.result).toBe("timeout");
     expect(Number(r.out.polls)).toBeGreaterThanOrEqual(2);

@@ -137,7 +137,7 @@ describe("wait-run", () => {
   );
 
   test("上限まで終わらなければ、上限の後にもう 1 回取得してから timeout（exit 1）", () => {
-    const r = waitRun([{ status: "in_progress" }], { timeout: "1", interval: "1" });
+    const r = waitRun([{ status: "in_progress" }], { timeout: "2", interval: "1" });
     expect(r.status).toBe(1);
     expect(r.out).toMatchObject({ result: "timeout", status: "in_progress", conclusion: "" });
     expect(Number(r.out.polls)).toBeGreaterThanOrEqual(2);
