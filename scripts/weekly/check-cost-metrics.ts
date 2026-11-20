@@ -25,11 +25,10 @@ import { isArray } from "../lib/is-array.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import {
   formatDiffComment,
+  kindTracking,
   naturalOrder,
-  oneLine,
   parseTrackingCli,
   tableCell,
-  trackingKeys,
 } from "../lib/text/tracking-diff.ts";
 
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
@@ -554,31 +553,18 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
   "fix-heavy": "修正の PR が多いチェック",
   "slow-job": "遅くなったジョブ",
 };
-const KEY_FORM = new RegExp(`^(${Object.keys(KIND_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
 
-/** 前回との差分に使う識別子。件数や秒数は週ごとに変わるので含めず、種別と対象だけにする。 */
-const findingKey = (f: Finding): string => `${f.kind} ${oneLine(f.target)}`;
-
-const tracking = trackingKeys({
-  marker: "check-cost-metrics",
-  keyForm: KEY_FORM,
-  keyOf: findingKey,
-});
+/** 前回との差分に使う識別子は、種別と対象だけで作る（件数や秒数は週ごとに変わる）。 */
+const tracking = kindTracking("check-cost-metrics", KIND_LABEL);
 export const { previousKeys, diff: diffFindings } = tracking;
 
 /** 空の一覧の候補があるときに、候補の表の下に 1 回だけ出す注記（Issue #948）。 */
 const READERS_NOTE =
   "空の一覧の行で「内容」に出すファイルは、check-cost-metrics.json の readers に書いた案内で、一覧を読む処理を示す。スクリプトは、そのファイルが今も一覧を読んでいるかを確かめていない。";
 
-function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): string[] {
+function findingTable(findings: readonly Finding[], kept: readonly string[]): string[] {
   if (findings.length === 0) return [];
-  const lines = ["| 指標 | 対象 | 内容 | 前回から |", "| --- | --- | --- | --- |"];
-  for (const f of findings) {
-    const state = kept.has(findingKey(f)) ? "継続" : "新規";
-    lines.push(
-      `| ${KIND_LABEL[f.kind]} | ${tableCell(f.target)} | ${tableCell(f.detail)} | ${state} |`,
-    );
-  }
+  const lines = tracking.table(findings, kept, "指標");
   if (findings.some((f) => f.kind === "empty-list")) {
     lines.push("", READERS_NOTE);
   }
@@ -612,7 +598,7 @@ export function formatBody(result: Result, previous: readonly string[] = []): st
     "",
     `直す候補: ${findings.length} 件`,
     "",
-    ...findingTable(findings, new Set(kept)),
+    ...findingTable(findings, kept),
     ...durationTable(rows, config.durations.days),
   ];
   return tracking.finish(lines, findings, resolved);

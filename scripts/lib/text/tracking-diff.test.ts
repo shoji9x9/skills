@@ -6,10 +6,12 @@
 // | 目印 | 無い / 読める / JSON でない / 配列でない / 形の違う識別子 / 重複 / 行の途中にある |
 // | 差分 | 新規 / 継続 / 解消 / 前回なし |
 // | 引数 | 正しい / --previous つき / 足りない / 未知 / 同じオプションが 2 回 / 値が無い / 空 / 位置引数 |
+// | 種類ごとの表（kindTracking） | 0 件 / 新規 / 継続 / 対象に改行と `|` / 知らない種類の識別子 |
 import { describe, expect, test } from "vitest";
 import {
   diffKeys,
   formatDiffComment,
+  kindTracking,
   markerLine,
   naturalOrder,
   oneLine,
@@ -18,6 +20,7 @@ import {
   parseTrackingCliWith,
   readKeys,
   trackingKeys,
+  type KindFinding,
 } from "./tracking-diff.ts";
 
 const FORM = /^k \S+$/u;
@@ -181,5 +184,32 @@ describe("引数", () => {
     { name: "--previous が空", args: ["--out", "a", "--comment-out", "b", "--previous", ""] },
   ])("$name は null", ({ args }) => {
     expect(parseTrackingCli(args)).toBeNull();
+  });
+});
+
+describe("kindTracking", () => {
+  const tracking = kindTracking("k-test", { a: "種類 A", "b-c": "種類 B" });
+
+  test("検出が 0 件なら表を作らない", () => {
+    expect(tracking.table([], [], "種類")).toEqual([]);
+  });
+
+  test("識別子は種類と 1 行にした対象で作り、前回にあれば継続、無ければ新規と書く", () => {
+    const first: KindFinding<"a" | "b-c"> = { kind: "a", target: "x\ny", detail: "p|q" };
+    const findings: KindFinding<"a" | "b-c">[] = [first, { kind: "b-c", target: "z", detail: "r" }];
+    expect(tracking.keyOf(first)).toBe("a x y");
+    expect(tracking.table(findings, ["a x y"], "指標")).toEqual([
+      "| 指標 | 対象 | 内容 | 前回から |",
+      "| --- | --- | --- | --- |",
+      "| 種類 A | x y | p\\|q | 継続 |",
+      "| 種類 B | z | r | 新規 |",
+    ]);
+  });
+
+  test("知らない種類の識別子は、前回の本文から読めない", () => {
+    expect(() => tracking.previousKeys('<!-- k-test:keys ["other x"] -->')).toThrow(
+      /識別子の形でない/u,
+    );
+    expect(tracking.previousKeys('<!-- k-test:keys ["b-c z"] -->')).toEqual(["b-c z"]);
   });
 });

@@ -73,6 +73,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
   hooks/                エージェントの Hook から起動するスクリプト
   tools/                手で起動する補助スクリプト（reinstall-skill.sh など）
   weekly/               週次のワークフローが起動する点検のスクリプト（費用の指標・無視した脆弱性・セルフ点検）
+  monthly/              月次のワークフローが起動する点検のスクリプト（agent-usage の単価表と料金ページの差）
   lib/                  テストとツールの共有ライブラリ、vitest の globalSetup
   skills/<name>/        配布スキルと private skill のスクリプトのテストと fixture
   skills/_cross/        複数のスキルにまたがる取り決めのテスト
