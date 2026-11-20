@@ -198,7 +198,7 @@ bash <このスキルのディレクトリ>/scripts/wait-run.sh --repo <owner>/<
 - exit 0（`result=completed`）は、run が完了したことだけを表す。成功したかは `conclusion` で判定する。
 - exit 4（`result=waiting`）は、run が人の操作を待っている（`status` が `waiting` か、`conclusion` が `action_required`）。承認などの待ちとして、「CI の完了を待つ」の上限で扱う。
 - exit 1（`result=timeout`）は、上限の後にもう 1 回取得しても終わっていないことを表す。`status` を報告に書く。
-- exit 2 は、取得に続けて失敗して判定できないことを表す。終わったとも終わっていないとも扱わない。exit 64 は引数の誤りである。
+- exit 2 は、取得に続けて失敗して判定できないことを表す。終わったとも終わっていないとも扱わない。間隔を空けて呼び直し、それでも exit 2 なら `SKILL.md` の「停止条件」のとおり「行き詰まり」として止まる。exit 64 は引数の誤りである。
 
 ## `no checks` を確かめ直す
 

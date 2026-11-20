@@ -365,6 +365,37 @@ describe("数えないもの", () => {
     expect(r.evidence.map((e) => e[0])).toEqual(["review"]);
   });
 
+  test("1 回目だけ権限の照会に失敗し、後の取得で書き込み権限が無いと分かれば、timeout の unverified は空", () => {
+    // unverified には最後の取得で確かめられなかった根拠だけを残す。前の取得の失敗を残すと、手で確かめ直す必要の無い行が出る
+    const read = { eve: "read" };
+    const r = wait(
+      {
+        reviews: [[{ id: 1, login: "eve" }]],
+        pollPerms: { 2: read, 3: read, 4: read, 5: read },
+      },
+      [],
+      { timeout: "1", interval: "1" },
+    );
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.out.result).toBe("timeout");
+    expect(Number(r.out.polls)).toBeGreaterThanOrEqual(2);
+    expect(r.unverified).toEqual([]);
+  });
+
+  test("arrived のときは、照会に失敗した根拠があっても unverified を出さない", () => {
+    const r = wait({
+      reviews: [
+        [
+          { id: 1, login: "eve" },
+          { id: 2, login: "copilot[bot]", type: "Bot" },
+        ],
+      ],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.evidence.map((e) => e[1])).toEqual(["2"]);
+    expect(r.unverified).toEqual([]);
+  });
+
   test("前の HEAD へのレビューは数えない", () => {
     const r = wait({ reviews: [[{ id: 1, login: "copilot[bot]", type: "Bot", commit: OLD }]] });
     expect(r.status).toBe(1);

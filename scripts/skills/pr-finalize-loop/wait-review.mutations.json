@@ -1,7 +1,7 @@
 {
   "$comment": [
     "wait-review.test.ts の検出能力を示す変異の一覧。",
-    "届いていないレビューを届いたと判定する向きの判定だけを置く（誤っても待ちが早く終わるだけで、エラーにならない）。"
+    "誤ってもエラーにならない判定だけを置く。届いていないレビューを届いたと判定する向きと、確かめられなかった根拠（unverified）を出さずに届いていないと判定させる向きである。"
   ],
   "test_file": "scripts/skills/pr-finalize-loop/wait-review.test.ts",
   "mutations": [
@@ -45,7 +45,9 @@
         "数えないもの 書き込み権限のある人のレビューは数え、権限の無い人のレビューは数えない",
         "数えないもの 権限を取得できない人のレビューは数えない",
         "数えないもの 権限を一時的に取得できなくても、次の取得で書き込み権限を確かめられれば arrived",
-        "数えないもの 権限を取得でき、書き込み権限が無いと分かった人のレビューは、unverified に出さない"
+        "数えないもの 権限を取得でき、書き込み権限が無いと分かった人のレビューは、unverified に出さない",
+        "数えないもの 1 回目だけ権限の照会に失敗し、後の取得で書き込み権限が無いと分かれば、timeout の unverified は空",
+        "数えないもの arrived のときは、照会に失敗した根拠があっても unverified を出さない"
       ]
     },
     {
@@ -173,6 +175,58 @@
       "replace": "scan(\"[0-9a-f]+\")",
       "occurrences": 1,
       "expect_failing": ["届いた方法 SHA が別の語の一部なら数えない"]
+    },
+    {
+      "id": "unverified-review-not-recorded",
+      "why": "権限の照会に失敗したレビューを unverified に記録しない（届いたかを確かめられなかったのに、届いていないと判定させる）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t\tunverified+=(\"review\"$'\\t'\"${ref}\"$'\\t'\"${login}\")\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["数えないもの 権限を取得できない人のレビューは数えない"]
+    },
+    {
+      "id": "unverified-sha-not-recorded",
+      "why": "短縮した SHA の解決に失敗したコメントを unverified に記録しない",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\t\tunverified+=(\"bot-comment\"$'\\t'\"${ref}\"$'\\t'\"${token}\")\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["届いた方法 短縮した SHA が HEAD に解決できなければ数えない"]
+    },
+    {
+      "id": "unverified-not-printed",
+      "why": "timeout のときに unverified の行を出さない",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\t\tfor e in ${unverified[@]+\"${unverified[@]}\"}; do\n\t\t\techo \"unverified=${e}\"\n\t\tdone\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 権限を取得できない人のレビューは数えない",
+        "届いた方法 短縮した SHA が HEAD に解決できなければ数えない"
+      ]
+    },
+    {
+      "id": "unverified-not-reset",
+      "why": "取得ごとに unverified を空にしない（前の取得の失敗が、最後の取得で確かめられた根拠の行として残る）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "\tunnamed=()\n\tunverified=()\n",
+      "replace": "\tunnamed=()\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの 1 回目だけ権限の照会に失敗し、後の取得で書き込み権限が無いと分かれば、timeout の unverified は空"
+      ]
+    },
+    {
+      "id": "timeout-only-output-always",
+      "why": "timeout 以外でも unverified と unnamed_check_run の行を出す（届いた後に、確かめ直す行を出す）",
+      "file": "skills/pr-finalize-loop/scripts/wait-review.sh",
+      "find": "if [ \"${result_now}\" = \"timeout\" ]; then",
+      "replace": "if true; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "数えないもの arrived のときは、照会に失敗した根拠があっても unverified を出さない"
+      ]
     }
   ]
 }
