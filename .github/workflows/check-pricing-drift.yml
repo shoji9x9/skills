@@ -61,18 +61,26 @@ jobs:
           comment="$RUNNER_TEMP/issue-comment.md"
           # 前回の本文は、報告済みのモデルの一覧を持つ。open の追跡 Issue が無ければ、クローズ済みの最後の追跡 Issue から読む。
           # 照合の条件（作成者・接頭辞・日付の形）は tracking-issue-lib.sh の find_tracking_issues と同じにする。
+          # 新しい順に 100 件を取得する。条件に合う Issue が無いまま 100 件に達したら、それより古い Issue に一覧があることを否定できない。
+          # そのときは報告済みのモデルを新規として報告しないよう、追跡 Issue を触らずに失敗させる。
           source_issue="$number"
           if [ -z "$source_issue" ]; then
+            gh issue list --state all --limit 100 \
+              --search "in:title \"$ISSUE_TITLE_PREFIX\" sort:created-desc" \
+              --json number,title,author >"$RUNNER_TEMP/closed-issues.json"
             source_issue="$(
-              gh issue list --state all --limit 100 --search "in:title \"$ISSUE_TITLE_PREFIX\"" \
-                --json number,title,author \
-                --jq '[ .[]
-                        | select(.author.login == "app/github-actions")
-                        | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
-                        | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
-                                 | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
-                        | .number ] | max // empty'
+              jq -r '[ .[]
+                       | select(.author.login == "app/github-actions")
+                       | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
+                       | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
+                                | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
+                       | .number ] | max // empty' "$RUNNER_TEMP/closed-issues.json"
             )"
+            listed="$(jq length "$RUNNER_TEMP/closed-issues.json")"
+            if [ -z "$source_issue" ] && [ "$listed" -ge 100 ]; then
+              echo "クローズ済みの追跡 Issue の照会が 100 件で打ち切られ、条件に合う Issue が無かった。追跡 Issue を触らずに失敗させる" >&2
+              exit 1
+            fi
           fi
           previous_args=()
           if [ -n "$source_issue" ]; then

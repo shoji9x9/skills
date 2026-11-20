@@ -85,6 +85,7 @@ const OPENAI_MD = `# Pricing
 | Model | Input | Output | Cached input |
 | --- | --- | --- | --- |
 | gpt-batch | $1.00 | $1.00 | $1.00 |
+| gpt-6-sol | $1.00 | $5.00 | $0.10 |
 `;
 
 const pageFetcher =
@@ -170,7 +171,7 @@ describe("parseAnthropic", () => {
 });
 
 describe("parseOpenai", () => {
-  test("Standard pricing data の表をすべて読み、短いコンテキストの単価とキャッシュ済みの入力を採る", () => {
+  test("Standard pricing data の表をすべて読み、短いコンテキストの単価とキャッシュ済みの入力を採る。Batch などの節の同じモデルは読まない", () => {
     const prices = parseOpenai(OPENAI_MD);
     expect([...prices.keys()]).toEqual(["gpt-6-sol", "gpt-5.5-pro", "gpt-4o"]);
     expect(prices.get("gpt-6-sol")).toEqual({ input: 2, output: 10, cacheRead: 0.2 });
