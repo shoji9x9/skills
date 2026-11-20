@@ -109,9 +109,8 @@ Claude Code はセッション開始時に両方を読み込み、Copilot のレ
 
 @.textlint/word-list.md
 
-作業では次の原則を守る。各原則の理由と実例は次のファイルにある（Claude Code はセッション開始時に読み込む。他のエージェントは作業の前に開いて読む）。
-
-@docs/agent-workflow.md
+作業では次の原則を守る。各原則の理由と実例は [`docs/agent-workflow.md`](docs/agent-workflow.md) にある。
+毎回は読み込まないので、箇条をどう当てるか迷ったときと、箇条の理由を確かめたいときに開いて読む。
 
 ### 確かめ方
 

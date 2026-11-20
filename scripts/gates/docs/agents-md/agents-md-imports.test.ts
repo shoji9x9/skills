@@ -11,10 +11,9 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..",
 const agents = readFileSync(join(repoRoot, "AGENTS.md"), "utf8");
 const imports = [...agents.matchAll(/^@(\S+)$/gm)].map((m) => m[1]);
 
-test("作業の原則の詳細・文章の規約・使わない語の一覧を、行頭の @path で取り込んでいる", () => {
+test("文章の規約・使わない語の一覧を、行頭の @path で取り込んでいる", () => {
   expect(imports).toEqual(
     expect.arrayContaining([
-      "docs/agent-workflow.md",
       "docs/writing-style.md",
       "skills/writing-style/references/rules.md",
       ".textlint/word-list.md",

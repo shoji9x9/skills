@@ -2,13 +2,15 @@
 // 週次のワークフロー（.github/workflows/check-cost-metrics.yml）が実行し、候補を追跡 Issue に載せる。
 // 候補を挙げるだけで、チェックを廃止するか、ジョブを直すかは人が決める。
 //
-// 集める指標は次の 3 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
+// 集める指標は次の 4 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
 // - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
 // - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数（lists の一覧と fix_prs.exclude のファイルは数えない）
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
+// - セッションの開始時に読み込む文書のバイト数: 起点のファイルと `@path` で取り込む文書の合計が、上限の報告の割合に達したら挙げる（session-context.ts）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
 // - 設定・一覧のファイルを読めない
+// - セッションの開始時に読み込む文書（起点か取り込み先）が無い
 // - git の履歴が浅い
 // - fix_prs.exclude のファイルが今無い、または数えるときにテストの本体の名前に寄せられて何も外さない
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
@@ -23,6 +25,7 @@ import { errorMessage } from "../lib/errors.ts";
 import { isNonBlankString, isPlainObject, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
+import { type ContextFile, sessionContextFiles } from "./session-context.ts";
 import {
   formatDiffComment,
   naturalOrder,
@@ -77,6 +80,8 @@ export type Config = {
     minRatio: number;
     minSeconds: number;
   };
+  /** entries は読み込みの起点のファイル、reportRatio は limitBytes に対して候補に挙げる割合（0 より大きく 1 以下）。 */
+  sessionContext: { entries: string[]; limitBytes: number; reportRatio: number };
 };
 
 function stringList(value: unknown, where: string): string[] {
@@ -155,6 +160,13 @@ function parseFixExclude(value: unknown): FixExclude[] | undefined {
   return entries;
 }
 
+/** 0 より大きく 1 以下の割合。1 を超えると、上限を超えても候補に挙げない設定になるので例外にする。 */
+function ratio(value: unknown, where: string): number {
+  const found = positive(value, where);
+  if (found > 1) throw new Error(`${where} が 1 を超えている`);
+  return found;
+}
+
 function section(value: Record<string, unknown>, key: string): Record<string, unknown> {
   const found = value[key];
   if (!isRecord(found)) throw new Error(`${key} がオブジェクトでない`);
@@ -169,6 +181,7 @@ export function parseConfig(text: string): Config {
   }
   const fix = section(value, "fix_prs");
   const dur = section(value, "durations");
+  const ctx = section(value, "session_context");
   const lists = value["lists"].map(parseList);
   // 同じ一覧を 2 回書くと、識別子が重複し、次の実行が前回の本文を読めなくなる。
   const duplicated = firstDuplicate(lists.map((l) => l.file));
@@ -188,6 +201,11 @@ export function parseConfig(text: string): Config {
       minRuns: positive(dur["min_runs"], "durations.min_runs"),
       minRatio: positive(dur["min_ratio"], "durations.min_ratio"),
       minSeconds: positive(dur["min_seconds"], "durations.min_seconds"),
+    },
+    sessionContext: {
+      entries: stringList(ctx["entries"], "session_context.entries"),
+      limitBytes: positive(ctx["limit_bytes"], "session_context.limit_bytes"),
+      reportRatio: ratio(ctx["report_ratio"], "session_context.report_ratio"),
     },
   };
 }
@@ -229,7 +247,7 @@ export function countEntries(rule: CountRule, value: unknown, file: string): num
 }
 
 export type Finding = {
-  kind: "empty-list" | "fix-heavy" | "slow-job";
+  kind: "empty-list" | "fix-heavy" | "slow-job" | "context-size";
   target: string;
   detail: string;
 };
@@ -547,12 +565,39 @@ export function slowJobs(rows: readonly JobRow[], dur: Config["durations"]): Fin
     }));
 }
 
+// ---- 指標 4: セッションの開始時に読み込む文書のバイト数
+
+function totalBytes(files: readonly ContextFile[]): number {
+  return files.reduce((sum, f) => sum + f.bytes, 0);
+}
+
+function percent(bytes: number, limit: number): string {
+  return `${Math.round((bytes / limit) * 100)}%`;
+}
+
+/** 合計が上限の報告の割合に達したら、起点のファイルを対象にして 1 件挙げる。 */
+export function contextSize(
+  files: readonly ContextFile[],
+  ctx: Config["sessionContext"],
+): Finding[] {
+  const total = totalBytes(files);
+  if (total < ctx.limitBytes * ctx.reportRatio) return [];
+  return [
+    {
+      kind: "context-size",
+      target: ctx.entries.join("、"),
+      detail: `合計 ${total} バイト（上限 ${ctx.limitBytes} バイトの ${percent(total, ctx.limitBytes)}）`,
+    },
+  ];
+}
+
 // ---- 追跡 Issue の本文
 
 const KIND_LABEL: Record<Finding["kind"], string> = {
   "empty-list": "空の免除・保留の一覧",
   "fix-heavy": "修正の PR が多いチェック",
   "slow-job": "遅くなったジョブ",
+  "context-size": "セッションの開始時に読み込む文書",
 };
 const KEY_FORM = new RegExp(`^(${Object.keys(KIND_LABEL).join("|")}) \\S(.*\\S)?$`, "u");
 
@@ -600,11 +645,28 @@ function durationTable(rows: readonly JobRow[], days: number): string[] {
   return [...lines, "", "</details>", ""];
 }
 
-export type Result = { findings: Finding[]; rows: JobRow[]; config: Config };
+function contextTable(files: readonly ContextFile[], ctx: Config["sessionContext"]): string[] {
+  const total = totalBytes(files);
+  const lines = [
+    `<details><summary>セッションの開始時に読み込む文書（合計 ${total} バイト、上限 ${ctx.limitBytes} バイトの ${percent(total, ctx.limitBytes)}）</summary>`,
+    "",
+    "| 文書 | 取り込みの段 | バイト数 |",
+    "| --- | --- | --- |",
+  ];
+  for (const f of files) lines.push(`| ${tableCell(f.path)} | ${f.hops} | ${f.bytes} |`);
+  return [...lines, "", "</details>", ""];
+}
+
+export type Result = {
+  findings: Finding[];
+  rows: JobRow[];
+  context: ContextFile[];
+  config: Config;
+};
 
 /** 追跡 Issue の本文。最後の行に、次の実行が差分に使う識別子の一覧を埋める。 */
 export function formatBody(result: Result, previous: readonly string[] = []): string {
-  const { findings, rows, config } = result;
+  const { findings, rows, context, config } = result;
   const { kept, resolved } = diffFindings(findings, previous);
   const lines = [
     "チェックと CI の費用の指標から挙げた、直す候補の一覧です。廃止するか直すかは人が決めます。",
@@ -614,6 +676,7 @@ export function formatBody(result: Result, previous: readonly string[] = []): st
     "",
     ...findingTable(findings, new Set(kept)),
     ...durationTable(rows, config.durations.days),
+    ...contextTable(context, config.sessionContext),
   ];
   return tracking.finish(lines, findings, resolved);
 }
@@ -639,7 +702,7 @@ export const defaultRunner: Runner = async (command, args) => {
   return result.stdout;
 };
 
-/** 3 つの指標を集める。確かめられなければ例外を投げる。 */
+/** 4 つの指標を集める。確かめられなければ例外を投げる。 */
 export async function collect(
   run: Runner,
   input: { config: Config; root: string; now: Date },
@@ -647,14 +710,20 @@ export async function collect(
   const { config, root, now } = input;
   // 手元で済む指標を先に集め、一覧を読めないときや履歴が浅いときは、時間のかかるジョブの API を呼ぶ前に止める。
   const lists = await emptyLists(config.lists, root);
+  const context = sessionContextFiles(root, config.sessionContext.entries);
   const fixes = await fixHeavyChecks(run, config.fixPrs, {
     root,
     now,
     lists: config.lists.map((l) => l.file),
   });
   const rows = await jobRows(run, config.durations, now);
-  const findings = [...lists, ...fixes, ...slowJobs(rows, config.durations)];
-  return { findings, rows, config };
+  const findings = [
+    ...lists,
+    ...fixes,
+    ...slowJobs(rows, config.durations),
+    ...contextSize(context, config.sessionContext),
+  ];
+  return { findings, rows, context, config };
 }
 
 /** `options` はテストが一時ディレクトリと偽の時刻を渡すためにある。ワークフローはデフォルトで呼ぶ。 */

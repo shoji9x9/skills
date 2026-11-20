@@ -7,7 +7,9 @@
     "fix_prs は、直近 days 日の first-parent の履歴で、paths のファイルを変えた fix の PR が min 件以上のチェックを挙げる。",
     "lists に挙げた一覧は、fix_prs でも数えない。項目を足したり消したりするのは、ほかの修正に伴うからである。ほかにチェックの本体ではないファイル（起動の設定・宣言の一覧）は、fix_prs.exclude に理由を書くと候補に挙げない。",
     "durations は、workflows の成功した run のうち fork の PR でない run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
-    "閾値は、Issue #939 の作業で実測した値から決めた（PR の本文にある）。"
+    "閾値は、Issue #939 の作業で実測した値から決めた（PR の本文にある）。",
+    "session_context は、entries のファイルと、そこから @path で取り込む文書（4 段まで）のバイト数を数え、合計が limit_bytes の report_ratio の割合に達したら挙げる（Issue #1095）。",
+    "entries は、Claude Code がリポジトリで読む CLAUDE.md にする。AGENTS.md 単体の上限（Codex が読む 32 KiB）は、pre-commit と CI の check-agents-md-size.ts が確かめる。"
   ],
   "lists": [
     {
@@ -87,5 +89,10 @@
     "min_runs": 3,
     "min_ratio": 0.2,
     "min_seconds": 30
+  },
+  "session_context": {
+    "entries": ["CLAUDE.md"],
+    "limit_bytes": 65536,
+    "report_ratio": 0.8
   }
 }

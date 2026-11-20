@@ -1,6 +1,6 @@
 name: Check cost metrics
 
-# チェックと CI の費用の指標（空の免除・保留の一覧、修正の PR が多いチェック、ジョブの所要時間）を毎週集め、
+# チェックと CI の費用の指標（空の免除・保留の一覧、修正の PR が多いチェック、ジョブの所要時間、セッションの開始時に読み込む文書のバイト数）を毎週集め、
 # 直す候補を追跡 Issue に載せる。廃止するか直すかは人が決める。
 # 集計は scripts/weekly/check-cost-metrics.ts にあり、対象と閾値は scripts/weekly/check-cost-metrics.json にある。
 on:
