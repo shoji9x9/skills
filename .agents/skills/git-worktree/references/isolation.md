@@ -171,3 +171,33 @@ gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){ # ページング
 subagent の worktree にも実行中は lock が掛かり、終わると外れる。
 `git worktree remove` が lock を理由に失敗したら、確かめずに `--force` を付けない。lock の理由を読み、
 他のセッションが使っていないことを確かめてから、`git worktree unlock` を実行する。
+
+## セッションを移す（Codex CLI の場合）
+
+Codex CLI には、`EnterWorktree` に当たるツールが無い。CLI の起動と slash command で、セッションの作業ディレクトリを worktree へ移す。
+コマンドの形は、公式のドキュメント（[Codex CLI のコマンド](https://learn.chatgpt.com/docs/developer-commands?surface=cli)）で確かめた。
+`/worktree` と `/cd` の挙動は、Codex CLI 0.171.0 の対話の画面で確かめた。
+
+| 場面 | 移し方 |
+| --- | --- |
+| 既存の branch（Issue に紐付いた branch）の worktree を新しく起動する | `git worktree add <パス> <branch>` で用意し、`codex -C <パス>` で起動する |
+| 開いている会話から、作成済みの worktree へ移る | `/cd <パス>`。会話が待機中で、キューに入力が無く、バックグラウンドの端末も無いときだけ使える |
+| worktree の管理を CLI に任せて新しく起動する | `codex --worktree` |
+| 開いている会話を、CLI が作る新しい worktree で続ける | `/worktree` で、今の会話を新しい worktree で続ける方を選ぶ。タスクの実行中は使えない |
+
+**`enter` では、上の 2 行（既存の branch の方法）を使う。**
+`codex --worktree` と `/worktree` は、worktree を `~/.codex/worktrees/<id>/<リポジトリ名>` に作る。
+その worktree は detached HEAD で、渡された branch を checkout しない（Codex CLI 0.171.0 の `codex exec --worktree` と `/worktree` で確かめた）。
+対話の `codex --worktree` も同じ処理で worktree を作ると、[openai/codex#60015](https://github.com/openai/codex/issues/60015) に書かれている。
+そのため、移った後の `git branch --show-current` が空になり、`enter` の確かめ（手順 5）を通らない。
+
+起動または移動の後に、次の 2 つで対象を確かめる。
+
+```bash
+git rev-parse --show-toplevel   # worktree のパスであること
+git branch --show-current       # 渡した branch であること
+```
+
+無視対象のファイル（`.env` など）は、どの方法でも運ばれない。[carry-in.md](carry-in.md) の「Codex の場合」の手順で手で運ぶ。
+
+上の「入った後はハーネスが強制する」の拒否は、Claude Code の仕組みである。Codex で同じ拒否が行われるかは確かめていない。

@@ -28,6 +28,57 @@ Claude Code には、ファイルを運ぶ方法が 2 つある。`.worktreeincl
 
 「`.env` や受領物が要る作業か」で決める。要らないなら、リポジトリの外に置いて除外の手間をなくすのが安い。
 
+## Codex の場合
+
+Codex で `.worktreeinclude` を適用するのは、ChatGPT デスクトップアプリがローカルに管理用の worktree を作るときだけである
+（[Worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees)）。
+
+Codex CLI が作る worktree には、ファイルが運ばれない。
+`codex --worktree` と `codex exec --worktree` で作った worktree には、追跡済みのファイル（`.worktreeinclude` 自身を含む）だけが入る。
+`.worktreeinclude` に書いた無視対象の `.env` はコピーされなかった（Codex CLI 0.171.0 の `codex exec --worktree` で確かめた）。
+この挙動は上流の [openai/codex#60015](https://github.com/openai/codex/issues/60015) で報告されている。
+`git worktree add` で自分で作った worktree に `codex -C <パス>` で入る場合も、ファイルは運ばれない。
+
+そのため、Codex CLI で worktree を使うリポジトリでは、`setup` で `carry_in.method` に `manual` を選び、要るファイルを `carry_in.files` に挙げる。
+上流の Issue が解決して CLI も `.worktreeinclude` を適用するようになるまでは、`worktreeinclude` を選んでも CLI の worktree ではファイルが揃わない。
+
+worktree に入った後、`carry_in.files` に挙げたファイルを 1 件ずつ手でコピーする。
+`carry_in.files` にパターン（`.config/skills/shoji9x9/*.local.jsonc` など）を書いた場合は、共有ツリーで一致するファイルを先に挙げ、1 件ずつ次の手順を当てる。
+コピーする前に、コピー先で対象のファイルが Git の無視対象になっていることを確かめる。
+無視対象でないファイル（`.env` など）をコピーすると、未追跡のファイルとして `git status` に現れ、`git add -A` で commit に入る。
+
+`cp` は、コピー先に既にあるファイルを上書きし、コピー先がシンボリックリンクならリンク先に書き込む。
+そのため、次のどれかに当たれば、コピーせずに 0 以外で止まる。
+
+- コピー先で無視対象ではない
+- 共有ツリーのファイルが、通常のファイルでないか、シンボリックリンクである（自動のコピーも、ソース側のシンボリックリンクを飛ばす）
+- 共有ツリーのファイルがあるディレクトリの実体が、共有ツリーの外にある（無視されたシンボリックリンクのディレクトリを通って、外のファイルを運ばない）
+- コピー先に、ファイルかシンボリックリンクが既にある（worktree の中で変えた `.env` を上書きしない）
+- コピー先のディレクトリの実体が、worktree の外にある（commit されたシンボリックリンクを通って外に書き込まない）
+
+止まったら、理由を確かめてから、そのファイルを運ぶかを決め直す。
+
+```bash
+src=<共有ツリーのルート>
+wt=<worktree のルート>
+f=.env   # carry_in.files の 1 件（パターンなら、一致したファイルの 1 件）
+fail() { echo "$f: $1。コピーしない" >&2; exit 1; }
+git -C "$wt" check-ignore -q -- "$f" || fail "コピー先で無視対象ではない"
+if [ -L "$src/$f" ] || [ ! -f "$src/$f" ]; then fail "共有ツリーに通常のファイルとして無い"; fi
+if [ -e "$wt/$f" ] || [ -L "$wt/$f" ]; then fail "コピー先に既にある"; fi
+# パスの親のディレクトリのうち、既にある最も深いものの実体が、ルートの実体の中にあるかを確かめる
+inside() {
+  d=$(dirname "$2")
+  while [ ! -e "$d" ] && [ ! -L "$d" ]; do d=$(dirname "$d"); done
+  real_root=$(cd "$1" && pwd -P) && real_d=$(cd "$d" && pwd -P) || return 1
+  case "$real_d/" in "$real_root"/*) ;; *) return 1 ;; esac
+}
+inside "$src" "$src/$f" || fail "共有ツリーのファイルの実体が共有ツリーの外にある"
+inside "$wt" "$wt/$f" || fail "コピー先が worktree の外を指す"
+mkdir -p "$(dirname "$wt/$f")"
+cp -p "$src/$f" "$wt/$f"
+```
+
 ## `.worktreeinclude`（コピー）
 
 リポジトリの直下に置く、`.gitignore` と同じ書式のファイルである。1 行に 1 つのパターンを書き、`#` で始まる行はコメント、空行は無視される。

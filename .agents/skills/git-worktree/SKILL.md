@@ -77,6 +77,7 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 1. 置き場所を決める。この判断が後の手順を決めるので、最初に確定する（判断の材料は下の表）。
 2. 置き場所がリポジトリの中なら、worktree のディレクトリをすべてのチェックから除外する。`.gitignore` の 1 か所では足りない。
 3. `.gitignore` の対象のうち worktree で要るファイル（`.env`・受領物・ベンダーの配布物）を挙げ、運ぶ方法を選ぶ。
+   Codex CLI が作る worktree には `.worktreeinclude` が適用されないので、Codex CLI で使うリポジトリでは `manual` を選ぶ（[`references/carry-in.md`](references/carry-in.md)「Codex の場合」）。
 4. 決めた内容を、`git-worktree` の設定ファイル（リポジトリの層の `.config/skills/shoji9x9/git-worktree.jsonc`）の `location` と `carry_in` に記録する。
    キーの型はスキーマ（`config-schemas/git-worktree.schema.json`）で、書き込みの決まりは [`references/config-files.md`](references/config-files.md) で定義する。
    `location` は、リポジトリの中ならルートからの相対パス（例: `.claude/worktrees`）、リポジトリの外なら `outside` にする。
@@ -97,7 +98,7 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 
 | 置き場所 | 利点 | 代償 |
 | --- | --- | --- |
-| リポジトリの中（`.claude/worktrees/<名前>` など） | 新しく作るときは、ファイルが自動で運ばれる。セッションの移動に承認が要らない | すべてのチェックに除外が要る。除外を忘れると、共有ツリー側のチェックが失敗する |
+| リポジトリの中（`.claude/worktrees/<名前>` など） | 新しく作るときは、ファイルが自動で運ばれる（Codex CLI を除く）。セッションの移動に承認が要らない | すべてのチェックに除外が要る。除外を忘れると、共有ツリー側のチェックが失敗する |
 | リポジトリの外（`$(mktemp -d)` の下など） | 除外がまったく要らない | ファイルは手で運ぶ。セッションを移すたびに利用者の承認が要るので、無人の実行では止まる。入れるのは起動したディレクトリからの 1 回だけで、worktree の間は移れない（[`references/isolation.md`](references/isolation.md)「入れ子と再入場」） |
 
 ### enter
@@ -112,9 +113,11 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
    戻してよいか判断できなければ、呼び出し側へ返して停止する。
 3. worktree を用意する。branch を作らせない形で呼ぶ（[`references/isolation.md`](references/isolation.md)）。
 4. セッションをその worktree へ移す。移るまでは隔離されていない。
+   移し方はエージェントごとに違う（Claude Code は `EnterWorktree` の `path`、Codex CLI は `codex -C <パス>` か `/cd <パス>`。[`references/isolation.md`](references/isolation.md)）。
 5. 移ったことを、`git rev-parse --show-toplevel` と `git branch --show-current` が期待どおりの値を返すことで確かめる。
 6. 運ぶ必要があるファイルを、[`references/carry-in.md`](references/carry-in.md) に従って揃える。
    エージェントがファイルを自動で運ぶのは新しく作るときだけなので、既存の worktree に入った場合は手で運ぶ。
+   Codex CLI は新しく作るときも運ばないので、Codex CLI では常に手で運ぶ（[`references/carry-in.md`](references/carry-in.md)「Codex の場合」）。
 7. 運んだファイルがチェックの対象に入っていないことを確かめる（`.env` の本物の資格情報が、シークレットのスキャンで検出される）。
 8. パスで信頼や承認を判定するツール（mise の trust など）で、信頼の設定を通す。worktree は新しいパスなので、
    共有ツリーで通した信頼は引き継がれない（`mise ERROR ... are not trusted` で `node -e` も失敗する）。
@@ -144,7 +147,7 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 - 逆に、セッションを移せば、ハーネスが subagent まで含めて隔離する。隔離の実体は「入る」ことで、代わりになる書き方は無い（[`references/isolation.md`](references/isolation.md)）
 - hook のパスは worktree に合わせて変わらない。`${CLAUDE_PROJECT_DIR}` は起動したときのプロジェクトのルートを指したままで、
   hook はメインチェックアウト側のスクリプトを実行する（[`references/isolation.md`](references/isolation.md)）
-- `.gitignore` の対象のファイルは、checkout では入らない。明示的に運ぶ必要があり、自動で運ばれるのは新しく作るときだけである（[`references/carry-in.md`](references/carry-in.md)）
+- `.gitignore` の対象のファイルは、checkout では入らない。明示的に運ぶ必要があり、自動で運ばれるのは新しく作るときだけである。Codex CLI では、新しく作るときも運ばれない（[`references/carry-in.md`](references/carry-in.md)）
 - 共有ツリーへのシンボリックリンクは読み取り専用ではない。リンク越しに実体を書き換えたり消したりできる。
   `rm` を見るガードでは、`sed -i` を止められない（[`references/carry-in.md`](references/carry-in.md)）
 - 除外は 1 か所では足りない。`.gitignore` を読まないチェックがあるので、同じ除外をすべてのチェックに入れる（[`references/scanner-exclusions.md`](references/scanner-exclusions.md)）
