@@ -329,6 +329,91 @@ describe.skipIf(process.getuid?.() === 0)(
       expect(run.status).toBe(1);
       expect(run.stderr).toMatch(/抽出完了のマーカーを書けませんでした/);
     });
+
+    test("--sentinel-suffix を渡さない呼び出しでは、解消済みになるのはこのセッションのセンチネルだけだと案内する", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      const run = withReadOnly(main, () =>
+        spawnSync(
+          "bash",
+          [
+            join(scriptsDir, "kaizen-extract-done.sh"),
+            "--agent",
+            "claude-code",
+            "--session-id",
+            SESSION,
+          ],
+          {
+            timeout: CHILD_TIMEOUT_MS,
+            cwd: worktree,
+            encoding: "utf8",
+            env: kaizenEnv(main, { CLAUDE_PROJECT_DIR: main }),
+          },
+        ),
+      );
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.stderr).toMatch(/解消済みとして扱うのは、このセッションのセンチネルだけです/);
+    });
+
+    // checkpoint を自分のツリーに書けた後に、6 行目を足す書き直しだけが失敗する状態を作る。
+    // checkpoint のパスがディレクトリだと、移動はその中へ入れて成功し、書き直しは失敗する。
+    test("checkpoint に supersedes-sentinel を書き直せなければ、チェックが止め続けることを案内して exit 0 で終える", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      const transcript = join(main, "t.jsonl");
+      writeFileSync(transcript, "{}\n");
+      writeSentinel(main);
+      mkdirSync(inKaizen(worktree, `.extract-checkpoint.${SESSION}`), { recursive: true });
+      const run = withReadOnly(main, () => runExtractDone(worktree, main, [transcript]));
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.stderr).toMatch(
+        /解消済みの記録も書けませんでした。コミット前のチェックは止めたままにします/,
+      );
+    });
+
+    // 自分のツリーにマーカーを書けた後に、2 行目を足す書き直しだけが失敗する状態を作る。
+    // 書き直しの直前に呼ぶ date を偽物にし、その時点でマーカーを読み取り専用にする。
+    test("マーカーに supersedes-checkpoint を書き直せなければ、exit 1 で終える", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      writeFileSync(inKaizen(main, `.extract-checkpoint.${SESSION}`), "old\n0\nclaude-code\n0\n\n");
+      const marker = inKaizen(worktree, `.extract-done.${SESSION}`);
+      const bin = join(worktree, "fake-bin");
+      mkdirSync(bin);
+      const realDate = spawnSync("bash", ["-c", "command -v date"], {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      }).stdout.trim();
+      writeFileSync(
+        join(bin, "date"),
+        `#!/usr/bin/env bash\n[ -e "${marker}" ] && chmod 0444 "${marker}"\nexec "${realDate}" "$@"\n`,
+      );
+      chmodSync(join(bin, "date"), 0o755);
+      const run = withReadOnly(main, () =>
+        spawnSync(
+          "bash",
+          [
+            join(scriptsDir, "kaizen-extract-done.sh"),
+            "--sentinel-suffix",
+            "",
+            "--agent",
+            "claude-code",
+            "--session-id",
+            SESSION,
+          ],
+          {
+            timeout: CHILD_TIMEOUT_MS,
+            cwd: worktree,
+            encoding: "utf8",
+            env: kaizenEnv(main, {
+              CLAUDE_PROJECT_DIR: main,
+              PATH: `${bin}:${process.env.PATH ?? ""}`,
+            }),
+          },
+        ),
+      );
+      expect(run.status, run.stderr).toBe(1);
+      expect(run.stderr).toMatch(/抽出完了のマーカーを書けませんでした/);
+    });
   },
 );
 

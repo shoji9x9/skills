@@ -2709,6 +2709,35 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
     },
   );
 
+  test.skipIf(process.getuid?.() === 0)(
+    "SessionStart は、マーカーを消せず `.expired` も書けなければ、commit がチェックなしに通ることを警告して exit 0 で終える",
+    async () => {
+      const { main, worktree } = await makeRepoWithWorktree();
+      const stale = writeDone(main, "2026-09-11T12:30:00Z\n");
+      mkdirSync(join(worktree, ".kaizen"), { recursive: true });
+      chmodSync(stale, 0o444);
+      chmodSync(join(main, ".kaizen"), 0o555);
+      chmodSync(join(worktree, ".kaizen"), 0o555);
+      try {
+        const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+          timeout: CHILD_TIMEOUT_MS,
+          cwd: worktree,
+          input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
+          env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+        });
+        expect(inject.status, inject.stderr).toBe(0);
+        expect(inject.stderr).toContain(
+          "無効にする記録も書けませんでした。このセッションの commit はチェックなしに通ります",
+        );
+        expect(existsSync(kaizenFile(worktree, `.extract-done.${SESSION}.expired`))).toBe(false);
+      } finally {
+        chmodSync(join(worktree, ".kaizen"), 0o755);
+        chmodSync(join(main, ".kaizen"), 0o755);
+        chmodSync(stale, 0o644);
+      }
+    },
+  );
+
   // `source: compact` は同一セッションの継続なので、そのときだけマーカーを残す（広げた範囲でも同じ）。
   test("source: compact では別ツリーのマーカーも残す", async () => {
     const { main, worktree } = await makeRepoWithWorktree();

@@ -490,7 +490,8 @@
       "replace": "\t\t\t:",
       "occurrences": 1,
       "expect_failing": [
-        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る"
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る",
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、マーカーを消せず `.expired` も書けなければ、commit がチェックなしに通ることを警告して exit 0 で終える"
       ]
     },
     {
@@ -502,6 +503,17 @@
       "occurrences": 1,
       "expect_failing": [
         "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る"
+      ]
+    },
+    {
+      "id": "inject-expired-write-failure-silent",
+      "why": "SessionStart が、マーカーを消せず `.expired` も書けなかったときに警告しない（commit がチェックなしに通ることを利用者が知る手段が無い。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "\t\t\t\tprintf '%s: 抽出完了のマーカーを消せず、無効にする記録も書けませんでした。このセッションの commit はチェックなしに通ります: %s\\n' \\",
+      "replace": "\t\t\t\t: \\",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、マーカーを消せず `.expired` も書けなければ、commit がチェックなしに通ることを警告して exit 0 で終える"
       ]
     }
   ]

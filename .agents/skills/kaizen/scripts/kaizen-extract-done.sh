@@ -220,8 +220,9 @@ if declare -f kaizen_find_control_file >/dev/null 2>&1; then
 fi
 sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
 # 制御ファイルが在るツリーに書けないことがある（エージェントの sandbox が元のツリーへの書き込みを許さない、権限が無い）。
-# そのときは、自分のツリー（cwd）の .kaizen/ に書く。チェックは、すべてのツリーの中で新しい方の記録を使うので、
-# 元のツリーに残った古い checkpoint やセンチネルがあっても、ここで書いた記録が解消として扱われる（kaizen-precommit-gate.sh）。
+# そのときは、自分のツリー（cwd）の .kaizen/ に書く。チェックは、自分のツリーの checkpoint を先に読み、無ければ他のツリーから探す。
+# 元のツリーに残ったセンチネルと checkpoint は、ここで書いた記録の印と更新時刻で、消せなかった残りとして扱う（kaizen-precommit-gate.sh の collect_unresolved）。
+# 元のツリーでチェックを実行すると、残った古い checkpoint を先に読み、抽出済みの範囲を走査し直して止めることがある（commit を通す側には誤らない）。
 own_checkpoint_path=".kaizen/${checkpoint_path#.kaizen/}"
 own_done_path=".kaizen/${done_path#.kaizen/}"
 checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
@@ -251,7 +252,7 @@ remove_control_file_everywhere() { # $1: 制御ファイル名
 }
 
 # 制御ファイルを、指定したパス以外のすべての作業ツリーから消す。自分のツリーに書いた新しい記録を残し、
-# 他のツリーに残った古い複製を消すために使う。消せない複製はチェックが新しい方の記録で覆う。
+# 他のツリーに残った古い複製を消すために使う。消せない複製の扱いは、上の「制御ファイルが在るツリーに書けないことがある」の説明のとおりである。
 remove_control_file_except() { # $1: 残すパス
 	local keep="${1:-}" name dir
 	name=${keep##*/}
@@ -422,7 +423,8 @@ if [ "${mode}" = "complete" ]; then
 		# 消せたときは書かない。以前の形式のマーカーと同じ 1 行のままにして、後から書かれた checkpoint を優先させる。
 		if declare -f kaizen_find_control_file >/dev/null 2>&1 &&
 			kaizen_find_control_file "" "${checkpoint_path##*/}" >/dev/null 2>&1; then
-			printf '%s\nsupersedes-checkpoint\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" | kaizen_safe_write "${done_path}" || {
+			done_stamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+			printf '%s\nsupersedes-checkpoint\n' "${done_stamp}" | kaizen_safe_write "${done_path}" || {
 				echo "kaizen-extract-done: 抽出完了のマーカーを書けませんでした: ${done_path}" >&2
 				exit 1
 			}
