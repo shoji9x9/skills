@@ -2,26 +2,26 @@
   "$comment": [
     "check-cost-metrics.test.ts の検出能力を示す変異の一覧（Issue #939）。誤ると、確かめていないのに「直す候補は無い」として追跡 Issue を閉じる判定だけを置く。"
   ],
-  "test_file": "scripts/weekly/check-cost-metrics.test.ts",
+  "test_file": "scripts/weekly/cost-metrics/check-cost-metrics.test.ts",
   "mutations": [
     {
       "id": "empty-list-never-reported",
       "why": "空の一覧を候補にせず、仕組みだけが残った一覧を見逃す",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "if (count === 0 && target.keepEmpty === undefined) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "空の一覧 空の一覧だけを挙げ、readers を案内として添える（JSON と TypeScript の export）",
         "空の一覧 readers のファイルが無い・一覧の名前を含まないときも、失敗せずに数える",
-        "まとめて集める 4 つの指標を集める",
+        "まとめて集める 5 つの指標を集める。学びのディレクトリが無ければ、数えずに null にする",
         "CLI 本文とコメントを書き、due を出す"
       ]
     },
     {
       "id": "fix-title-ignored",
       "why": "PR のタイトルが fix かを見ずに数え、修正の PR が多いチェックを見分けられない",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "if (!FIX_TITLE.test(entry.title)) continue;",
       "replace": "if (false) continue;",
       "occurrences": 1,
@@ -30,7 +30,7 @@
     {
       "id": "shallow-history-allowed",
       "why": "浅い履歴でも数え、修正の PR を 0 件として「直す候補は無い」とする",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "if ((await git([\"rev-parse\", \"--is-shallow-repository\"])).trim() !== \"false\") {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -39,7 +39,7 @@
     {
       "id": "truncated-runs-allowed",
       "why": "API の一覧が上限で切れても数え、遅くなったジョブを見逃す",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "if (total > 1000)",
       "replace": "if (false)",
       "occurrences": 1,
@@ -48,7 +48,7 @@
     {
       "id": "fix-exclude-ignored",
       "why": "exclude に載せたファイルも候補に挙げ、起動の設定と宣言の一覧が毎週の候補に出続ける",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "new Set([...files, ...lists]);",
       "replace": "new Set([...lists]);",
       "occurrences": 1,
@@ -59,7 +59,7 @@
     {
       "id": "fix-exclude-reason-optional",
       "why": "理由の無い除外を受け付け、なぜ数えないかを書かずにチェックを外せる",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "if (!isNonBlankString(entry[\"reason\"])) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -71,7 +71,7 @@
     {
       "id": "fix-lists-not-excluded",
       "why": "免除・保留の一覧を修正の PR の数え方から外さず、項目を足したり消したりするたびに候補に挙げる",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "lists: config.lists.map((l) => l.file),",
       "replace": "lists: [],",
       "occurrences": 1,
@@ -80,7 +80,7 @@
     {
       "id": "fix-lists-ignored-in-filter",
       "why": "渡された一覧のファイルを除外の集合に入れず、免除・保留の一覧を候補に挙げる",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": ", ...lists]);",
       "replace": "]);",
       "occurrences": 1,
@@ -92,7 +92,7 @@
     {
       "id": "fix-exclude-unmatched-allowed",
       "why": "今無いファイルや、本体に寄せて数えるテストを exclude に残しても通り、何も外さない除外が設定に残り続ける",
-      "file": "scripts/weekly/check-cost-metrics.ts",
+      "file": "scripts/weekly/cost-metrics/check-cost-metrics.ts",
       "find": "if (unmatched.length > 0) {",
       "replace": "if (false) {",
       "occurrences": 1,

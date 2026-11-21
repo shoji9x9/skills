@@ -9,7 +9,9 @@
     "durations は、workflows の成功した run のうち fork の PR でない run のジョブを、直近 days 日とその前の days 日で比べる。両方の期間に min_runs 回以上あり、中央値が min_ratio の割合と min_seconds 秒の両方で増えたジョブを挙げる。",
     "閾値は、Issue #939 の作業で実測した値から決めた（PR の本文にある）。",
     "session_context は、entries のファイルと、そこから @path で取り込む文書（4 段まで）のバイト数を数え、合計が limit_bytes の report_ratio の割合に達したら挙げる（Issue #1095）。",
-    "entries は、Claude Code がリポジトリで読む CLAUDE.md にする。AGENTS.md 単体の上限（Codex が読む 32 KiB）は、pre-commit と CI の check-agents-md-size.ts が確かめる。"
+    "entries は、Claude Code がリポジトリで読む CLAUDE.md にする。AGENTS.md 単体の上限（Codex が読む 32 KiB）は、pre-commit と CI の check-agents-md-size.ts が確かめる。",
+    "kaizen は、dir の学びを数える（Issue #1096）。pending が max_pending 件を超えたとき、pending のまま stale_days 日を過ぎた学びが max_stale 件を超えたとき、直近 days 日に再発の学び（recurrence-of を書いた学び）を書いたときに挙げる。",
+    "max_pending は、kaizen.jsonc の inject_max_entries（セッションの開始時に注入する件数）と同じ値にする。stale_days は、忘却の閾値（forget_after_days のデフォルト）と同じ値にする。忘却されずに残る古い pending は、priority が high か判断待ちの学びなので、1 件でも挙げる。"
   ],
   "lists": [
     {
@@ -94,5 +96,12 @@
     "entries": ["CLAUDE.md"],
     "limit_bytes": 65536,
     "report_ratio": 0.8
+  },
+  "kaizen": {
+    "dir": ".kaizen",
+    "days": 7,
+    "stale_days": 30,
+    "max_pending": 30,
+    "max_stale": 0
   }
 }
