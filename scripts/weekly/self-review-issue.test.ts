@@ -8,6 +8,7 @@
 // | canary | path で当たる / 存在しないスクリプトの path で当たる / 内容だけで当たる（残すが、見つけたことにしない）/ 当たらない（例外）/ 指摘が canary だけ（0 件として出す）/ メモで触れる（残す） |
 // | 載せる文 | @name を含む / メモに < を含む |
 // | 項目ごとの件数 | 指摘のある項目 / 0 件の項目（表に出ない項目も 0 件と書く） / 指摘が 0 件 |
+// | 確かめないものへのリンク | 本文（指摘がある / 0 件）/ コメント（0 件は載せる / 指摘があれば載せない）/ 実リポジトリの節名と URL の節が一致する |
 // | 前回の本文 | 目印なし / 継続と解消 / 識別子の形が違う |
 // | CLI の引数 | 正しい / 足りない / 未知 / --previous が空 / 結果を読めない（1） |
 import { describe, expect, test } from "vitest";
@@ -20,6 +21,7 @@ import {
   formatBody,
   formatComment,
   main,
+  OUT_OF_SCOPE_URL,
   categoryCounts,
   codeSpan,
   mergeFindings,
@@ -221,9 +223,13 @@ describe("追跡 Issue の本文", () => {
   );
 
   test("指摘が 0 件の週は、点検のメモをコメントに載せる（Issue を閉じて本文を書き換えないため）", () => {
-    expect(formatComment({ findings: [], notes: ["入力を読めなかった"] }, [])).toBe(
-      "指摘: 0 件（新規 0 件・継続 0 件・前回から解消 0 件）\n\n点検のメモ:\n\n- ` 入力を読めなかった `\n",
-    );
+    const link = `[docs/self-review.md「点検が確かめないもの」](${OUT_OF_SCOPE_URL})`;
+    const withNotes = formatComment({ findings: [], notes: ["入力を読めなかった"] }, []);
+    expect(withNotes).toContain("指摘: 0 件（新規 0 件・継続 0 件・前回から解消 0 件）\n");
+    expect(withNotes).toContain(link);
+    expect(withNotes.endsWith("\n\n点検のメモ:\n\n- ` 入力を読めなかった `\n")).toBe(true);
+    expect(formatComment({ findings: [], notes: [] }, [])).toContain(link);
+    expect(formatComment({ findings: [finding()], notes: [] }, [])).not.toContain(link);
     expect(formatComment({ findings: [], notes: [] }, [])).not.toContain("点検のメモ");
     expect(formatComment({ findings: [finding()], notes: ["x"] }, [])).not.toContain("点検のメモ");
   });
@@ -275,6 +281,23 @@ describe("追跡 Issue の本文", () => {
       "項目ごとの件数: 不要物 0 件、文書の食い違い・重複 2 件、やりすぎな記述 0 件、やりすぎなチェック 0 件、回帰 eval の妥当性 0 件、効果の無い GitHub Actions 0 件、分かりにくい語・旧称 0 件、チェックの無い規約 1 件",
     );
     expect(formatBody({ findings: [finding()], notes: [] })).toContain("チェックの無い規約 0 件");
+  });
+
+  test.each([
+    { name: "指摘がある", findings: [finding()] },
+    { name: "指摘が 0 件", findings: [] },
+  ])("本文は、点検が確かめないものの節へのリンクを載せる（$name）", ({ findings: given }) => {
+    expect(formatBody({ findings: given, notes: [] })).toContain(
+      `[docs/self-review.md「点検が確かめないもの」](${OUT_OF_SCOPE_URL})`,
+    );
+  });
+
+  test("実リポジトリの docs/self-review.md に、リンクが指す節がある", () => {
+    const url = new URL(OUT_OF_SCOPE_URL);
+    expect(url.pathname).toBe("/shoji9x9/skills/blob/main/docs/self-review.md");
+    const heading = decodeURIComponent(url.hash.slice(1));
+    const doc = readFileSync(join(import.meta.dirname, "../../docs/self-review.md"), "utf8");
+    expect(doc.split("\n")).toContain(`## ${heading}`);
   });
 
   test("0 件は表とメモを書かない", () => {

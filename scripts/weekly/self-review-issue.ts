@@ -227,6 +227,15 @@ function findingTable(findings: readonly Finding[], kept: ReadonlySet<string>): 
   return [...lines, ""];
 }
 
+/**
+ * 点検が確かめないものを並べた節（docs/self-review.md「点検が確かめないもの」）の URL。
+ * Issue の本文では相対パスのリンクが解決されないので、main の文書を完全な URL で指す。節名を変えたら、ここも変える。
+ */
+export const OUT_OF_SCOPE_URL = `https://github.com/shoji9x9/skills/blob/main/docs/self-review.md#${encodeURIComponent("点検が確かめないもの")}`;
+
+/** 本文と、指摘が 0 件の週のコメントに載せる、点検が確かめないものの節への案内。 */
+const OUT_OF_SCOPE_NOTE = `指摘が 0 件でも、点検の項目に無いものは確かめていません。点検が確かめないものと、それを扱う別の仕組みは [docs/self-review.md「点検が確かめないもの」](${OUT_OF_SCOPE_URL}) にあります。`;
+
 /** 追跡 Issue の本文。最後の行に、次の実行が差分に使う識別子の一覧を埋める。 */
 export function formatBody(report: Report, previous: readonly string[] = []): string {
   const { findings, notes } = report;
@@ -234,6 +243,7 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
   const lines = [
     "LLM による週次のセルフ点検で見つかった指摘の一覧です。直すか、決定論的なチェックに移すかは人が決めます。",
     "この Issue は `Self review` ワークフローが作成・更新・クローズします。点検の手順は `docs/self-review-procedure.md` にあります。",
+    OUT_OF_SCOPE_NOTE,
     "",
     `指摘: ${findings.length} 件`,
     "",
@@ -259,8 +269,10 @@ export function formatBody(report: Report, previous: readonly string[] = []): st
 export function formatComment(report: Report, previous: readonly string[]): string {
   const { findings, notes } = report;
   const diff = formatDiffComment("指摘", findings.length, diffFindings(findings, previous));
-  if (findings.length > 0 || notes.length === 0) return diff;
-  return `${diff}\n点検のメモ:\n\n${notes.map((n) => `- ${codeSpan(n)}`).join("\n")}\n`;
+  if (findings.length > 0) return diff;
+  const scope = `\n${OUT_OF_SCOPE_NOTE}\n`;
+  if (notes.length === 0) return `${diff}${scope}`;
+  return `${diff}${scope}\n点検のメモ:\n\n${notes.map((n) => `- ${codeSpan(n)}`).join("\n")}\n`;
 }
 
 const USAGE =

@@ -94,6 +94,26 @@ gh run download <run の ID> --name self-review-execution-<試行の番号> --di
 繰り返し出る指摘のうち機械的に判定できるものは、決定論的なチェック（`scripts/gates/<分類>/`）に移し、手順の項目から外す。
 チェックを作る前に、`.agents/rules/check-cost-benefit.md` の基準で効果と費用を書く。
 
+## 点検が確かめないもの
+
+点検は、[`self-review-procedure.md`](self-review-procedure.md)「点検の項目」に挙げたものだけを確かめる。
+指摘が 0 件の週は、項目の範囲で指摘が見つからなかったことを示す。項目に無いものに問題が無いことは示さない。
+追跡 Issue の本文と、指摘が 0 件の週に Issue を閉じるときのコメントは、この節へのリンクを載せる。
+
+| 確かめないもの | 扱う別の仕組み |
+| --- | --- |
+| 文書に書いた内容が事実として正しいか（外部のツールの挙動・API の形など）。点検は文書の間の食い違いを見るだけで、外部の事実とは比べない | 無い。外部ツールの形は、書く人が公式のドキュメントで確かめる（`.agents/rules/external-tool-format-verification.md`） |
+| コードの誤り（バグ） | ユニットテストとミューテーションテスト（[`testing.md`](testing.md)）、`oxlint`・`tsc`、push の前のレビュー |
+| セキュリティ（リポジトリのコード・ワークフロー） | `security-audit.yml`・CodeQL・zizmor・`/security-review`（[`security-scanning.md`](security-scanning.md)） |
+| 依存の脆弱性 | Dependabot alerts と `pnpm audit`（[`vulnerability-handling.md`](vulnerability-handling.md)） |
+| 文章の表現（使わない語・時期に依る記述） | textlint（`scripts/gates/prose/lint-prose.ts`）と `check-time-sensitive-prose.ts` |
+| 文書の参照・節名の実在と、参照の向き | `check-doc-refs.ts` |
+| JavaScript・TypeScript の使われていないコードと、重複したコード | fallow と jscpd |
+| インストール済みのスキルのコピーと `skills/` の一致 | `check-skills-sync.ts`。点検はコピーを対象にしない |
+| スキルが eval で期待どおりに振る舞うか | 回帰 eval の実行（[`skill-development.md`](skill-development.md)）。点検は eval の定義だけを読む |
+| Issue と PR の状態に依る記述（「Issue #N が閉じている」など） | 無い。エージェントは Issue と PR を読めないので、気づいたものは「点検のメモ」に書く |
+| 過去の記録（`.kaizen/archive/`・`tests/`） | 無い。書き換えない記録なので、点検の対象から外している |
+
 ## 指摘を直す PR
 
 ワークフロー `.github/workflows/self-review-fix.yml` が、点検の指摘のうち文の書き換えで直せるものを、エージェントに直させて PR にする。
