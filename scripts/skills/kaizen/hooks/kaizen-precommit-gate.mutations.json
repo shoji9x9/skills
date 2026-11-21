@@ -397,6 +397,112 @@
       "expect_failing": [
         "他のセッションの transcript が移ったとき 移った先が 2 件以上なら、どれか決められないので走査しない"
       ]
+    },
+    {
+      "id": "gate-supersedes-sentinel-without-line",
+      "why": "6 行目の supersedes-sentinel を確かめず、センチネルより新しい checkpoint ならどれでもセンチネルを覆う（チェックが書いた checkpoint で未抽出のセンチネルを通す。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "[ \"$(sed -n '6p' \"${dir}/$2\" 2>/dev/null || true)\" = supersedes-sentinel ] && return 0",
+      "replace": "return 0",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る supersedes-sentinel の無い checkpoint は、センチネルより新しくても覆わない",
+        "他セッション分の走査結果の再利用 checkpoint が変わったら走査し直す"
+      ]
+    },
+    {
+      "id": "gate-supersedes-sentinel-ignores-age",
+      "why": "checkpoint がセンチネルより新しいかを確かめず、supersedes-sentinel の checkpoint があれば後から立ったセンチネルも覆う（新しい活動を通す。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "[ \"${dir}/$2\" -nt \"$1\" ] || continue",
+      "replace": "[ -e \"${dir}/$2\" ] || continue",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る supersedes-sentinel の checkpoint より新しいセンチネルは止める",
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る checkpoint と更新時刻が同じセンチネルは止める"
+      ]
+    },
+    {
+      "id": "gate-supersedes-checkpoint-without-line",
+      "why": "2 行目の supersedes-checkpoint を確かめず、checkpoint より新しいマーカーならどれでも checkpoint より優先する（以前の形式のマーカーで差分の走査を飛ばす。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "[ \"$(sed -n '2p' \"${done_file}\" 2>/dev/null || true)\" = supersedes-checkpoint ] || continue",
+      "replace": ":",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る supersedes-checkpoint の無いマーカーは、それより古い checkpoint が残っていれば覆わない",
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る `.expired` は、supersedes-checkpoint のマーカーが checkpoint を覆うのも止める",
+        "同一セッションの後続 commit も未処理範囲を再走査する 修正前に書かれた .extract-done が残っていても再走査する"
+      ]
+    },
+    {
+      "id": "gate-supersedes-checkpoint-ignores-age",
+      "why": "マーカーが checkpoint より新しいかを確かめず、supersedes-checkpoint のマーカーなら後から書かれた checkpoint より優先する（その後の活動を走査しない。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "if ! [ \"${done_file}\" -nt \"${other}/$2\" ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る supersedes-checkpoint のマーカーでも、それより新しい checkpoint があれば覆わない"
+      ]
+    },
+    {
+      "id": "gate-expired-ignored",
+      "why": "`.expired` を読まず、SessionStart が消せなかった古いマーカーでこのセッションの新しいセンチネルを覆う（commit がチェックなしに通る。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\t[ -e \"${dir}/$2.expired\" ] || continue",
+      "replace": "\t\tcontinue",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る `.expired` より古いマーカーはセンチネルを覆わない",
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る `.expired` と更新時刻が同じマーカーはセンチネルを覆わない",
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る `.expired` は、supersedes-checkpoint のマーカーが checkpoint を覆うのも止める",
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る"
+      ]
+    },
+    {
+      "id": "gate-expired-ignores-age",
+      "why": "マーカーが `.expired` より新しいかを確かめず、`.expired` の後に抽出し直して書いたマーカーまで使わない（抽出しても commit が止まり続ける。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\t[ \"$1\" -nt \"${dir}/$2.expired\" ] || return 1",
+      "replace": "\t\treturn 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る `.expired` より新しいマーカーはセンチネルを覆う"
+      ]
+    },
+    {
+      "id": "gate-expired-not-applied-to-supersedes-checkpoint",
+      "why": "supersedes-checkpoint のマーカーを選ぶときに `.expired` を見ず、SessionStart が消せなかった古いマーカーで checkpoint を覆う（Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\tdone_copy_is_live \"${done_file}\" \"$1\" || continue",
+      "replace": "\t\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る `.expired` は、supersedes-checkpoint のマーカーが checkpoint を覆うのも止める"
+      ]
+    },
+    {
+      "id": "inject-expired-not-written",
+      "why": "SessionStart が、消せなかったマーカーを無効にする `.expired` を書かない（再開後の commit がチェックなしに通る。Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "\t\t\t[ -e \"${expire_dir}/${done_name}\" ] && stale_done=\"${expire_dir}/${done_name}\"",
+      "replace": "\t\t\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る"
+      ]
+    },
+    {
+      "id": "extract-done-keeps-expired",
+      "why": "抽出完了のマーカーを書いた後に `.expired` を消さず、同じ秒に書かれた `.expired` がいま書いたマーカーまで無効にする（Issue #1101）",
+      "file": "skills/kaizen/scripts/kaizen-extract-done.sh",
+      "find": "\t\tremove_control_file_everywhere \"${done_path##*/}.expired\"",
+      "replace": "\t\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックはリポジトリの全作業ツリーの .kaizen/ を見る SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る"
+      ]
     }
   ]
 }
