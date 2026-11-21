@@ -14,7 +14,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { importPaths, sessionContextFiles } from "./session-context.ts";
-import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 function repo(files: Record<string, string>): string {
   const root = makeTempDir("session-context-");

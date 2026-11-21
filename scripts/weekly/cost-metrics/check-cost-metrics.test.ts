@@ -13,6 +13,8 @@
 // | ジョブ | 成功 / 成功以外 / 日時が無い / 期間の境界 / 片方の期間だけ |
 // | 遅くなったか | 回数が足りない / 割合だけ / 秒数だけ / 両方 |
 // | 読み込む文書の合計 | 報告の割合の未満・ちょうど・上限を超える / 設定の割合が 0・1 を超える / 起点が無い |
+// | kaizen の設定 | 正しい / 節が無い / dir が空・末尾の /・./・..・絶対パス / max_* が 0・負・小数 / days が 0 |
+// | kaizen の学び | ディレクトリが無い（数えなかったと書く）/ ある（候補と表）。数え方は kaizen-learnings.test.ts |
 // | API | 成功 / 失敗 / 1000 件を超える / total_count が無い / ページの形が違う / 期間の外の run |
 // | 前回の本文 | 目印なし / 識別子あり / 形が違う |
 // | CLI の引数 | 正しい / 足りない / 未知 / --previous が空 |
@@ -48,7 +50,7 @@ import {
   type JobRow,
   type Runner,
 } from "./check-cost-metrics.ts";
-import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const NOW = new Date("2026-11-11T03:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
@@ -74,8 +76,14 @@ const configJson = (override: Record<string, unknown> = {}) =>
       min_seconds: 30,
     },
     session_context: { entries: ["CLAUDE.md"], limit_bytes: 100, report_ratio: 0.8 },
+    kaizen: KAIZEN,
     ...override,
   });
+
+const KAIZEN = { dir: ".kaizen", days: 7, stale_days: 30, max_pending: 1, max_stale: 0 };
+
+/** kaizen の節の 1 つの値だけを変えた設定の上書き。 */
+const kaizenWith = (over: Record<string, unknown>) => ({ kaizen: { ...KAIZEN, ...over } });
 
 /** session_context の起点。configJson の上限（100 バイト）の 80% に届かない大きさにする。 */
 const CONTEXT_FILES = { "CLAUDE.md": "# 設定\n" };
@@ -112,6 +120,18 @@ describe("設定", () => {
       fixPrs: { days: 28, min: 3, paths: ["scripts/gates"] },
       durations: { ...durations },
       sessionContext: { entries: ["CLAUDE.md"], limitBytes: 100, reportRatio: 0.8 },
+      kaizen: { dir: ".kaizen", days: 7, staleDays: 30, maxPending: 1, maxStale: 0 },
+    });
+  });
+
+  test("kaizen の上限の件数は 0 を受け付け、入れ子のディレクトリを読む", () => {
+    const kaizen = { dir: "a/.kaizen", days: 7, stale_days: 30, max_pending: 0, max_stale: 0 };
+    expect(parseConfig(configJson({ kaizen })).kaizen).toEqual({
+      dir: "a/.kaizen",
+      days: 7,
+      staleDays: 30,
+      maxPending: 0,
+      maxStale: 0,
     });
   });
 
@@ -244,6 +264,41 @@ describe("設定", () => {
       "entries が空",
       { session_context: { entries: [], limit_bytes: 100, report_ratio: 0.8 } },
       "session_context.entries",
+    ],
+    ["kaizen が無い", { kaizen: null }, "kaizen がオブジェクトでない"],
+    ["kaizen.dir が空白だけ", kaizenWith({ dir: " " }), "kaizen.dir が空でない文字列でない"],
+    ["kaizen.dir の末尾が /", kaizenWith({ dir: ".kaizen/" }), "kaizen.dir がルートからの相対パス"],
+    [
+      "kaizen.dir が ./ で始まる",
+      kaizenWith({ dir: "./.kaizen" }),
+      "kaizen.dir がルートからの相対パス",
+    ],
+    [
+      "kaizen.dir が .. を含む",
+      kaizenWith({ dir: "../.kaizen" }),
+      "kaizen.dir がルートからの相対パス",
+    ],
+    [
+      "kaizen.dir が絶対パス",
+      kaizenWith({ dir: "/r/.kaizen" }),
+      "kaizen.dir がルートからの相対パス",
+    ],
+    ["kaizen.days が 0", kaizenWith({ days: 0 }), "kaizen.days"],
+    ["kaizen.stale_days が無い", kaizenWith({ stale_days: undefined }), "kaizen.stale_days"],
+    [
+      "kaizen.max_pending が負",
+      kaizenWith({ max_pending: -1 }),
+      "kaizen.max_pending が 0 以上の整数でない",
+    ],
+    [
+      "kaizen.max_stale が小数",
+      kaizenWith({ max_stale: 0.5 }),
+      "kaizen.max_stale が 0 以上の整数でない",
+    ],
+    [
+      "kaizen.max_stale が文字列",
+      kaizenWith({ max_stale: "0" }),
+      "kaizen.max_stale が 0 以上の整数でない",
     ],
   ])("%s は例外にする", (_name, override, message) => {
     expect(() => parseConfig(configJson(override))).toThrow(message);
@@ -789,7 +844,7 @@ describe("追跡 Issue の本文", () => {
   ];
 
   test("候補の表・所要時間の表・識別子を書き、表の | をエスケープする", () => {
-    const body = formatBody({ findings, rows, context, config });
+    const body = formatBody({ findings, rows, context, kaizen: null, config, now: NOW });
     expect(body).toContain("直す候補: 2 件");
     expect(body).toContain("readers に書いた案内で、一覧を読む処理を示す。");
     expect(body).toContain("| 空の免除・保留の一覧 | a.json | r.ts、w.yml | 新規 |");
@@ -799,6 +854,7 @@ describe("追跡 Issue の本文", () => {
       "セッションの開始時に読み込む文書（合計 40 バイト、上限 100 バイトの 40%）",
     );
     expect(body).toContain("| docs/a\\|b.md | 1 | 30 |");
+    expect(body).toContain("`.kaizen/` が無いので、kaizen の学びは数えなかった。");
     expect(previousKeys(body)).toEqual([
       "empty-list a.json",
       "slow-job CI / Lint | x（pull_request）",
@@ -806,13 +862,20 @@ describe("追跡 Issue の本文", () => {
   });
 
   test("空の一覧の候補が無ければ、readers の注記を書かない", () => {
-    const body = formatBody({ findings: findings.slice(1), rows, context, config });
+    const body = formatBody({
+      findings: findings.slice(1),
+      rows,
+      context,
+      kaizen: null,
+      config,
+      now: NOW,
+    });
     expect(body).toContain("| 遅くなったジョブ |");
     expect(body).not.toContain("readers に書いた");
   });
 
   test("0 件は候補の表を書かない", () => {
-    const body = formatBody({ findings: [], rows: [], context, config });
+    const body = formatBody({ findings: [], rows: [], context, kaizen: null, config, now: NOW });
     expect(body).toContain("直す候補: 0 件");
     expect(body).not.toContain("| 指標 |");
     expect(body).not.toContain("readers に書いた");
@@ -821,7 +884,7 @@ describe("追跡 Issue の本文", () => {
 
   test("前回と比べ、継続と解消を書く（件数が変わっても同じ識別子）", () => {
     const previous = ["empty-list a.json", "fix-heavy lefthook.yml"];
-    const body = formatBody({ findings, rows, context, config }, previous);
+    const body = formatBody({ findings, rows, context, kaizen: null, config, now: NOW }, previous);
     expect(body).toContain("| a.json | r.ts、w.yml | 継続 |");
     expect(body).toContain("前回から解消したもの: fix-heavy lefthook.yml");
     expect(diffFindings(findings, previous).kept).toEqual(["empty-list a.json"]);
@@ -841,7 +904,7 @@ describe("追跡 Issue の本文", () => {
 });
 
 describe("まとめて集める", () => {
-  test("4 つの指標を集める", async () => {
+  test("5 つの指標を集める。学びのディレクトリが無ければ、数えずに null にする", async () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, { "a.json": '{"exempt": []}', ...CONTEXT_FILES });
     const run: Runner = async (command, args) => {
@@ -852,6 +915,45 @@ describe("まとめて集める", () => {
     expect(result.findings).toEqual([{ kind: "empty-list", target: "a.json", detail: "r.ts" }]);
     expect(result.rows).toEqual([]);
     expect(result.context).toEqual([{ path: "CLAUDE.md", bytes: 9, hops: 0 }]);
+    expect(result.kaizen).toBeNull();
+  });
+
+  test("学びのディレクトリがあれば、学びを数えて上限を超えた値を候補に挙げる", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    const note = (status: string) => `---\nstatus: ${status}\n---\n`;
+    writeFiles(root, {
+      "a.json": '{"exempt": [1]}',
+      ...CONTEXT_FILES,
+      ".kaizen/2026-11-01-a.md": note("pending"),
+      ".kaizen/2026-11-02-b.md": note("pending"),
+    });
+    const add = (name: string) =>
+      [
+        `diff --git a/.kaizen/${name} b/.kaizen/${name}`,
+        "new file mode 100644",
+        `+++ b/.kaizen/${name}`,
+        "@@ -0,0 +1,3 @@",
+        "+---",
+        "+status: pending",
+        "+---",
+      ].join("\n");
+    const kaizenLog = [
+      `@@C ${"0".repeat(40)} ${iso(3)}`,
+      "",
+      add("2026-11-01-a.md"),
+      add("2026-11-02-b.md"),
+    ].join("\n");
+    const run: Runner = async (command, args) => {
+      if (command !== "git") return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
+      if (args.includes("rev-parse")) return "false\n";
+      return args.includes(".kaizen") ? kaizenLog : "";
+    };
+    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    expect(result.kaizen?.counts.pending).toBe(2);
+    expect(result.findings).toEqual([
+      { kind: "kaizen-pending", target: ".kaizen", detail: "pending の学び 2 件（上限 1 件）" },
+    ]);
+    expect(formatBody(result)).toContain("| pending の kaizen の学び | .kaizen |");
   });
 
   test("読み込む文書の合計が報告の割合に達したら候補に挙げる", async () => {

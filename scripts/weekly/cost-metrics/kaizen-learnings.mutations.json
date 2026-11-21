@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "kaizen-learnings.test.ts の検出能力を示す変異の一覧（Issue #1096）。誤ると、確かめていないのに kaizen の学びの候補を挙げず、追跡 Issue を閉じる判定だけを置く。"
+  ],
+  "test_file": "scripts/weekly/cost-metrics/kaizen-learnings.test.ts",
+  "mutations": [
+    {
+      "id": "history-mismatch-allowed",
+      "why": "履歴の status が作業ツリーと食い違っても数え、記録した日を取れない学びを古い pending として挙げない",
+      "file": "scripts/weekly/cost-metrics/kaizen-learnings.ts",
+      "find": "  checkHistory(notes, history);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "数える status が作業ツリーと違う なら例外",
+        "数える 履歴に無い なら例外",
+        "数える 履歴で生きているのにファイルが無い なら例外"
+      ]
+    },
+    {
+      "id": "recurrence-never-reported",
+      "why": "期間の中で書いた再発の学びを候補に挙げず、適用した学びが再発を防げなかったことを見逃す",
+      "file": "scripts/weekly/cost-metrics/kaizen-learnings.ts",
+      "find": "if (!isRecent(r.at, now, config.days)) continue;",
+      "replace": "continue;",
+      "occurrences": 1,
+      "expect_failing": ["候補 上限を超えた値と、期間の中で書いた再発を挙げる"]
+    }
+  ]
+}
