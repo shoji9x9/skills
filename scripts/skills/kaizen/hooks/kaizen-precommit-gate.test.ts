@@ -17,6 +17,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -2523,6 +2524,219 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
     const listed = gate.stderr.split("\n").filter((l) => l.includes(".pending-extract"));
     expect(listed).toHaveLength(1);
   });
+
+  // 書き込めない元のツリーに残った制御ファイルは、kaizen-extract-done.sh が消せず、新しい記録は自分のツリーに書かれる（Issue #1101）。
+  // 残ったファイルの更新時刻を、新しい記録より前か後かに置いて、消せていれば同じ判定になる場合だけ解消済みとすることを確かめる。
+  // `transcript_path` を渡さないので、解消済みと判定されなければ走査せずに exit 2 で止まる。
+  const kaizenFile = (dir: string, name: string) => join(dir, ".kaizen", name);
+  const setAge = (path: string, secondsAgo: number) => {
+    const t = new Date(Date.now() - secondsAgo * 1000);
+    utimesSync(path, t, t);
+  };
+  function writeCheckpoint(dir: string, line6 = "") {
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    const path = kaizenFile(dir, `.extract-checkpoint.${SESSION}`);
+    writeFileSync(path, `${join(dir, "t.jsonl")}\n0\nclaude-code\n0\n\n${line6 && `${line6}\n`}`);
+    return path;
+  }
+  function writeDone(dir: string, lines: string) {
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    const path = kaizenFile(dir, `.extract-done.${SESSION}`);
+    writeFileSync(path, lines);
+    return path;
+  }
+
+  test("元のツリーに残ったセンチネルは、それより新しい supersedes-sentinel の checkpoint が別のツリーにあれば解消済みとする", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(main);
+    setAge(kaizenFile(main, `.pending-extract.${SESSION}`), 3600);
+    setAge(writeCheckpoint(worktree, "supersedes-sentinel"), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(0);
+  });
+
+  test("supersedes-sentinel の無い checkpoint は、センチネルより新しくても覆わない", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(main);
+    setAge(kaizenFile(main, `.pending-extract.${SESSION}`), 3600);
+    setAge(writeCheckpoint(worktree), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  test("supersedes-sentinel の checkpoint より新しいセンチネルは止める", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    setAge(writeCheckpoint(main, "supersedes-sentinel"), 3600);
+    writeSentinel(worktree);
+    setAge(kaizenFile(worktree, `.pending-extract.${SESSION}`), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  test("checkpoint と更新時刻が同じセンチネルは止める", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(main);
+    const t = new Date(Date.now() - 600_000);
+    utimesSync(kaizenFile(main, `.pending-extract.${SESSION}`), t, t);
+    utimesSync(writeCheckpoint(worktree, "supersedes-sentinel"), t, t);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  test("他のセッションの checkpoint は、このセッションのセンチネルを解消しない", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(main);
+    setAge(kaizenFile(main, `.pending-extract.${SESSION}`), 3600);
+    const other = kaizenFile(worktree, ".extract-checkpoint.99999999-aaaa-bbbb-cccc-dddddddddddd");
+    mkdirSync(dirname(other), { recursive: true });
+    writeFileSync(other, "x\n0\nclaude-code\n0\n\nsupersedes-sentinel\n");
+    setAge(other, 60);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  test("supersedes-checkpoint のマーカーは、それより古い checkpoint が残っていても覆う", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(worktree);
+    setAge(kaizenFile(worktree, `.pending-extract.${SESSION}`), 30);
+    setAge(writeCheckpoint(main), 3600);
+    setAge(writeDone(worktree, "2026-11-20T00:00:00Z\nsupersedes-checkpoint\n"), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(0);
+  });
+
+  test("supersedes-checkpoint のマーカーでも、それより新しい checkpoint があれば覆わない", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(worktree);
+    setAge(kaizenFile(worktree, `.pending-extract.${SESSION}`), 30);
+    setAge(writeDone(main, "2026-11-20T00:00:00Z\nsupersedes-checkpoint\n"), 3600);
+    setAge(writeCheckpoint(worktree), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  test("supersedes-checkpoint の無いマーカーは、それより古い checkpoint が残っていれば覆わない", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(worktree);
+    setAge(kaizenFile(worktree, `.pending-extract.${SESSION}`), 30);
+    setAge(writeCheckpoint(main), 3600);
+    setAge(writeDone(worktree, "2026-11-20T00:00:00Z\n"), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  // SessionStart が書き込めないツリーのマーカーを消せないと、そのマーカーが再開後のセンチネルを覆い、commit がチェックなしに通る。
+  // SessionStart は代わりに自分のツリーへ `.expired` を書き、チェックはそれより新しくないマーカーを使わない。
+  const writeExpired = (dir: string, session = SESSION) => {
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    const path = kaizenFile(dir, `.extract-done.${session}.expired`);
+    writeFileSync(path, "2026-11-21T00:00:00Z\n");
+    return path;
+  };
+
+  test.for<[string, number, number, string | undefined, number]>([
+    ["`.expired` より古いマーカーはセンチネルを覆わない", 3600, 60, undefined, 2],
+    ["`.expired` より新しいマーカーはセンチネルを覆う", 60, 3600, undefined, 0],
+    ["`.expired` と更新時刻が同じマーカーはセンチネルを覆わない", 600, 600, undefined, 2],
+    [
+      "他のセッションの `.expired` は、このセッションのマーカーを無効にしない",
+      3600,
+      60,
+      "99999999-aaaa-bbbb-cccc-dddddddddddd",
+      0,
+    ],
+  ])("%s", async ([, doneAge, expiredAge, session, expected]) => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(worktree);
+    setAge(writeDone(main, "2026-11-20T00:00:00Z\n"), doneAge);
+    setAge(writeExpired(worktree, session), expiredAge);
+    expect((await runGateAt(worktree, main)).status).toBe(expected);
+  });
+
+  // 使える複製（supersedes-checkpoint の無いもの）が別にあると、`.expired` より古い複製の 2 行目で checkpoint を覆わないことを確かめる。
+  test("`.expired` は、supersedes-checkpoint のマーカーが checkpoint を覆うのも止める", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    writeSentinel(worktree);
+    setAge(kaizenFile(worktree, `.pending-extract.${SESSION}`), 30);
+    setAge(writeCheckpoint(main), 3600);
+    setAge(writeDone(main, "2026-11-20T00:00:00Z\nsupersedes-checkpoint\n"), 600);
+    setAge(writeExpired(worktree), 300);
+    setAge(writeDone(worktree, "2026-11-21T00:00:00Z\n"), 60);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+  });
+
+  test.skipIf(process.getuid?.() === 0)(
+    "SessionStart は、書き込めないツリーのマーカーを消せなければ自分のツリーに `.expired` を書き、抽出をやり直せば通る",
+    async () => {
+      const { main, worktree } = await makeRepoWithWorktree();
+      const stale = writeDone(main, "2026-09-11T12:30:00Z\n");
+      setAge(stale, 3600);
+      chmodSync(stale, 0o444);
+      chmodSync(join(main, ".kaizen"), 0o555);
+      try {
+        const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+          timeout: CHILD_TIMEOUT_MS,
+          cwd: worktree,
+          input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
+          env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+        });
+        expect(inject.status, inject.stderr).toBe(0);
+        expect(existsSync(stale)).toBe(true);
+        const expired = kaizenFile(worktree, `.extract-done.${SESSION}.expired`);
+        expect(existsSync(expired)).toBe(true);
+        writeSentinel(worktree);
+        expect((await runGateAt(worktree, main)).status).toBe(2);
+        // マーカーと同じ秒に `.expired` が書かれた場合を作るため、`.expired` を未来の時刻にする。
+        const future = new Date(Date.now() + 60_000);
+        utimesSync(expired, future, future);
+        const done = await spawnAsync(
+          "bash",
+          [
+            join(scriptsDir, "kaizen-extract-done.sh"),
+            "--sentinel-suffix",
+            "",
+            "--agent",
+            "claude-code",
+            "--session-id",
+            SESSION,
+          ],
+          {
+            timeout: CHILD_TIMEOUT_MS,
+            cwd: worktree,
+            env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+          },
+        );
+        expect(done.status, done.stderr).toBe(0);
+        expect(existsSync(expired)).toBe(false);
+        writeSentinel(worktree);
+        expect((await runGateAt(worktree, main)).status).toBe(0);
+      } finally {
+        chmodSync(join(main, ".kaizen"), 0o755);
+        chmodSync(stale, 0o644);
+      }
+    },
+  );
+
+  test.skipIf(process.getuid?.() === 0)(
+    "SessionStart は、マーカーを消せず `.expired` も書けなければ、commit がチェックなしに通ることを警告して exit 0 で終える",
+    async () => {
+      const { main, worktree } = await makeRepoWithWorktree();
+      const stale = writeDone(main, "2026-09-11T12:30:00Z\n");
+      mkdirSync(join(worktree, ".kaizen"), { recursive: true });
+      chmodSync(stale, 0o444);
+      chmodSync(join(main, ".kaizen"), 0o555);
+      chmodSync(join(worktree, ".kaizen"), 0o555);
+      try {
+        const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+          timeout: CHILD_TIMEOUT_MS,
+          cwd: worktree,
+          input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
+          env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+        });
+        expect(inject.status, inject.stderr).toBe(0);
+        expect(inject.stderr).toContain(
+          "無効にする記録も書けませんでした。このセッションの commit はチェックなしに通ります",
+        );
+        expect(existsSync(kaizenFile(worktree, `.extract-done.${SESSION}.expired`))).toBe(false);
+      } finally {
+        chmodSync(join(worktree, ".kaizen"), 0o755);
+        chmodSync(join(main, ".kaizen"), 0o755);
+        chmodSync(stale, 0o644);
+      }
+    },
+  );
 
   // `source: compact` は同一セッションの継続なので、そのときだけマーカーを残す（広げた範囲でも同じ）。
   test("source: compact では別ツリーのマーカーも残す", async () => {

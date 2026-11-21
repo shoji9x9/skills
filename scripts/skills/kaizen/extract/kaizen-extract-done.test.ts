@@ -7,6 +7,7 @@
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -244,6 +245,177 @@ describe("散った制御ファイルは全作業ツリーで整理する", () =
     }
   });
 });
+
+// エージェントの sandbox などで元のツリーに書けないと、制御ファイルを見つけたツリーに記録を書けず、
+// 抽出を完了できなかった（Issue #1101）。書けないときは自分のツリーに書き、元のツリーの他のファイルには触らない。
+// root は書き込みの権限を無視するので、読み取り専用のディレクトリを作れない。root では飛ばす。
+describe.skipIf(process.getuid?.() === 0)(
+  "元のツリーに書けないときは自分のツリーに記録する",
+  () => {
+    const OTHER = "99999999-aaaa-bbbb-cccc-dddddddddddd";
+    const inKaizen = (dir: string, name: string) => join(dir, ".kaizen", name);
+
+    /** 元のツリーの .kaizen/ を読み取り専用にして fn を実行し、後で戻す（一時ディレクトリを消せるように）。*/
+    function withReadOnly<T>(dir: string, fn: () => T): T {
+      chmodSync(join(dir, ".kaizen"), 0o555);
+      try {
+        return fn();
+      } finally {
+        chmodSync(join(dir, ".kaizen"), 0o755);
+      }
+    }
+
+    function snapshot(dir: string) {
+      return Object.fromEntries(
+        readdirSync(join(dir, ".kaizen")).map((n) => [n, readFileSync(inKaizen(dir, n), "utf8")]),
+      );
+    }
+
+    test("transcript があれば、処理位置を自分のツリーに書き、exit 0 で終える", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      const transcript = join(main, "t.jsonl");
+      writeFileSync(transcript, "{}\n");
+      writeSentinel(main);
+      writeFileSync(inKaizen(main, `.pending-extract.${OTHER}`), "other\n");
+      writeFileSync(inKaizen(main, `.extract-checkpoint.${OTHER}`), "other\n");
+      const before = snapshot(main);
+      const run = withReadOnly(main, () => runExtractDone(worktree, main, [transcript]));
+      expect(run.status, run.stderr).toBe(0);
+      expect(readFileSync(inKaizen(worktree, `.extract-checkpoint.${SESSION}`), "utf8")).toBe(
+        `${transcript}\n3\nclaude-code\n1\n${fingerprintOf(transcript, 3)}\nsupersedes-sentinel\n`,
+      );
+      expect(existsSync(inKaizen(worktree, `.extract-done.${SESSION}`))).toBe(false);
+      // 元のツリーは変わらない（他のセッションの制御ファイルを含む）。
+      expect(snapshot(main)).toEqual(before);
+      expect(run.stderr).toMatch(/次のセンチネルを消せませんでした/);
+      expect(run.stderr).not.toMatch(noopWarning);
+    });
+
+    test("transcript が無ければ、抽出完了のマーカーを自分のツリーに書き、残った checkpoint より優先させる", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      writeFileSync(inKaizen(main, `.extract-checkpoint.${SESSION}`), "old\n0\nclaude-code\n0\n\n");
+      writeFileSync(inKaizen(main, `.extract-done.${OTHER}`), "other\n");
+      const before = snapshot(main);
+      const run = withReadOnly(main, () => runExtractDone(worktree, main));
+      expect(run.status, run.stderr).toBe(0);
+      const marker = readFileSync(inKaizen(worktree, `.extract-done.${SESSION}`), "utf8").split(
+        "\n",
+      );
+      expect(marker[0]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+      expect(marker[1]).toBe("supersedes-checkpoint");
+      expect(snapshot(main)).toEqual(before);
+    });
+
+    test("checkpoint を消せたときは、マーカーに supersedes-checkpoint を書かない", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      writeFileSync(inKaizen(main, `.extract-checkpoint.${SESSION}`), "old\n0\nclaude-code\n0\n\n");
+      const run = runExtractDone(worktree, main);
+      expect(run.status, run.stderr).toBe(0);
+      expect(existsSync(inKaizen(main, `.extract-checkpoint.${SESSION}`))).toBe(false);
+      expect(readFileSync(inKaizen(main, `.extract-done.${SESSION}`), "utf8")).toMatch(
+        /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\n$/,
+      );
+    });
+
+    test("自分のツリーにも書けなければ、exit 1 で終える", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      mkdirSync(join(worktree, ".kaizen"));
+      const run = withReadOnly(main, () =>
+        withReadOnly(worktree, () => runExtractDone(worktree, main)),
+      );
+      expect(run.status).toBe(1);
+      expect(run.stderr).toMatch(/抽出完了のマーカーを書けませんでした/);
+    });
+
+    test("--sentinel-suffix を渡さない呼び出しでは、解消済みになるのはこのセッションのセンチネルだけだと案内する", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      const run = withReadOnly(main, () =>
+        spawnSync(
+          "bash",
+          [
+            join(scriptsDir, "kaizen-extract-done.sh"),
+            "--agent",
+            "claude-code",
+            "--session-id",
+            SESSION,
+          ],
+          {
+            timeout: CHILD_TIMEOUT_MS,
+            cwd: worktree,
+            encoding: "utf8",
+            env: kaizenEnv(main, { CLAUDE_PROJECT_DIR: main }),
+          },
+        ),
+      );
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.stderr).toMatch(/解消済みとして扱うのは、このセッションのセンチネルだけです/);
+    });
+
+    // checkpoint を自分のツリーに書けた後に、6 行目を足す書き直しだけが失敗する状態を作る。
+    // checkpoint のパスがディレクトリだと、移動はその中へ入れて成功し、書き直しは失敗する。
+    test("checkpoint に supersedes-sentinel を書き直せなければ、チェックが止め続けることを案内して exit 0 で終える", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      const transcript = join(main, "t.jsonl");
+      writeFileSync(transcript, "{}\n");
+      writeSentinel(main);
+      mkdirSync(inKaizen(worktree, `.extract-checkpoint.${SESSION}`), { recursive: true });
+      const run = withReadOnly(main, () => runExtractDone(worktree, main, [transcript]));
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.stderr).toMatch(
+        /解消済みの記録も書けませんでした。コミット前のチェックは止めたままにします/,
+      );
+    });
+
+    // 自分のツリーにマーカーを書けた後に、2 行目を足す書き直しだけが失敗する状態を作る。
+    // 書き直しの直前に呼ぶ date を偽物にし、その時点でマーカーを読み取り専用にする。
+    test("マーカーに supersedes-checkpoint を書き直せなければ、exit 1 で終える", () => {
+      const { main, worktree } = makeRepoWithWorktree();
+      writeSentinel(main);
+      writeFileSync(inKaizen(main, `.extract-checkpoint.${SESSION}`), "old\n0\nclaude-code\n0\n\n");
+      const marker = inKaizen(worktree, `.extract-done.${SESSION}`);
+      const bin = join(worktree, "fake-bin");
+      mkdirSync(bin);
+      const realDate = spawnSync("bash", ["-c", "command -v date"], {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      }).stdout.trim();
+      writeFileSync(
+        join(bin, "date"),
+        `#!/usr/bin/env bash\n[ -e "${marker}" ] && chmod 0444 "${marker}"\nexec "${realDate}" "$@"\n`,
+      );
+      chmodSync(join(bin, "date"), 0o755);
+      const run = withReadOnly(main, () =>
+        spawnSync(
+          "bash",
+          [
+            join(scriptsDir, "kaizen-extract-done.sh"),
+            "--sentinel-suffix",
+            "",
+            "--agent",
+            "claude-code",
+            "--session-id",
+            SESSION,
+          ],
+          {
+            timeout: CHILD_TIMEOUT_MS,
+            cwd: worktree,
+            encoding: "utf8",
+            env: kaizenEnv(main, {
+              CLAUDE_PROJECT_DIR: main,
+              PATH: `${bin}:${process.env.PATH ?? ""}`,
+            }),
+          },
+        ),
+      );
+      expect(run.status, run.stderr).toBe(1);
+      expect(run.stderr).toMatch(/抽出完了のマーカーを書けませんでした/);
+    });
+  },
+);
 
 // --- 忘却の自動掃引（Issue #339） ---
 //

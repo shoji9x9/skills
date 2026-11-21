@@ -219,6 +219,12 @@ if declare -f kaizen_find_control_file >/dev/null 2>&1; then
 	fi
 fi
 sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
+# 制御ファイルが在るツリーに書けないことがある（エージェントの sandbox が元のツリーへの書き込みを許さない、権限が無い）。
+# そのときは、自分のツリー（cwd）の .kaizen/ に書く。チェックは、自分のツリーの checkpoint を先に読み、無ければ他のツリーから探す。
+# 元のツリーに残ったセンチネルと checkpoint は、ここで書いた記録の印と更新時刻で、消せなかった残りとして扱う（kaizen-precommit-gate.sh の collect_unresolved）。
+# 元のツリーでチェックを実行すると、残った古い checkpoint を先に読み、抽出済みの範囲を走査し直して止めることがある（commit を通す側には誤らない）。
+own_checkpoint_path=".kaizen/${checkpoint_path#.kaizen/}"
+own_done_path=".kaizen/${done_path#.kaizen/}"
 checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
@@ -245,7 +251,27 @@ remove_control_file_everywhere() { # $1: 制御ファイル名
 	fi
 }
 
-kaizen_safe_mkdir "${control_dir}"
+# 制御ファイルを、指定したパス以外のすべての作業ツリーから消す。自分のツリーに書いた新しい記録を残し、
+# 他のツリーに残った古い複製を消すために使う。消せない複製の扱いは、上の「制御ファイルが在るツリーに書けないことがある」の説明のとおりである。
+remove_control_file_except() { # $1: 残すパス
+	local keep="${1:-}" name dir
+	name=${keep##*/}
+	[ -n "${name}" ] || return 0
+	if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
+		while IFS= read -r -d '' dir; do
+			[ "${dir}/${name}" -ef "${keep}" ] && continue
+			kaizen_safe_rm "${dir}/${name}" 2>/dev/null || true
+		done < <(kaizen_worktree_kaizen_dirs "")
+	fi
+}
+
+# 制御ファイルのディレクトリが自分のツリーの .kaizen/ か。自分のツリーなら、書き直す先が無い。
+control_dir_is_own() {
+	[ "${control_dir}" = .kaizen ] || [ "${control_dir}" -ef .kaizen ]
+}
+
+# 制御ファイルのディレクトリを作れなくても、ここでは止めない。書き込みが失敗した時点で、自分のツリーに書き直す。
+kaizen_safe_mkdir "${control_dir}" 2>/dev/null || true
 
 # transcript-fingerprint:begin
 # transcript の先頭の指紋。`<バイト数>:<cksum の CRC>` を 1 行で出す。
@@ -290,6 +316,7 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	# checkpoint の形式は次のとおりである。
 	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空でもよい）/ 4 行目 行数。
 	#   5 行目 transcript の先頭の指紋（`<バイト数>:<CRC>`）。バイト位置より先は含めず、取れなければ空にする。
+	#   6 行目 `supersedes-sentinel`（任意）。消せなかったセンチネルがあるときだけ、センチネルを消そうとした後に書き足す。
 	# 5 行目は、worktree を移ってパスが変わった transcript が、記録したものと同じ内容で続いているかを
 	# スキャナが確かめるためにある。
 	# 3 行目は、新しいレコードが 1 件も無いときに、レコードから判定できないエージェントを
@@ -321,12 +348,31 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 		if [ -n "${checkpoint_tmp}" ]; then
 			print_checkpoint >"${checkpoint_tmp}" 2>/dev/null || checkpoint_tmp=""
 		fi
-		if [ -z "${checkpoint_tmp}" ]; then
-			checkpoint_tmp="${control_dir}/.extract-checkpoint.tmp.$$"
-			print_checkpoint | kaizen_safe_write "${checkpoint_tmp}" 2>/dev/null || checkpoint_tmp=""
-		fi
-		if [ -n "${checkpoint_tmp}" ] && kaizen_safe_mv "${checkpoint_tmp}" "${checkpoint_path}" 2>/dev/null; then
+		# $1 の checkpoint のパスへ書く。mktemp の一時ファイルが無ければ、移動先と同じディレクトリに一時ファイルを作る。
+		write_checkpoint_to() { # $1: checkpoint のパス
+			local tmp=${checkpoint_tmp}
+			if [ -z "${tmp}" ]; then
+				tmp="${1%/*}/.extract-checkpoint.tmp.$$"
+				print_checkpoint | kaizen_safe_write "${tmp}" 2>/dev/null || {
+					rm -f -- "${tmp}" 2>/dev/null || true
+					return 1
+				}
+			fi
+			kaizen_safe_mv "${tmp}" "$1" 2>/dev/null && return 0
+			# 移せなかった一時ファイルを残さない。mktemp の一時ファイルは、次の書き込み先で使うので残す（EXIT の trap が消す）。
+			[ "${tmp}" = "${checkpoint_tmp}" ] || rm -f -- "${tmp}" 2>/dev/null || true
+			return 1
+		}
+		if write_checkpoint_to "${checkpoint_path}"; then
 			checkpoint_written=1
+		elif ! control_dir_is_own; then
+			# 元のツリーに書けないので、自分のツリーに書く。元のツリーに残る古い checkpoint は、消せれば消す。
+			if kaizen_safe_mkdir .kaizen 2>/dev/null && write_checkpoint_to "${own_checkpoint_path}"; then
+				checkpoint_written=1
+				echo "kaizen-extract-done: ${control_dir} に書けないため、処理位置を ${own_checkpoint_path} に記録しました" >&2
+				checkpoint_path=${own_checkpoint_path}
+				remove_control_file_except "${checkpoint_path}"
+			fi
 		fi
 	fi
 	if [ "${checkpoint_written}" -eq 0 ]; then
@@ -352,7 +398,16 @@ if [ "${mode}" = "complete" ]; then
 		# 残すとチェックが commit をそのまま通し、いま記録した checkpoint より後の活動を取りこぼす。
 		remove_control_file_everywhere "${done_path##*/}"
 	else
-		date -u '+%Y-%m-%dT%H:%M:%SZ' | kaizen_safe_write "${done_path}"
+		if ! date -u '+%Y-%m-%dT%H:%M:%SZ' | kaizen_safe_write "${done_path}" 2>/dev/null; then
+			# 元のツリーに書けないので、自分のツリーに書く。自分のツリーにも書けなければ、チェックを解除できないので 0 以外で終える。
+			if control_dir_is_own || ! kaizen_safe_mkdir .kaizen 2>/dev/null ||
+				! date -u '+%Y-%m-%dT%H:%M:%SZ' | kaizen_safe_write "${own_done_path}"; then
+				echo "kaizen-extract-done: 抽出完了のマーカーを書けませんでした: ${done_path}" >&2
+				exit 1
+			fi
+			echo "kaizen-extract-done: ${control_dir} に書けないため、抽出完了を ${own_done_path} に記録しました" >&2
+			done_path=${own_done_path}
+		fi
 		# 古い checkpoint を残すと、チェックがマーカーより checkpoint を優先し（「checkpoint がある間はマーカーで上書きしない」）、
 		# いま抽出したばかりの範囲を古い起点から走査し直して、同じ候補で再びブロックする。
 		# 抽出をやり直しても、checkpoint を記録できない限り同じ状態に戻るので、安全策が
@@ -362,6 +417,22 @@ if [ "${mode}" = "complete" ]; then
 		# 本体と worktree に分かれていることがある（この変更が直そうとしている状態そのもの）。
 		# 1 つだけ消すと、残った方をチェックが見つけて、安全策を無効にする（実測）。
 		remove_control_file_everywhere "${checkpoint_path##*/}"
+		# 書き込めないツリーの checkpoint は消せずに残る。残ったままだと、チェックはマーカーより checkpoint を優先し、
+		# 上と同じ理由で止まり続ける。そこで、マーカーの 2 行目に `supersedes-checkpoint` と書き、
+		# このマーカーより古い checkpoint は無視してよいとチェックに伝える（kaizen-precommit-gate.sh の collect_unresolved）。
+		# 消せたときは書かない。以前の形式のマーカーと同じ 1 行のままにして、後から書かれた checkpoint を優先させる。
+		if declare -f kaizen_find_control_file >/dev/null 2>&1 &&
+			kaizen_find_control_file "" "${checkpoint_path##*/}" >/dev/null 2>&1; then
+			done_stamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+			printf '%s\nsupersedes-checkpoint\n' "${done_stamp}" | kaizen_safe_write "${done_path}" || {
+				echo "kaizen-extract-done: 抽出完了のマーカーを書けませんでした: ${done_path}" >&2
+				exit 1
+			}
+		fi
+		# SessionStart が消せなかった古いマーカーを無効にする記録（`.expired`）は、いま書いたマーカーと同じ秒に書かれていると、
+		# チェックがいま書いたマーカーまで使わない。記録を消して、マーカーを使えるようにする。
+		# 古いマーカーも使える状態に戻るが、いま書いたマーカーと同じく、このセッションを抽出済みとする印なので判定は変わらない。
+		remove_control_file_everywhere "${done_path##*/}.expired"
 	fi
 fi
 # センチネルの削除は、**リポジトリのすべての作業ツリー**に対して行う。チェックもすべてのツリーを見て止めるので、
@@ -379,6 +450,8 @@ if [ "${#kaizen_dirs[@]}" -eq 0 ] && kaizen_path_is_safe .kaizen; then
 fi
 
 removed=0
+# 消せなかったセンチネル（元のツリーに書けないなど）。後で、チェックが解消済みとして扱えるように記録する。
+left=()
 sentinel_name=${sentinel_path##*/}
 for kaizen_dir in ${kaizen_dirs[@]+"${kaizen_dirs[@]}"}; do
 	if [ "${sentinel_suffix_set}" -eq 1 ]; then
@@ -391,7 +464,10 @@ for kaizen_dir in ${kaizen_dirs[@]+"${kaizen_dirs[@]}"}; do
 	fi
 	for target in "${targets[@]}"; do
 		[ -e "${target}" ] || continue
-		kaizen_safe_rm "${target}" || continue
+		if ! kaizen_safe_rm "${target}" 2>/dev/null; then
+			left+=("${target}")
+			continue
+		fi
 		removed=$((removed + 1))
 	done
 done
@@ -399,7 +475,27 @@ done
 # **空振りを成功と区別する。** `rm -f` は対象が無くても正常終了するため、終了コードでは
 # 「解消した」と「解消するものが無かった」が同じ値になる。空振りに気づけないと、
 # 抽出したつもりでセンチネルが別の場所に残ったまま進むことになる。
-if [ "${removed}" -eq 0 ]; then
+if [ "${#left[@]}" -gt 0 ]; then
+	# 消せなかったセンチネルを、チェックが解消済みとして扱えるようにする。
+	# 抽出完了のマーカーを書いた実行では、マーカーがこのセッションのセンチネルを覆うので、何も足さない。
+	# checkpoint を書いた実行では、checkpoint の 6 行目に `supersedes-sentinel` と書く。チェックは、この行を持つ checkpoint より
+	# 古いセンチネルを解消済みとして扱う（kaizen-precommit-gate.sh の collect_unresolved）。この行の無い checkpoint は、
+	# センチネルより新しくても覆わない（チェックが書いた checkpoint は、センチネルを消してから使われる）。
+	left_covered=1
+	if [ "${checkpoint_written}" -eq 1 ] &&
+		! { print_checkpoint && printf 'supersedes-sentinel\n'; } | kaizen_safe_write "${checkpoint_path}" 2>/dev/null; then
+		left_covered=0
+	fi
+	if [ "${left_covered}" -eq 1 ] && [ "${sentinel_suffix_set}" -ne 1 ]; then
+		# 引数なしの呼び出しは他のセッションのセンチネルも消そうとするが、この実行で書いた記録はこのセッションの分しか覆わない。
+		printf 'kaizen-extract-done: 警告: 書き込めないため、次のセンチネルを消せませんでした。コミット前のチェックが解消済みとして扱うのは、このセッションのセンチネルだけです:\n' >&2
+	elif [ "${left_covered}" -eq 1 ]; then
+		printf 'kaizen-extract-done: 書き込めないため、次のセンチネルを消せませんでした。この実行で書いた記録より古いので、コミット前のチェックは解消済みとして扱います:\n' >&2
+	else
+		printf 'kaizen-extract-done: 警告: 書き込めないため、次のセンチネルを消せず、解消済みの記録も書けませんでした。コミット前のチェックは止めたままにします:\n' >&2
+	fi
+	printf '  %s\n' "${left[@]}" >&2
+elif [ "${removed}" -eq 0 ]; then
 	printf 'kaizen-extract-done: 警告: 削除対象のセンチネルがありませんでした（%s を起点に %s 個の .kaizen/ を確認。既に解消済みか、--sentinel-suffix / --session-id が立てた本人と違う可能性があります）\n' \
 		"$(pwd)" "${#kaizen_dirs[@]}" >&2
 fi

@@ -1443,6 +1443,71 @@ sweep_expired_foreign_sentinels() {
 # **worktree の commit が素通りする**。マーカー・checkpoint の探索も同じ範囲にする。
 # 片方だけ広げると、別ツリーのセンチネルを見つけた直後に「マーカーが無い」と読んで
 # 解消済みのセッションで再びブロックする。
+#
+# 書き込めないツリー（エージェントの sandbox が元のツリーへの書き込みを許さないなど）に残った制御ファイルは、
+# kaizen-extract-done.sh が消せず、新しい記録は自分のツリーに書かれる。消せずに残った古いファイルが新しい記録を隠さないよう、
+# 更新時刻で次の 2 つを判定する（key を持つ形式だけ）。どちらも、消せていれば同じ判定になる場合に限る。
+#   - 6 行目に `supersedes-sentinel` を持つ checkpoint が、センチネルより新しければ、そのセンチネルは解消済みとする。
+#     extract-done は、センチネルを消せなかったときだけ、この行を書く。新しい活動があれば、Stop フックが checkpoint より新しいセンチネルを立てる。
+#   - 2 行目に `supersedes-checkpoint` を持つマーカーが、すべての checkpoint より新しければ、checkpoint が在ってもマーカーで上書きする。
+#     extract-done は、checkpoint を消せなかったときだけ、この行を書く。この行の無いマーカー（以前の形式を含む）は、これまでどおり checkpoint に譲る。
+# 更新時刻が同じなら（秒の単位でしか記録しないファイルシステム）、新しいとは扱わず、これまでの判定にする。
+#
+# マーカーは SessionStart が消すが、書き込めないツリーのマーカーは消せずに残る。SessionStart は代わりに
+# 自分のツリーへ `<マーカーの名前>.expired` を書くので、どれかのツリーの `.expired` より新しくないマーカーは使わない。
+# 更新時刻が同じなら使わない（センチネルを覆わず、ブロックする側にする）。
+
+# $1 のマーカーの複製が、どのツリーの `.expired` よりも新しいか（`.expired` が無ければ使える）。
+done_copy_is_live() { # $1: マーカーの複製のパス $2: マーカーの名前
+	local dir
+	while IFS= read -r -d '' dir; do
+		[ -e "${dir}/$2.expired" ] || continue
+		[ "$1" -nt "${dir}/$2.expired" ] || return 1
+	done < <(kaizen_worktree_kaizen_dirs "${project_root}")
+	return 0
+}
+
+# $1 のマーカーの、使える複製がどれかのツリーにあるか。
+done_marker_live() { # $1: マーカーの名前
+	local dir
+	while IFS= read -r -d '' dir; do
+		[ -e "${dir}/$1" ] || continue
+		done_copy_is_live "${dir}/$1" "$1" && return 0
+	done < <(kaizen_worktree_kaizen_dirs "${project_root}")
+	return 1
+}
+
+# 6 行目に `supersedes-sentinel` を持つ $2 の checkpoint の、どれかのツリーの複製が、$1 のセンチネルより新しいか。
+checkpoint_supersedes_sentinel() { # $1: センチネル $2: checkpoint の名前
+	local dir
+	while IFS= read -r -d '' dir; do
+		[ "${dir}/$2" -nt "$1" ] || continue
+		[ "$(sed -n '6p' "${dir}/$2" 2>/dev/null || true)" = supersedes-sentinel ] && return 0
+	done < <(kaizen_worktree_kaizen_dirs "${project_root}")
+	return 1
+}
+
+# 2 行目に `supersedes-checkpoint` を持つ $1 のマーカーのどれかの複製が、$2 の checkpoint のすべての複製より新しいか。
+done_newer_than_checkpoints() { # $1: マーカーの名前 $2: checkpoint の名前
+	local dir done_file newer other
+	while IFS= read -r -d '' dir; do
+		done_file="${dir}/$1"
+		[ -e "${done_file}" ] || continue
+		done_copy_is_live "${done_file}" "$1" || continue
+		[ "$(sed -n '2p' "${done_file}" 2>/dev/null || true)" = supersedes-checkpoint ] || continue
+		newer=1
+		while IFS= read -r -d '' other; do
+			[ -e "${other}/$2" ] || continue
+			if ! [ "${done_file}" -nt "${other}/$2" ]; then
+				newer=0
+				break
+			fi
+		done < <(kaizen_worktree_kaizen_dirs "${project_root}")
+		[ "${newer}" -eq 1 ] && return 0
+	done < <(kaizen_worktree_kaizen_dirs "${project_root}")
+	return 1
+}
+
 collect_unresolved() {
 	unresolved=()
 	local dir sentinel key done_name checkpoint_name
@@ -1454,10 +1519,14 @@ collect_unresolved() {
 			done_name=${done_name#.kaizen/}
 			checkpoint_name=$(kaizen_checkpoint_path "${key}")
 			checkpoint_name=${checkpoint_name#.kaizen/}
-			if kaizen_find_control_file "${project_root}" "${done_name}" >/dev/null 2>&1; then
-				if [ -z "${key}" ] || ! kaizen_find_control_file "${project_root}" "${checkpoint_name}" >/dev/null 2>&1; then
+			if done_marker_live "${done_name}"; then
+				if [ -z "${key}" ] || ! kaizen_find_control_file "${project_root}" "${checkpoint_name}" >/dev/null 2>&1 ||
+					done_newer_than_checkpoints "${done_name}" "${checkpoint_name}"; then
 					continue
 				fi
+			fi
+			if [ -n "${key}" ] && checkpoint_supersedes_sentinel "${sentinel}" "${checkpoint_name}"; then
+				continue
 			fi
 			unresolved+=("${sentinel}")
 		done

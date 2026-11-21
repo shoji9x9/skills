@@ -1,0 +1,42 @@
+{
+  "$comment": [
+    "kaizen-extract-done.test.ts のうち、元の作業ツリーに書けないときに自分のツリーへ記録する処理（Issue #1101）の、書き直しに失敗したときと引数なしのときの分岐を守るテストの検出能力を示す変異の一覧。",
+    "各変異は、置換が当たったことと、expect_failing のテストだけが落ちたことの両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/kaizen/extract/kaizen-extract-done.test.ts",
+  "mutations": [
+    {
+      "id": "extract-done-no-suffix-warning-dropped",
+      "why": "--sentinel-suffix を渡さない呼び出しでも、消せなかったセンチネルをすべて解消済みと案内する（他のセッションの分はチェックに残る）",
+      "file": "skills/kaizen/scripts/kaizen-extract-done.sh",
+      "find": "\tif [ \"${left_covered}\" -eq 1 ] && [ \"${sentinel_suffix_set}\" -ne 1 ]; then",
+      "replace": "\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "元のツリーに書けないときは自分のツリーに記録する --sentinel-suffix を渡さない呼び出しでは、解消済みになるのはこのセッションのセンチネルだけだと案内する"
+      ]
+    },
+    {
+      "id": "extract-done-sentinel-rewrite-failure-ignored",
+      "why": "checkpoint に supersedes-sentinel を書き直せなくても、解消済みとして扱うと案内する（チェックは commit を止め続ける）",
+      "file": "skills/kaizen/scripts/kaizen-extract-done.sh",
+      "find": "\t\tleft_covered=0",
+      "replace": "\t\t:",
+      "occurrences": 1,
+      "expect_failing": [
+        "元のツリーに書けないときは自分のツリーに記録する checkpoint に supersedes-sentinel を書き直せなければ、チェックが止め続けることを案内して exit 0 で終える"
+      ]
+    },
+    {
+      "id": "extract-done-marker-rewrite-failure-ignored",
+      "why": "マーカーに supersedes-checkpoint を書き直せなくても exit 0 で終える（残った checkpoint がマーカーより優先され、チェックが止まり続ける）",
+      "file": "skills/kaizen/scripts/kaizen-extract-done.sh",
+      "find": "\t\t\tprintf '%s\\nsupersedes-checkpoint\\n' \"${done_stamp}\" | kaizen_safe_write \"${done_path}\" || {",
+      "replace": "\t\t\tprintf '%s\\nsupersedes-checkpoint\\n' \"${done_stamp}\" | kaizen_safe_write \"${done_path}\" || true || {",
+      "occurrences": 1,
+      "expect_failing": [
+        "元のツリーに書けないときは自分のツリーに記録する マーカーに supersedes-checkpoint を書き直せなければ、exit 1 で終える"
+      ]
+    }
+  ]
+}

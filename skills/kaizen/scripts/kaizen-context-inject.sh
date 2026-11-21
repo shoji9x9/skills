@@ -130,6 +130,22 @@ if [ "${is_compact}" -eq 0 ]; then
 		# センチネルだけを覆う共有マーカー。持ち主を特定できないので従来どおりここで失効させる。
 		kaizen_safe_rm "${expire_dir}/.extract-done" || true
 	done
+	# 書き込めないツリー（エージェントの sandbox が元のツリーへの書き込みを許さないなど）のマーカーは、消せずに残る。
+	# 残ったままだと、チェックはそのマーカーでこのセッションの新しいセンチネルを覆い、commit をチェックなしに通す（実測）。
+	# そこで、自分のツリーに `<マーカーの名前>.expired` を書き、それより古いマーカーを使わないようチェックに伝える
+	# （kaizen-precommit-gate.sh の collect_unresolved）。key を持たない以前の形式は対象外にする。
+	if [ -n "${session_key}" ] && [ -n "${done_name}" ] && declare -f kaizen_safe_write >/dev/null 2>&1; then
+		stale_done=""
+		for expire_dir in ${expire_dirs[@]+"${expire_dirs[@]}"}; do
+			[ -e "${expire_dir}/${done_name}" ] && stale_done="${expire_dir}/${done_name}"
+		done
+		if [ -n "${stale_done}" ]; then
+			if ! { kaizen_safe_mkdir .kaizen && date -u '+%Y-%m-%dT%H:%M:%SZ' | kaizen_safe_write ".kaizen/${done_name}.expired"; } 2>/dev/null; then
+				printf '%s: 抽出完了のマーカーを消せず、無効にする記録も書けませんでした。このセッションの commit はチェックなしに通ります: %s\n' \
+					"$(basename "${BASH_SOURCE[0]}")" "${stale_done}" >&2
+			fi
+		fi
+	fi
 fi
 
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。

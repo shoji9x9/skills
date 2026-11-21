@@ -30,6 +30,7 @@
     "scripts/skills/kaizen/hooks/kaizen-context-inject.mutations.json": 7.4,
     "scripts/skills/kaizen/lifecycle/kaizen-forget.mutations.json": 3.6,
     "scripts/skills/kaizen/extract/kaizen-candidate-scan.mutations.json": 1.8,
+    "scripts/skills/kaizen/extract/kaizen-extract-done.mutations.json": 7.5,
     "scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json": 1.6,
     "scripts/skills/parity-component/behavior-compare.mutations.json": 1.1,
     "scripts/skills/parity-component/cascade-resolve.mutations.json": 1,
