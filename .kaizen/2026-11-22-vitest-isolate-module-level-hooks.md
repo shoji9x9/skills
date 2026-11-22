@@ -16,6 +16,9 @@ Issue #1108 で、vitest の parallel プロジェクトを `isolate: false` に
 1 回目の全件の実行（カバレッジなし）は、14,211 件がすべて通った。
 カバレッジ付きの 2 回目の実行では、`scripts/skills/agent-usage/worktree-branches.test.ts` の 15 件が `ENOENT: mkdtemp '/tmp/agent-usage-cli-…/t-XXXXXX'` で落ちた。
 旧版（`isolate` がデフォルト）を同じ条件で実行すると、この 15 件は通った。
+`makeTempDirFactory` を直して 15 件が通った後、PR #1111 の CI で、fallow の CRAP の検査（`lint:crap`）が `code-comments.ts` の関数をカバレッジ 0% と読んで落ちた。
+`isolate: false` では、`takeCoverage()` がテストファイルごとにカウンタを書き出してリセットする。fallow は、同じスクリプトの記録が複数のファイルに分かれると合算しない（手元で `isolate` の有無を比べて確かめた）。
+記録を合算する処理を足すのは PR の範囲から外れるので、PR #1111 では `isolate: false` を採らず、`makeTempDirFactory` の修正も戻した。
 
 ## 根本原因
 
@@ -28,7 +31,7 @@ Issue #1108 で、vitest の parallel プロジェクトを `isolate: false` に
 
 - 同じ条件で旧版と現行版を 1 回ずつ実行し、差が `worktree-branches.test.ts` の 15 件だけだったことを確かめた（`test:coverage` の比較）。
 - 同じ形のヘルパーは、`scripts/` の `*-helpers.ts` などに 8 ファイルあった（すべて `makeTempDirFactory` をモジュールの最上位で呼ぶ）。
-- `makeTempDirFactory` を、消えていたら作り直す形に直し、作り直したものを setupFiles の `afterAll` で消すようにした。その後は 15 件とも通った。
+- `makeTempDirFactory` を消えていたら作り直す形に直し、作り直したものを setupFiles の `afterAll` で消すと、15 件とも通った。PR #1111 では、この修正を `isolate: false` と一緒に戻した。
 - `makeSharedTempDir` をヘルパーのモジュールの最上位で呼ぶものは、今は無い。ただし、足すと同じ失敗が起き、その時点の並び順で落ちなければ気付けない。
 
 ## 既存の規約
@@ -45,6 +48,6 @@ Issue #1108 で、vitest の parallel プロジェクトを `isolate: false` に
 
 `docs/testing.md`「並列実行」に、共有のヘルパー（`*.test.ts` でないファイル）はモジュールの最上位で vitest の hook を登録せず、`makeSharedTempDir` を呼ばないことを書き、`test-tmpdir.test.ts` の直呼びの検査でそれを落とす。
 
-- `makeTempDirFactory` は作り直しに対応したので、モジュールの最上位で呼んでよいと同じ節に書く。
+- `isolate: false` を採るときは、`makeTempDirFactory` を作り直しに対応させ（PR #1111 の 2 つ目の commit）、V8 の記録を fallow に渡す前に合算する。
 - `makeSharedTempDir` はテストファイルの収集の時点（`describe` の本体）でだけ呼ぶ。ヘルパーが共有のディレクトリを要るなら、`makeTempDirFactory` を使う。
 - 検査を作るかは、`references/apply.md`「機構を作る前に効果と費用を書く」で決める。効果は、今回の 15 件の失敗と、同じ形のヘルパーが 8 ファイルあったこと。費用は、`test-tmpdir.test.ts` の既存の直呼びの検査に、`*.test.ts` でないファイルの `makeSharedTempDir(` と最上位の hook の呼び出しを探す条件を足すだけである。

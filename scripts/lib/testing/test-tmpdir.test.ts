@@ -6,12 +6,7 @@ import { assert, describe, expect, test } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  makeSharedTempDir,
-  makeTempDir,
-  makeTempDirFactory,
-  removeRecreatedRoots,
-} from "./test-tmpdir.ts";
+import { makeSharedTempDir, makeTempDir, makeTempDirFactory } from "./test-tmpdir.ts";
 
 // 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/testing/` にあるので 2 段上がる）。
 const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -98,23 +93,6 @@ describe("makeTempDirFactory", () => {
 test("makeTempDirFactory で作ったものは describe を抜けると消える", () => {
   expect(factoryDirs).toHaveLength(2);
   for (const dir of factoryDirs) expect(existsSync(dir)).toBe(false);
-});
-
-// isolate: false で、前のテストファイルの afterAll が共有のディレクトリを消した後に、同じ関数を使う場合（Issue #1108）。
-// make は describe の中で作った関数で、その describe を抜けた後なので、共有のディレクトリは既に消えている。
-let reused: ((name: string) => string) | undefined;
-describe("makeTempDirFactory（共有のディレクトリが消えた後）", () => {
-  reused = makeTempDirFactory("test-tmpdir-reused-");
-  test("消える前に 1 回使う", () => {
-    expect(existsSync(reused?.("a-") ?? "")).toBe(true);
-  });
-});
-
-test("共有のディレクトリが消えた後も作れ、作り直したものは removeRecreatedRoots で消える", () => {
-  const dir = reused?.("b-") ?? "";
-  expect(existsSync(dir)).toBe(true);
-  removeRecreatedRoots();
-  expect(existsSync(dir)).toBe(false);
 });
 
 // --- 直呼びの検査 -------------------------------------------------------------
