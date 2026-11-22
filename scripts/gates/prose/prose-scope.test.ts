@@ -8,10 +8,10 @@
 //
 // | 軸                       | 値                                                                                  |
 // | ------------------------ | ----------------------------------------------------------------------------------- |
-// | ref                      | 解決できる / 解決できない（全体）                                                     |
+// | ref                      | 解決できる / 解決できない（全体）/ git を起動できない（全体）                          |
 // | 変わったパス             | 0 件 / 対象 / 対象外 / 消したファイル / 名前を変えたファイル                           |
 // | 検査の側の一式           | INPUT_FILES / 起点 / 起点の直接の import / 間接の import / 一式の外の scripts/lib     |
-// | skills/<name>/ の消し方  | ディレクトリごと消す（コピーを見る）/ 一部だけ消す（コピーを見ない）                    |
+// | skills/<name>/ の消し方  | ディレクトリごと消す（コピーを見る）/ 一部だけ消す（コピーを見ない）/ コピーを一覧にできない（全体） |
 // | import をたどれるか      | import 先を読めない（全体）                                                           |
 // | CLI の引数               | --changed-since <ref> / --changed-since=<ref> / ref なし / 2 回 / ファイルの指定と併用 |
 import { spawnSync } from "node:child_process";
@@ -70,6 +70,19 @@ describe("変わったパスだけを見る", () => {
     expect(scope.kind).toBe("changed");
     assert(scope.kind === "changed");
     expect(scope.files).toContain("new.md");
+  });
+
+  test("git を起動できなければ、全体を見る", () => {
+    const root = makeRepo({ "a.md": CLEAN }, (r) => write(r, "a.md", DIRTY));
+    const path = process.env.PATH;
+    process.env.PATH = makeTempDir("prose-scope-empty-path-");
+    try {
+      const scope = proseScope(root, "base");
+      expect(scope.kind).toBe("full");
+      expect(scope.reason).toContain("git を起動できない");
+    } finally {
+      process.env.PATH = path;
+    }
   });
 
   test("ref を解決できなければ、全体を見る", () => {
@@ -131,6 +144,21 @@ describe("skills/<name>/ を消すと、そのコピーだった .agents/skills/
     const scope = proseScope(root, "base");
     assert(scope.kind === "changed");
     expect(scope.files).toContain(".agents/skills/foo/SKILL.md");
+  });
+
+  // 差分（commit どうしの比較）は index を読まず、ls-files は読むので、index をディレクトリにすると ls-files だけが失敗する。
+  test("コピーを一覧にできなければ（git ls-files の失敗）、全体を見る", () => {
+    const root = makeRepo(base, (r) => rmSync(join(r, "skills/foo"), { recursive: true }));
+    const index = process.env.GIT_INDEX_FILE;
+    process.env.GIT_INDEX_FILE = makeTempDir("prose-scope-index-");
+    try {
+      const scope = proseScope(root, "base");
+      expect(scope.kind).toBe("full");
+      expect(scope.reason).toContain("消したスキルのコピーを一覧にできない");
+    } finally {
+      if (index === undefined) delete process.env.GIT_INDEX_FILE;
+      else process.env.GIT_INDEX_FILE = index;
+    }
   });
 
   test("一部だけ消したなら、コピーのファイルは入らない", () => {
