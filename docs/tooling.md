@@ -364,6 +364,21 @@ markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて構文エラ
 Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメントもチェックする。
 コメントは日本語を含む段落だけを見て、文字列（利用者に表示するメッセージ）は見ない。メッセージは、書いた人とレビューする人が確かめる。
 
+見るファイルは、実行する場所ごとに違う。
+
+| 実行する場所 | 見るファイル |
+| --- | --- |
+| pre-commit | staged のファイル |
+| PR の CI（`--changed-since origin/<base>`） | ベースとの差分で変えたファイル。検査の側の一式が変わったときと、差分を取れないときは全件 |
+| 週次（`.github/workflows/prose-lint.yml`） | 全件 |
+
+PR で変えていないファイルを見ないのは、textlint の規則がファイルごとに独立していて、main に入るものはすべて PR の検査を通るからである。
+検査の側の一式が同じなら、変えていないファイルは main と同じ結果になる。
+一式は、`.textlintrc.json`・`.textlint/words.json`・依存とツールのバージョンの宣言と、`lint-prose.ts` から相対パスの import をたどった `.ts` である。
+バージョンの宣言は、`package.json`・`pnpm-lock.yaml`・`pnpm-workspace.yaml`・`mise.toml`・`mise.lock` である。
+import は実行するたびにたどるので、`lint-prose.ts` が新しいファイルを import しても一覧を直す必要は無い。
+import しないで実行時に読むファイルを足したときは、`scripts/gates/prose/prose-scope.ts` の `INPUT_FILES` に足す。足し忘れた変更は、週次の全件の実行が拾う。
+
 - 語を一覧に足すときは、言い換え先を `message` に、検出されることを確かめる文を `example` に書く。
   `scripts/gates/prose/lint-prose.test.ts` が全エントリの `example` で検出されることを確かめる。
 - 読みやすさの規則を例の文から語の並びとして lint にするかを決めるときは、例と同じ語の並びを持つ自然な文を 1 つ以上書き、その文を検出しないかを確かめる。

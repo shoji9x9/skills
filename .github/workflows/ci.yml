@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # fallow audit（Test weakening）が PR のベースとの差分を取る。
+          # fallow audit（Test weakening）と Prose lint が PR のベースとの差分を取る。
           fetch-depth: 0
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
       - run: pnpm install --frozen-lockfile
@@ -123,8 +123,15 @@ jobs:
         run: node scripts/gates/docs/check-doc-refs.ts
       - name: Skill index (AGENTS.md / README.md vs skills/)
         run: node scripts/gates/packaging/check-skill-index.ts
+      # PR のベースとの差分で変えたファイルだけを見る（Issue #1108）。検査の側の一式（辞書・設定・依存とツールのバージョン・
+      # lint-prose.ts とその import 先）が変わったときと、差分を取れないときは全体を見る（scripts/gates/prose/prose-scope.ts）。
+      # 全件は週次で見る（.github/workflows/prose-lint.yml）。差分を取るので、checkout の fetch-depth: 0 が要る。
+      # push では base_ref が空になるので、起動の条件に push を戻したときのために、PR に限る条件を残す。
       - name: Prose lint (textlint; .textlintrc.json / .textlint/words.json)
-        run: node scripts/gates/prose/lint-prose.ts
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/gates/prose/lint-prose.ts --changed-since "origin/${BASE_REF}"
       - name: AGENTS.md size (Codex reads up to 32 KiB)
         run: node scripts/gates/docs/agents-md/check-agents-md-size.ts
 

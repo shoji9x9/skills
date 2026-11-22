@@ -10,7 +10,7 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 | --- | --- | --- | --- |
 | 月 | 09:30（00:30） | 依存 | Dependabot（npm・github-actions）・`outdated.yml`・`ignored-advisories.yml` |
 | 月 | 10:30（01:30） | 振り返り | `kaizen-schedule.yml` |
-| 火 | 09:30（00:30） | セキュリティ・全件の測定 | `codeql.yml`・`mutation-proof.yml` |
+| 火 | 09:30（00:30） | セキュリティ・全件の測定 | `codeql.yml`・`mutation-proof.yml`・`prose-lint.yml` |
 | 火 | 09:30（00:30） | 点検 | `check-cost-metrics.yml` |
 | 火 | 10:30（01:30） | 点検 | `self-review.yml` |
 | 火 | 11:30（02:30） | セキュリティ | `security-audit.yml` |
@@ -24,6 +24,7 @@ GitHub Actions の `schedule` と Dependabot で毎週動く処理の、曜日�
 
 月曜には、人の対応が要る依存の処理を集める。
 `mutation-proof.yml` の全件の実行は、依存のバージョンを上げて検査が変わった宣言を確かめるためのものなので、月曜に依存の PR をマージした後の火曜に置く。
+`prose-lint.yml` は、PR で変えたファイルだけを見る文章のチェックを全件に当てる。全件の測定の系統なので、`mutation-proof.yml` と同じ時刻に置く。
 `security-audit.yml` は、`self-review.yml` と同じ Claude のプランの使用量で、エージェントを数十分動かす。2 つのエージェントが同時に動きにくいよう、`self-review.yml` の 1 時間後に置く。重なっても、どちらの結果も変わらない。
 
 ## 処理どうしの依存
