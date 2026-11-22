@@ -1,0 +1,40 @@
+name: Prose lint
+
+# 人が読む文章のチェック（scripts/gates/prose/lint-prose.ts）を、全件に当てる。
+# PR の CI（ci.yml の Lint）は、ベースとの差分で変えたファイルだけを見る（Issue #1108）。
+# 検査の側の一式（辞書・設定・依存とツールのバージョン・lint-prose.ts とその import 先）が変わった PR は全件を見るが、
+# 一式に数えていない入力（実行時に読むファイルを後から足した場合など）の変更は PR で拾えない。その範囲を週次で確かめる。
+# 指摘があればジョブが失敗し、ログに指摘の一覧が残る。
+on:
+  schedule:
+    # 毎週火曜 09:30 JST（00:30 UTC）。週次の処理の一覧と、cron を変えるときの確かめ方は docs/weekly-schedule.md にある。
+    - cron: "30 0 * * 2"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prose-lint:
+    name: Prose lint (all files)
+    runs-on: ubuntu-latest
+    # 一式が変わった PR では、CI の Lint ジョブ（timeout 10 分）も同じ範囲を見る。このジョブはそれより長い上限を置く。
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - run: pnpm install --frozen-lockfile
+      - name: Prose lint (textlint; .textlintrc.json / .textlint/words.json)
+        run: node scripts/gates/prose/lint-prose.ts

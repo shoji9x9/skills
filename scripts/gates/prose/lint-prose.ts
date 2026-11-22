@@ -20,6 +20,8 @@
 //   - 過去の記録（`.kaizen/archive/`）とテスト結果（`tests/`）。有効な学び（`.kaizen/*.md`）は見る。
 //   - シンボリックリンク（`.github/instructions/` など。リンク先を見れば足りる）。
 // - 引数でファイルを渡したときは、そのうち対象に当たるものだけを見る（lefthook の staged_files）。
+// - `--changed-since <ref>` を渡したときは、`<ref>...HEAD` で変わったファイルのうち対象に当たるものだけを見る（PR の CI）。
+//   検査の側の一式が変わったときと、差分を取れないときは全体を見る（決め方は prose-scope.ts）。
 // - 設定や辞書を読めない・対象が 0 件（全体を見る実行時）は exit 2、指摘は exit 1。
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
@@ -37,6 +39,7 @@ import { isAgentCopy, isVendored } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/text/textlint-word-rule.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
+import { proseScope } from "./prose-scope.ts";
 
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
@@ -173,11 +176,55 @@ export async function lintProse({
   return { checked: targets.length, violations: formatViolations(targets, byPath) };
 }
 
+/**
+ * 引数から `--changed-since <ref>`（`--changed-since=<ref>` も）を取り出し、残りの引数と分ける。
+ * 2 回書いたときと、ref が無いときは例外にする（どちらの ref で選んだかが分からない・ファイル名として扱われて 0 件で通る）。
+ */
+function splitChangedSince(args: string[]): { ref?: string; rest: string[] } {
+  const refs: string[] = [];
+  const rest: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith("--changed-since=")) {
+      refs.push(arg.slice("--changed-since=".length));
+    } else if (arg === "--changed-since") {
+      refs.push(args[i + 1] ?? "");
+      i++;
+    } else {
+      rest.push(arg);
+    }
+  }
+  if (refs.length > 1) throw new Error("--changed-since を 2 回書いている");
+  const [ref] = refs;
+  if (ref !== undefined && (ref === "" || ref.startsWith("-"))) {
+    throw new Error("--changed-since に ref がない");
+  }
+  return { ref, rest };
+}
+
+/**
+ * 引数から、見るファイルを決める。`undefined` は全体を見る。
+ * `--changed-since <ref>` は、ファイルの指定と併用しない（選び方が二重になる）。
+ */
+function selectFiles(root: string, argv: string[]): string[] | undefined {
+  const { ref, rest } = splitChangedSince(argv.filter((a) => a !== "--"));
+  if (ref === undefined) return rest.length ? rest : undefined;
+  if (rest.length)
+    throw new Error(`--changed-since とファイルの指定は併用しない: ${rest.join(" ")}`);
+  const scope = proseScope(root, ref);
+  if (scope.kind === "full") {
+    console.error(`lint-prose: 全体を見る（${scope.reason}）`);
+    return undefined;
+  }
+  console.error(`lint-prose: ${scope.reason}のうち、対象に当たるものだけを見る`);
+  return scope.files;
+}
+
 export async function main(argv: string[]): Promise<number> {
-  const files = argv.filter((a) => a !== "--");
   let result: Awaited<ReturnType<typeof lintProse>>;
   try {
-    result = await lintProse({ root: process.cwd(), files: files.length ? files : undefined });
+    const root = process.cwd();
+    result = await lintProse({ root, files: selectFiles(root, argv) });
   } catch (error) {
     console.error(`lint-prose: 実行できない: ${errorMessage(error)}`);
     return 2;
