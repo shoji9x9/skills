@@ -9,7 +9,7 @@
 // | 軸                       | 値                                                                                  |
 // | ------------------------ | ----------------------------------------------------------------------------------- |
 // | ref                      | 解決できる / 解決できない（全体）/ git を起動できない（全体）                          |
-// | 変わったパス             | 0 件 / 対象 / 対象外 / 消したファイル / 名前を変えたファイル                           |
+// | 変わったパス             | 0 件 / 対象 / 対象外 / 対象外だけ（main は 0 件を見て exit 0）/ 消したファイル / 名前を変えたファイル |
 // | 検査の側の一式           | INPUT_FILES / 起点 / 起点の直接の import / 間接の import / 一式の外の scripts/lib     |
 // | skills/<name>/ の消し方  | ディレクトリごと消す（コピーを見る）/ 一部だけ消す（コピーを見ない）/ コピーを一覧にできない（全体） |
 // | import をたどれるか      | import 先を読めない（全体）                                                           |
@@ -189,6 +189,24 @@ describe("main の --changed-since", () => {
   // 変えていない dirty.md の指摘は、絞ったときには出ない（main で通った前提なので見ない）。
   const repo = () =>
     makeRepo({ "dirty.md": DIRTY, "a.md": CLEAN }, (r) => write(r, "a.md", `${CLEAN}追記する。\n`));
+
+  // 見るファイルが 0 件になる PR（画像だけを変えた・空の commit だけ）。全体を見るときの「対象が 0 件なら exit 2」と取り違えず、
+  // 全体にも切り替えない。変わったパスが 0 件の組は、空の一覧を「全体」として扱う回帰を検出する。
+  test.each([
+    ["対象外のファイルだけを変えた", (r: string) => write(r, "c.txt", "y"), 1],
+    ["何も変えていない（空の commit）", () => {}, 0],
+  ] as const)(
+    "%s PR は、0 件を見て exit 0 で終わり、変えていないファイルの指摘は出さない",
+    async (_, change, paths) => {
+      const root = makeRepo({ "dirty.md": DIRTY, "c.txt": "x" }, change);
+      const r = await run(root, ["--changed-since", "base"]);
+      expect(r.code).toBe(0);
+      expect(r.stderr).toContain(
+        `base...HEAD で変わった ${paths} 件のパスのうち、対象に当たるものだけを見る`,
+      );
+      expect(r.stderr).not.toContain("dirty.md");
+    },
+  );
 
   test("変えたファイルだけを見て、変えていないファイルの指摘は出さない", async () => {
     const r = await run(repo(), ["--changed-since", "base"]);
