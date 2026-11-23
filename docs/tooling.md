@@ -326,8 +326,20 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 
-応答を確定する前のチェック（Claude Code の Stop）として、`scripts/hooks/response-language-check.ts` が、最後の応答が日本語で書かれているかを確かめる。
-コードブロック・インラインコード・引用・URL・ハーネスのタグの塊を除いた本文で、ラテン文字が 40 字以上あり、日本語の文字（ひらがな・カタカナ・漢字）の割合が 0.1 未満なら、exit 2 で書き直させる。
+応答を確定する前のチェック（Claude Code の Stop）として、`scripts/hooks/response-language-check.ts` が、そのターンの人への本文が日本語で書かれているかを確かめる。
+確かめるのは、最後の本文（`last_assistant_message`）と、transcript にある途中報告（ツールの呼び出しの前に書いた本文と、`thinkingDisplay` が `updates` の thinking）である。
+コードブロック・インラインコード・引用・URL・Markdown のリンク・ハーネスのタグの塊を除いた本文で、ラテン文字が日本語の文字（ひらがな・カタカナ・漢字）の 5 倍を超え、次の字数以上あれば英語とみなす。
+
+| 本文 | ラテン文字の字数 |
+| --- | --- |
+| 最後の本文 | 25 字 |
+| 複数行の途中報告 | 60 字 |
+| 1 行の途中報告 | 250 字（短い 1 行の前置きは画面に小さく出るだけなので見ない） |
+
+英語の箇所があれば、その箇所の最初の行を引用して、そこだけを日本語で書き直させる（exit 2）。日本語で書けていた部分は、再掲させない。
+JSON の値だけの応答は、スクリプトが読む出力なので確かめない。
+`claude -p` のように人が読まない出力を作る呼び出しでは、環境変数 `RESPONSE_LANGUAGE_CHECK_DISABLE=1` で Hook を無効にできる。
+同じスクリプトを、デスクトップアプリの「次の一手」の箱を出すツール（matcher は `mcp__.*__wrap_up`）の PreToolUse にも登録している。箱の文言が英語なら、画面に出る前にツールの呼び出しを止める。
 `stop_hook_active` が true のときも、この Hook が止めた印が無ければ（別の Hook が書き直させた後なら）確かめる。印は `scripts/hooks/stop-marker.ts` で、次の Hook と共有している。
 node が無い環境では警告だけを出して通す。設定は Claude Code だけで、Codex と Copilot には入れていない。
 
