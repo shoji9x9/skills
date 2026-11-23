@@ -238,6 +238,35 @@ test.each([
   expect(out).toEqual([]);
 });
 
+test.each([
+  ["親とサブエージェント", {}, { agent_id: "a1" }],
+  ["別のサブエージェント", { agent_id: "a1" }, { agent_id: "a2" }],
+])(
+  "同じセッションでも、エージェントが違えば繰り返しとして数えない（%s）",
+  (_name, first, second) => {
+    run({ error: "Exit code 1", ...first });
+    run({ error: "Exit code 1", ...second });
+    expect(out).toEqual([]);
+  },
+);
+
+test("同じサブエージェントの同じ失敗は、繰り返しとして案内する", () => {
+  run({ error: "Exit code 1", agent_id: "a1" });
+  run({ error: "Exit code 1", agent_id: "a1" });
+  expect(context()).toBe(REPEAT_GUIDE);
+});
+
+test.each([
+  ["パスの区切りを含む", "../x"],
+  ["文字列でない", 1],
+  ["空文字", ""],
+])("agent_id が使えない形なら繰り返しを判定しない（%s）", (_name, agentId) => {
+  run({ agent_id: agentId });
+  run({ agent_id: agentId });
+  expect(out).toEqual([]);
+  expect(lastFailurePath("s", stateDir, agentId)).toBeNull();
+});
+
 test("間に別のエラーを挟んだら、繰り返しとして数えない", () => {
   run({ error: "Exit code 1" });
   run({ error: "Exit code 2" });

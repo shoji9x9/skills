@@ -352,6 +352,7 @@ textlint の設定を読めないときや規則が無効なときは、書き�
 ツールの失敗と拒否の時点の案内（Claude Code の PostToolUseFailure）として、`scripts/hooks/tool-error-guide.ts` が、エラーの文を一覧 `scripts/hooks/tool-error-guides.json` の行と照らす。
 一致した行の案内と規約の場所を、`additionalContext` で次の応答の前に渡す。
 同じセッションで、直前の失敗と同じツール・同じ入力・同じエラーが続いたら、同じ呼び出しを繰り返さないよう求める案内も渡す。間に成功した呼び出しを挟んでも、直前の失敗の記録は消さない。
+サブエージェントは親と同じ `session_id` で Hook を呼ぶので、記録は `agent_id` があればエージェントごとに分ける。
 Hook は、実行を始めたツールが失敗したときと、worktree の隔離セッションがコマンド（Bash・PowerShell・Monitor）を拒否したときに呼ばれる。
 入力の検証で返されたエラー（Edit の置換元が見つからないなど）、PreToolUse の Hook による拒否、権限の拒否では呼ばれないので、一覧に行を足しても案内は出ない。
 呼ばれる条件の出典は <https://code.claude.com/docs/en/hooks> と、`claude -p` で 1 回ずつ起動した実測である。

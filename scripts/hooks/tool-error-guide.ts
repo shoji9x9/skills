@@ -107,10 +107,22 @@ export function failureOf(payload: Record<string, unknown>): Failure | null {
   return { toolName, error, input: JSON.stringify(payload.tool_input ?? null) };
 }
 
-/** 直前の失敗を残すファイルのパス。session_id が使えない形なら null（繰り返しを判定しない）。 */
-export function lastFailurePath(sessionId: unknown, dir: string = tmpdir()): string | null {
-  if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) return null;
-  return join(dir, `${HOOK}-${sessionId}.last`);
+const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * 直前の失敗を残すファイルのパス。session_id か agent_id が使えない形なら null（繰り返しを判定しない）。
+ * サブエージェントは親と同じ session_id で Hook を呼ぶので、agent_id があればエージェントごとに分ける。
+ * 分けないと、並行するサブエージェントが同じ呼び出しを 1 回ずつ失敗しただけで、繰り返しとして案内してしまう。
+ */
+export function lastFailurePath(
+  sessionId: unknown,
+  dir: string = tmpdir(),
+  agentId?: unknown,
+): string | null {
+  if (typeof sessionId !== "string" || !SAFE_ID.test(sessionId)) return null;
+  if (agentId === undefined) return join(dir, `${HOOK}-${sessionId}.last`);
+  if (typeof agentId !== "string" || !SAFE_ID.test(agentId)) return null;
+  return join(dir, `${HOOK}-${sessionId}.${agentId}.last`);
 }
 
 function digest(failure: Failure): string {
@@ -172,7 +184,10 @@ export function main(
     console.error(`${HOOK}: 一覧（${guidesPath}）を読めない: ${errorMessage(error)}`);
     return 1;
   }
-  const repeated = repeatsLast(lastFailurePath(payload.session_id, stateDir), failure);
+  const repeated = repeatsLast(
+    lastFailurePath(payload.session_id, stateDir, payload.agent_id),
+    failure,
+  );
   const context = contextOf(matchGuides(guides, failure), repeated);
   if (context === "") return 0;
   const output = {
