@@ -859,7 +859,9 @@ export function suiteOf(list: TestList, file: string): Suite {
 
 /**
  * `playwright test --list --reporter=json` の出力の形（@playwright/test 1.65.1 の実測）で、テストの一覧を作る。
- * 名前は「スペックのパス › 題 …」で、最初の区切りの前をファイル、残りを describe と題に割る。spec は projects ごとに別の要素で並ぶ。
+ * 名前は「スペックのパス › 題 …」で、最初の区切りの前をファイル、残りを describe と題に割る。
+ * 実物は 1 つの spec の tests[] に projects が並ぶが、ここでは project ごとに別の spec に分ける（片側だけを書き換えるテストのため）。
+ * 索引は同じ位置と題の spec を 1 本に畳むので、どちらの形でも同じに読む。実物の形は realShapeTestList で作る。
  * @param {string[]} names
  * @param {string[]} [projects]
  */
@@ -892,6 +894,30 @@ export function testList(names: string[], projects: string[] = ["current", "new"
     }
   }
   return { config: {}, suites: [...files.values()], errors: [], stats: {} };
+}
+
+/**
+ * testList と同じ名前から、実物の形（1 つの spec の tests[] に projects が並ぶ。@playwright/test 1.65.1 の実測）の一覧を作る。
+ * @param {string[]} names
+ * @param {string[]} [projects]
+ */
+export function realShapeTestList(
+  names: string[],
+  projects: string[] = ["current", "new"],
+): TestList {
+  const list = testList(names, projects);
+  const merge = (suite: Suite): void => {
+    const merged: Spec[] = [];
+    for (const spec of suite.specs) {
+      const same = merged.find((m) => m.title === spec.title && m.line === spec.line);
+      if (same) same.tests.push(...spec.tests);
+      else merged.push({ ...spec, tests: [...spec.tests] });
+    }
+    suite.specs = merged;
+    suite.suites.forEach(merge);
+  };
+  list.suites.forEach(merge);
+  return list;
 }
 
 /** 表の全ての covered_by を名乗った通りの一覧と、全行を reaches とした監査の記録を作る（通ることの確認で使う既定）。 */

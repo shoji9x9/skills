@@ -374,7 +374,8 @@ feature モードのときだけ作る。
   `test.skip` や `test.fixme` で静的に飛ばすテストは、飛ばす側では実行されないものとして数える（一覧の `expectedStatus: skipped`）。
   ただし、静的に飛ばしたテストでは操作中のエラーを記録する fixture が動かないので、`parity-diff` の比較が記録の欠けとして止まる（[`baseline.md`](baseline.md)「操作中のエラーのベースライン」）。
   一覧で `expectedStatus` が `passed` でない側（失敗を期待する `failed` など）も、実行されないものとして数える。
-  本文の中で条件付きで飛ばす `test.skip(条件)` と、失敗を期待する `test.fail(...)` は、一覧に現れない（Playwright 1.65.1 の `--list` では `passed` のまま）。
+  静的に失敗を期待する `test.fail(題, 本文)` は、`expectedStatus` が `passed` のままだが `annotations` に `type: fail` が入るので、実行されないものとして数える。
+  本文の中で呼ぶ `test.skip(条件)`・`test.fail()`・`test.fail(条件)` は、一覧に現れない（Playwright 1.65.1 の `--list` では `passed` のままで、`annotations` も空）。
   そのため、`covered_by` のテストでは使わない。使うと、片側で assertion が実行されないか、失敗しても成功のまま解決される。
 - 1 本のテストを 2 行以上の `covered_by` が名乗るなら、すべての行に `shared_assertion_reason` を書く。
   書くのは、その 1 本が各行の期待値をすべて確かめている根拠である。

@@ -692,7 +692,13 @@
         "covered_by のテストが current / new の片側でしか実行されなければ落とす（Issue #506）",
         "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では実行されないものとして落とす（Issue #506）",
         "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 失敗を期待する（failed）（Issue #506）",
-        "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 値が無い（Issue #506）"
+        "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 値が無い（Issue #506）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: test.fail(題, 本文) の type: fail（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: ほかの annotation と並ぶ type: fail（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations が配列でない（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の要素が object でない（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の要素が null（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の欄が無い（Issue #1127）"
       ]
     },
     {
@@ -804,6 +810,34 @@
         "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では実行されないものとして落とす（Issue #506）",
         "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 失敗を期待する（failed）（Issue #506）",
         "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 値が無い（Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-fail-annotation-counted",
+      "why": "annotations の type: fail（test.fail(題, 本文)）を読まず、失敗を期待するテストも両側で実行されるテストとして数える（Issue #1127）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!expectsFailure(t)) entry.projects.add(t.projectName);\n",
+      "replace": "      entry.projects.add(t.projectName);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: test.fail(題, 本文) の type: fail（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: ほかの annotation と並ぶ type: fail（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations が配列でない（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の要素が object でない（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の要素が null（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の欄が無い（Issue #1127）"
+      ]
+    },
+    {
+      "id": "covered-by-unreadable-annotations-accepted",
+      "why": "無いか配列でない annotations を、失敗を期待しないものとして通す（読めない値のテストを両側で実行されるテストとして数える。Issue #1127）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isArray(t.annotations)) return true;\n",
+      "replace": "  if (!isArray(t.annotations)) return false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations が配列でない（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の欄が無い（Issue #1127）"
       ]
     },
     {
