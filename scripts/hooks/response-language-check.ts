@@ -69,7 +69,8 @@ export function prose(message: string): string {
  * リンクの文字は Issue や PR の題を英語のまま貼ったものが多く、応答の言語ではない。
  * prose は response-word-check も使うので、リンクは prose では外さない（使わない語はリンクの文字でも確かめる）。
  */
-const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\s]*\)/g;
+// リンク先の後ろのタイトル（`"..."`・`'...'`）も、リンクの一部として外す。
+const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\s]*(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\)/g;
 
 function languageBody(message: string): string {
   // prose が URL を外すと `](URL)` の形が残らないので、リンクは prose より先に外す。
@@ -95,14 +96,14 @@ function isEnglishReport(text: string): boolean {
   return judge(text, lines.length >= 2 ? REPORT_MULTILINE : REPORT_ONE_LINE).english;
 }
 
-/** 応答が JSON の値だけか（前後の ```json のフェンスは許す）。配列とオブジェクトだけを数える。 */
+/** 応答が JSON の値だけか（前後の ```json のフェンスは許す）。オブジェクト・配列・文字列を数える。数値と true・false・null は英字が少なく、判定の対象にならない。 */
 function isJsonOnly(message: string): boolean {
   const body = message
     .trim()
     .replace(/^```(?:json)?[ \t]*\n/, "")
     .replace(/\n```$/, "")
     .trim();
-  if (!body.startsWith("{") && !body.startsWith("[")) return false;
+  if (!/^[{["]/.test(body)) return false;
   try {
     JSON.parse(body);
     return true;

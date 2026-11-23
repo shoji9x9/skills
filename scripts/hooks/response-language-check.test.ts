@@ -457,6 +457,11 @@ test.each([
     `次の PR を作りました。\n\n- ${LINK}\n- ${LINK}`,
   ],
   ["JSON のオブジェクトだけの応答", `{"summary": "${ENGLISH}", "status": "done"}`],
+  ["JSON の文字列だけの応答", JSON.stringify(ENGLISH)],
+  [
+    "タイトル付きの英語のリンクを並べた日本語の応答",
+    `次の PR を作りました。\n\n- ${LINK.replace(")", ' "Open the pull request for review")')}\n- ${LINK.replace(")", " 'Open the pull request for review')")}`,
+  ],
   ["JSON の配列だけの応答", `["${ENGLISH}", "${ENGLISH}"]`],
   ["json のフェンスで囲んだ JSON だけの応答", `\`\`\`json\n{"summary": "${ENGLISH}"}\n\`\`\``],
 ])("通す: %s", (_label, message) => {
@@ -467,6 +472,8 @@ test.each([
   ["リンクの外に英語の文がある応答", `${LINK} ${ENGLISH}`],
   ["JSON の後に英語の文が続く応答", `{"status": "done"}\n\n${ENGLISH}`],
   ["JSON に見えて読めない英語の応答", `{ ${ENGLISH}`],
+  ["引用符で始まるが JSON の文字列でない英語の応答", `"${ENGLISH}" and ${ENGLISH}`],
+  ["タイトルの後ろに英語の文が続く応答", `${LINK.replace(")", ' "title")')} ${ENGLISH}`],
 ])("書き直させる: %s", (_label, message) => {
   expect(run(hook({ last_assistant_message: message })).status).toBe(2);
 });
