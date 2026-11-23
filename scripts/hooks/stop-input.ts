@@ -1,4 +1,4 @@
-// 応答を書き直させる Stop の Hook（response-language-check・response-word-check）が共有する、入力の読み方。
+// 応答を書き直させる Hook（response-language-check・response-word-check）が共有する、入力の読み方。
 // 入力を JSON として読み、確かめる応答の本文を返す。確かめずに終えるときは、返す終了コードを返す。
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
@@ -17,24 +17,15 @@ import { alreadyBlocked } from "./stop-marker.ts";
  *   camelCase の `.github/hooks/` の登録には入れない（https://docs.github.com/en/copilot/reference/hooks-reference。1.0.105 で確かめた）
  * Copilot のシェルから起動した Claude Code は COPILOT_CLI を引き継ぎうるが、その入力には `timestamp` が無いので false になる。
  */
-function isCopilotClaudeSettingsPayload(payload: Record<string, unknown>): boolean {
+export function isCopilotClaudeSettingsPayload(payload: Record<string, unknown>): boolean {
   return Boolean(process.env.COPILOT_CLI) && "timestamp" in payload && "hook_event_name" in payload;
 }
 
-export type StopResponse = { payload: Record<string, unknown>; message: string };
-
 /**
- * Stop の入力から、確かめる応答を返す。確かめずに終えるときは終了コードを返す。
- * - 入力を読めないときは 1。Stop で 2 を返すと書き直しを求めることになるので、読めない入力では求めず、エラーとして見えるようにする
- * - Copilot から呼ばれたときは 0。Copilot の Stop の入力には応答の本文が無く、印も Claude Code のセッションだけに使う
- * - この一続きで既に自分が止めた後は 0（理由は stop-marker.ts）
- * - ツールの呼び出しだけで終わったターンなど、本文が無ければ 0
+ * Hook の入力を JSON のオブジェクトとして読む。読めないときは 1 を返す。
+ * Stop で 2 を返すと書き直しを求めることになるので、読めない入力では求めず、エラーとして見えるようにする。
  */
-export function stopResponse(
-  hook: string,
-  input: string,
-  markerDir: string,
-): StopResponse | number {
+export function parseHookInput(hook: string, input: string): Record<string, unknown> | number {
   let payload: unknown;
   try {
     payload = JSON.parse(input);
@@ -46,9 +37,36 @@ export function stopResponse(
     console.error(`${hook}: 入力がオブジェクトでない`);
     return 1;
   }
+  return payload;
+}
+
+export type StopResponse = { payload: Record<string, unknown>; message: string };
+
+/**
+ * 読んだ Stop の入力から、確かめる応答を返す。確かめずに終えるときは終了コードを返す。
+ * - Copilot から呼ばれたときは 0。Copilot の Stop の入力には応答の本文が無く、印も Claude Code のセッションだけに使う
+ * - この一続きで既に自分が止めた後は 0（理由は stop-marker.ts）
+ * - ツールの呼び出しだけで終わったターンなど、本文が無ければ 0
+ */
+export function stopResponseOf(
+  hook: string,
+  payload: Record<string, unknown>,
+  markerDir: string,
+): StopResponse | number {
   if (isCopilotClaudeSettingsPayload(payload)) return 0;
   if (alreadyBlocked(hook, payload, markerDir)) return 0;
   const message = payload.last_assistant_message;
   if (typeof message !== "string" || message.trim() === "") return 0;
   return { payload, message };
+}
+
+/** Stop の入力を読み、確かめる応答を返す。入力を読めないときは 1、確かめずに終えるときは 0 を返す（stopResponseOf）。 */
+export function stopResponse(
+  hook: string,
+  input: string,
+  markerDir: string,
+): StopResponse | number {
+  const payload = parseHookInput(hook, input);
+  if (typeof payload === "number") return payload;
+  return stopResponseOf(hook, payload, markerDir);
 }
