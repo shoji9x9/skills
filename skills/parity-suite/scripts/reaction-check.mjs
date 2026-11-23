@@ -67,7 +67,7 @@ import { canonicalize } from "./lib/json.mjs";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "9";
+export const VERSION = "10";
 
 /**
  * 撮る状態を指す 1 行（使い回しの照合の単位）。
@@ -385,9 +385,11 @@ function recordCoveredBy(v, { path, chain }, { found, malformed }) {
  * 名前は「スペックのパス › describe の題 › テストの題」（パスは JSON の file そのまま＝Playwright の rootDir からの相対）。
  * 同じ名前に別のテストが 2 つ以上当たるもの（題に区切りを含む等）は曖昧として記録し、解決に使わせない。
  * 形式の出典は、https://playwright.dev/docs/test-reporters#json-reporter と、@playwright/test 1.65.1 の --list の実測である。
- * spec は projects ごとに別の要素で並び、ファイル自体の suite は題がファイルパスになる。題の空の describe は、一覧表示でも題に入らない。
- * test.skip / test.fixme は tests[].expectedStatus: skipped で残る。本文の中で条件付きに飛ばす test.skip(cond) と、
- * test.fail(title, fn) は、1.65.1 の --list では expectedStatus: passed のままで区別できない。
+ * 1 つの spec の tests[] に projects ごとの要素が並び、ファイル自体の suite は題がファイルパスになる。題の空の describe は、一覧表示でも題に入らない。
+ * spec を projects ごとに別の要素に分けた一覧も、同じ位置と題なら 1 本のテストとして読む。
+ * test.skip / test.fixme は tests[].expectedStatus: skipped で残る。test.fail(title, fn) は expectedStatus: passed のままだが、
+ * tests[].annotations に type: fail が入る。本文の中で呼ぶ test.skip(cond)・test.fail()・test.fail(cond) は、
+ * 1.65.1 の --list では expectedStatus: passed のままで、annotations も空なので区別できない。
  * @param {unknown} report
  * @returns {Map<string, { keys: Set<string>, projects: Set<string>, file: string, line: number | null }>}
  */
@@ -441,6 +443,18 @@ function testListSuites(report) {
 }
 
 /**
+ * 一覧のテストが失敗を期待するか。annotations に type: fail か object でない要素があるときは、期待するとみなす。
+ * annotations が無いか配列でないときも期待するとみなす
+ * （Playwright の一覧は annotations を必ず配列で出すので、欠けた一覧は作り変えたものとして、通ることを期待するテストに数えない）。
+ * @param {Record<string, unknown>} t
+ * @returns {boolean}
+ */
+function expectsFailure(t) {
+  if (!isArray(t.annotations)) return true;
+  return t.annotations.some((a) => !isPlainObject(a) || a.type === "fail");
+}
+
+/**
  * 一覧の spec 1 つを索引に足す。
  * @param {TestIndex} index
  * @param {unknown} spec
@@ -473,7 +487,8 @@ function indexSpec(index, spec, here) {
     // 実行して通ることを期待する（expectedStatus: passed）project だけを数える。静的に飛ばす test.skip / test.fixme は skipped で残る。
     // 失敗を期待する形（failed）や欠けた値も、その project で assertion が通ることを示さない
     if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus === "passed") {
-      entry.projects.add(t.projectName);
+      // test.fail(title, fn) は expectedStatus: passed のまま、annotations の type: fail で失敗を期待する
+      if (!expectsFailure(t)) entry.projects.add(t.projectName);
     }
   }
   index.set(name, entry);
@@ -530,7 +545,7 @@ function resolutionProblem(path, name, testIndex) {
   }
   const absentIn = REQUIRED_PROJECTS.filter((p) => !hit.projects.has(p));
   if (absentIn.length === 0) return null;
-  return `${path}.covered_by: "${name}" が ${absentIn.join(" / ")} プロジェクトで実行されない（現側専用・新側専用のスペックや、その側で静的に飛ばす test.skip / test.fixme は両側の合否を押さえない）`;
+  return `${path}.covered_by: "${name}" が ${absentIn.join(" / ")} プロジェクトで実行されない（現側専用・新側専用のスペックや、その側で静的に飛ばす test.skip / test.fixme と、失敗を期待する test.fail(題, 本文) は両側の合否を押さえない）`;
 }
 
 /**

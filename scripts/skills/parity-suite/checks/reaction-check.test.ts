@@ -51,6 +51,7 @@ import {
   type Spec,
   suiteOf,
   testList,
+  realShapeTestList,
   passingAudit,
   run,
   mutated,
@@ -3153,6 +3154,64 @@ test.each([
     const r = run(t, { tests: list });
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("が new プロジェクトで実行されない");
+  },
+);
+
+/** 実物の形の一覧で、layout.spec.ts の new の側のテストの annotations を書き換える（undefined なら欄を消す）。 */
+function realShapeWithNewAnnotations(t: Table, annotations: unknown) {
+  const list = realShapeTestList(namesOf(t));
+  for (const spec of suiteOf(list, "layout.spec.ts").specs) {
+    const target = spec.tests.find((x) => x.projectName === "new");
+    assert.exists(target, `${spec.title ?? ""} に new の側のテストが無い`);
+    if (annotations === undefined) removeField(target, "annotations");
+    else target.annotations = invalidInput(annotations);
+  }
+  return list;
+}
+
+test("実物の形（1 つの spec の tests[] に projects が並ぶ）の一覧でも、両側で実行されるテストとして解決する（Issue #1127）", () => {
+  const t = baseTable();
+  const list = realShapeTestList(namesOf(t));
+  // 畳んだ一覧は、1 つの spec の tests[] に current と new が並ぶ（実物の形）
+  for (const spec of suiteOf(list, "layout.spec.ts").specs) {
+    expect(spec.tests.map((x) => x.projectName)).toEqual(["current", "new"]);
+  }
+  const r = run(t, { tests: list });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  ["test.fail(題, 本文) の type: fail", [{ type: "fail" }]],
+  [
+    "ほかの annotation と並ぶ type: fail",
+    [{ type: "slow" }, { type: "fail", description: "既知の不具合" }],
+  ],
+  ["annotations が配列でない", { type: "fail" }],
+  ["annotations の要素が object でない", ["fail"]],
+  ["annotations の要素が null", [null]],
+  ["annotations の欄が無い", undefined],
+])(
+  "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: %s（Issue #1127）",
+  (_name, annotations) => {
+    const t = baseTable();
+    const r = run(t, { tests: realShapeWithNewAnnotations(t, annotations) });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("が new プロジェクトで実行されない");
+  },
+);
+
+test.each([
+  ["annotations が空", []],
+  ["失敗を期待しない annotation だけ", [{ type: "slow" }, { type: "issue", description: "#1" }]],
+  ["type が fail と完全には一致しない", [{ type: "failed" }, { type: "Fail" }]],
+])(
+  "失敗を期待しない annotations のテストは両側で実行されるテストとして解決する: %s（Issue #1127）",
+  (_name, annotations) => {
+    const t = baseTable();
+    const r = run(t, { tests: realShapeWithNewAnnotations(t, annotations) });
+    expect(r.stderr).toBe("");
+    expect(r.status).toBe(0);
   },
 );
 
