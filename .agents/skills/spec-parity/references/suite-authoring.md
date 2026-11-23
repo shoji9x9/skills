@@ -38,7 +38,7 @@
 特性化に使ったロール名の一覧は、`parity-suite` と同じく `metadata.json` の `suite.auth_roles` に書く（認証が要らなければ空の配列）。
 `parity-suite` の `references/auth.md` を読めないときは、ログインが要る画面のスイートを書かずに止まる。
 
-e2e に固有の書き方は次のとおりである。出典は <https://e2e.com/docs/authentication> と <https://e2e.com/docs/reference/test#test-setup> で、e2e 0.23.0・`@e2e-dev/web` 0.15.5 で確かめた。
+e2e に固有の書き方は次のとおりである。出典は <https://e2e.com/docs/authentication> と <https://e2e.com/docs/reference/test#test-setup> で、e2e 0.23.1・`@e2e-dev/web` 0.16.0 で確かめた。
 
 - ログインは、`test.setup(<名前>, { sessions: [<ロール名>...] }, ...)` の本体で 1 回だけ行い、ロールごとに `session.save(<ロール名>)` で保存する。
   `session.save()` はログインが成功したかを確かめないので、保存の前にログインした後の画面を assertion で確かめる。ロールを続けて保存するときは、ロールの間で `app.clearState()` を呼ぶ。

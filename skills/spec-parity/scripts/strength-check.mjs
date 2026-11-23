@@ -100,7 +100,7 @@ export function readPlan(doc) {
 /**
  * serial group（`describe(..., { serial: true })`）のメンバーの試行を、group の id → testId → 最後の記録にする。
  * e2e は、メンバーの試行を results[].attempts ではなく run.serialGroups[].attempts[].members[] に書く。
- * results[].attempts は空になる（e2e 0.23.0 で確かめた）。リトライがメンバーに届かなかったときは、
+ * results[].attempts は空になる（e2e 0.23.1 で確かめた）。リトライがメンバーに届かなかったときは、
  * そのメンバーを実行した最後の試行の記録が残る（https://e2e.com/docs/reference/test#serial）。
  * @param {unknown} groups
  * @returns {Map<string, Map<string, Record<string, unknown>>>}

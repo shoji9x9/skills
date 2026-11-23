@@ -17,7 +17,7 @@
 
 fixture の基は `evals/parity-diff/fixtures/style-free` の設定・features.md・データセットの記録である（機能 `order-list`・横断 API `user`・現行の `current-test`・新側の `local-dev`）。
 同梱のツールが書く値（`metadata.json` の `strength` と `runtime_errors`、`verify-metadata.json` の `overflow` と `runtime_errors`）は、それぞれのツールを実行した出力である。
-e2e の結果（`suite-report.json`・`strength-report.json`）と操作中のエラーの記録は、e2e 0.23.0 の結果の JSON（`schemaVersion: report-1`）と雛形の reporter が書く形に合わせて書いた。
+e2e の結果（`suite-report.json`・`strength-report.json`）と操作中のエラーの記録は、e2e 0.23.1 の結果の JSON（`schemaVersion: report-1`）と雛形の reporter が書く形に合わせて書いた。
 
 | fixture | 状態 | 使う eval |
 | --- | --- | --- |

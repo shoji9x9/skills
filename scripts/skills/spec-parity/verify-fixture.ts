@@ -1,6 +1,6 @@
 // spec-parity verify の判定のテストが共有する、メモリ上のファイルと、収束する状態の成果物一式。
 // 成果物の形は、同梱の雛形（skills/spec-parity/assets/ の metadata-template.json・verify-metadata-template.json）に合わせる。
-// e2e の結果の JSON は、e2e 0.23.0 の `.e2e/report.json` で確かめた形（schemaVersion: report-1）に合わせる。
+// e2e の結果の JSON は、e2e 0.23.1 の `.e2e/report.json` で確かめた形（schemaVersion: report-1）に合わせる。
 
 import { parseJsonAs } from "../../lib/parse-as.ts";
 
