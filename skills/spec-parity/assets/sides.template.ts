@@ -5,7 +5,7 @@
  * e2e の設定（e2e.config.ts）とテストの両方が読む。
  *
  * e2e の targets は、同じテストを current と new の 2 つの URL に当てる。テストの中では target の名前を読めないので、
- * テストは `app.baseUrl` から、この対応表で側（current / new）を求める（e2e 0.23.0 で確かめた）。
+ * テストは `app.baseUrl` から、この対応表で側（current / new）を求める（e2e 0.23.1 で確かめた）。
  * URL は、スキルが replace-strategy の targets から解決して、環境変数で渡す。
  *   PARITY_CURRENT_UI_URL・PARITY_CURRENT_API_URL … 現行の UI と API の baseURL（API を省くと UI と同じ）。
  *   PARITY_NEW_UI_URL・PARITY_NEW_API_URL         … 新側の UI と API の baseURL（API を省くと UI と同じ）。

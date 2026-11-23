@@ -4,7 +4,7 @@
 // ここでは、その記録の形（e2e の結果の状態を Playwright の語彙に読み替えたもの・init script が採るイベントの形）で、
 // 「エラーを足した新側を検出する」「現行にもあるエラーを検出しない」を確かめる。
 // さらに、compare が書いた結果を convergence-check が読んで判定するまでをつなぐ。
-// イベントの形は、e2e 0.23.0・@e2e-dev/web 0.15.5 の実測の記録（init script の 4 種類と、img と script の 404）から作った。
+// イベントの形は、e2e 0.23.1・@e2e-dev/web 0.16.0 の実測の記録（init script の 4 種類と、img と script の 404）から作った。
 
 import { describe, expect, test } from "vitest";
 import { main as convergence } from "../../../skills/spec-parity/scripts/convergence-check.mjs";

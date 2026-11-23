@@ -11,7 +11,7 @@ Playwright の記録と e2e の記録は本文が違うので、基準と比較�
 
 ## 記録のしくみ
 
-e2e には console と pageerror のイベントが無く、`afterEach` と fixture はテストの名前と状態を受け取らない。そこで、次の 3 つで記録する（e2e 0.23.0 で確かめた）。
+e2e には console と pageerror のイベントが無く、`afterEach` と fixture はテストの名前と状態を受け取らない。そこで、次の 3 つで記録する（e2e 0.23.1 で確かめた）。
 
 1. init script（`tests/parity/runtime-errors-init.js`）が、ページの中でエラーを捕まえ、`sessionStorage` に並べる。採る種類と採らないものは、雛形の冒頭のコメントで定義する
 2. スイートの基（`tests/parity/test.ts`）の fixture が、テストの後始末で記録を取り出し、標準出力へ 1 行で書く

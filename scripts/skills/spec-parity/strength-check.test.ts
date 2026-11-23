@@ -2,7 +2,7 @@
 //
 // 起こりうる不具合は「注入しても緑のままの故障を通す」「実行が止まっただけの故障を検出として数える」
 // 「計画に挙げたのに実行していない故障を通す」「対照が赤いのに通す」の 4 つ。
-// 結果の形は、e2e 0.23.0 の `.e2e/report.json` の実測（attempts[].error.code が ASSERTION_FAILED）に合わせる。
+// 結果の形は、e2e 0.23.1 の `.e2e/report.json` の実測（attempts[].error.code が ASSERTION_FAILED）に合わせる。
 
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
@@ -200,7 +200,7 @@ describe("strength-check の判定できない入力（exit 2）", () => {
 });
 
 // serial group のメンバーは results[].attempts が空で、試行の記録は run.serialGroups[].attempts[].members[] にある。
-// 形は e2e 0.23.0 の実物（fixtures/e2e-serial-reports.json）から取る。
+// 形は e2e 0.23.1 の実物（fixtures/e2e-serial-reports.json）から取る。
 type Member = { testId: string; status: string; error?: { code: string; message: string } };
 type Group = { id: string; attempts: { members: Member[] }[] };
 type Report = { schemaVersion: string; run: { serialGroups: Group[]; results: unknown[] } };
