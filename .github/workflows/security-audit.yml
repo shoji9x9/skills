@@ -179,7 +179,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       # 要約のスクリプトと、上流のスキルの検証スクリプトを動かす node を入れる。
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         if: steps.settings.outputs.valid == 'true'
 
       - name: Fetch skill
@@ -278,7 +278,7 @@ jobs:
           # サブエージェントをバックグラウンドで起動させない。起動したままメインのエージェントがターンを終えると、
           # 非対話の実行はそこで終わり、記録を書かずに成功として終わる（Issue #956 の実行記録で確かめた）。
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1.0.276
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -518,7 +518,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         id: mise
         if: needs.audit.outputs.result_outcome == 'success' && needs.audit.outputs.failure == ''
         continue-on-error: true

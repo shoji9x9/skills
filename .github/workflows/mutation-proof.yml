@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
       - run: pnpm install --frozen-lockfile
       # 宣言のパスを渡さないので、`scripts/**/*.mutations.json` の全件から、`--shard` がこのシャードの分を選ぶ。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
       # 出力をファイルにも残し、下の mutation-durations が所要時間の見積もりの更新に読む（Issue #1077）。
@@ -117,7 +117,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
       # name を渡さずに pattern で取ると、artifact ごとにその名前のディレクトリに置く（merge-multiple を付けないとき）。
       # 出典: https://github.com/actions/download-artifact/blob/v8.0.2/README.md#download-all-artifacts
       - name: Download shard logs
