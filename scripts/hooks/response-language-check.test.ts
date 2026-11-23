@@ -459,6 +459,10 @@ test.each([
   ["JSON のオブジェクトだけの応答", `{"summary": "${ENGLISH}", "status": "done"}`],
   ["JSON の文字列だけの応答", JSON.stringify(ENGLISH)],
   [
+    "リンク先に括弧とタイトルを持つ英語のリンクだけの応答",
+    '[A very long English link label](https://example.test/a_(b) "A very long English title for review")',
+  ],
+  [
     "タイトル付きの英語のリンクを並べた日本語の応答",
     `次の PR を作りました。\n\n- ${LINK.replace(")", ' "Open the pull request for review")')}\n- ${LINK.replace(")", " 'Open the pull request for review')")}`,
   ],
@@ -526,6 +530,10 @@ test.each([
     { actions: JSON.stringify([{ label: "Merge", message: ENGLISH }]) },
   ],
   ["知らない欄に英語", { summary: ENGLISH }],
+  [
+    "10 階層の入れ子の奥に英語",
+    Array.from({ length: 10 }).reduce<unknown>((inner) => ({ nested: inner }), ENGLISH),
+  ],
   [
     "recap は日本語でもボタンの文言が英語",
     { recap: JAPANESE.repeat(3), actions: [{ label: "Open", message: ENGLISH }] },

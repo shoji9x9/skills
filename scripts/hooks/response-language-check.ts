@@ -69,8 +69,9 @@ export function prose(message: string): string {
  * リンクの文字は Issue や PR の題を英語のまま貼ったものが多く、応答の言語ではない。
  * prose は response-word-check も使うので、リンクは prose では外さない（使わない語はリンクの文字でも確かめる）。
  */
-// リンク先の後ろのタイトル（`"..."`・`'...'`）も、リンクの一部として外す。
-const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\s]*(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\)/g;
+// リンク先の中の対になった括弧（`https://example.test/a_(b)`）と、リンク先の後ろのタイトル（`"..."`・`'...'`）も、リンクの一部として外す。
+const MARKDOWN_LINK =
+  /\[[^\]\n]*\]\([^()\s]*(?:\([^()\s]*\)[^()\s]*)*(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\)/g;
 
 function languageBody(message: string): string {
   // prose が URL を外すと `](URL)` の形が残らないので、リンクは prose より先に外す。
@@ -243,21 +244,21 @@ function isWrapUp(toolName: unknown): boolean {
  * wrap_up の入力から、箱に出る文字列を集める。入力の形は公開の文書が無く、手元の transcript にも呼び出しが無かったので、
  * 欄の名前に頼らず、すべての文字列の値を集める。JSON の文字列で渡された配列やオブジェクトも開いて読む。
  */
-function wrapUpText(value: unknown, depth = 0): string[] {
-  if (depth > 8) return [];
+// 入力は JSON から読んだ値なので循環せず、入れ子の深さに上限を置かない（上限を置くと、深い位置の英語を読まずに通す）。
+function wrapUpText(value: unknown): string[] {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
       try {
-        return wrapUpText(JSON.parse(trimmed), depth + 1);
+        return wrapUpText(JSON.parse(trimmed));
       } catch {
         // JSON でなければ、そのまま文言として読む。
       }
     }
     return [value];
   }
-  if (isArray(value)) return value.flatMap((item) => wrapUpText(item, depth + 1));
-  if (isRecord(value)) return Object.values(value).flatMap((item) => wrapUpText(item, depth + 1));
+  if (isArray(value)) return value.flatMap((item) => wrapUpText(item));
+  if (isRecord(value)) return Object.values(value).flatMap((item) => wrapUpText(item));
   return [];
 }
 
