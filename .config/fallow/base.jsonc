@@ -50,7 +50,9 @@
     // 配布スキルが読む pngjs（import("pngjs")）と playwright（JSDoc の import('playwright')）の型。
     // tsconfig.skills.json の paths がパッケージの名前をこれらのファイルへ解決するが、fallow はその解決をたどらない。
     { "file": "types/skill-runtime/pngjs.ts", "exports": ["PNG"] },
-    { "file": "types/skill-runtime/playwright.ts", "exports": ["Locator", "Page"] }
+    { "file": "types/skill-runtime/playwright.ts", "exports": ["Locator", "Page"] },
+    // run-coverage.ts が読む @bcoe/v8-coverage の型。tsconfig.repo.json の paths がパッケージの名前をこのファイルへ解決する。
+    { "file": "types/v8-coverage.ts", "exports": ["mergeProcessCovs"] }
   ],
   "ignorePatterns": [
     // eval の入力（下流のプロジェクトの断片）と、スライドの生成物、テストの結果。
@@ -70,6 +72,9 @@
   // release.config.ts が preset の名前で読み、jsonc-parser は配布スキルに同梱するパーサの原本である。
   // mdast-util-from-markdown と mdast-util-gfm は、check-vendor.ts が esbuild の入力の文字列で import するだけで、import 文から辿れない。
   "ignoreDependencies": [
+    // run-coverage.ts が import する。fallow は tsconfig.repo.json の paths で型のファイル（types/v8-coverage.ts）へ解決し、
+    // パッケージの利用として数えない。
+    "@bcoe/v8-coverage",
     "c8",
     "conventional-changelog-conventionalcommits",
     "jsonc-parser",

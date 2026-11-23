@@ -6,7 +6,10 @@
     "lib": ["es2024"],
     "tsBuildInfoFile": "./node_modules/.cache/tsc/repo.tsbuildinfo",
     "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@bcoe/v8-coverage": ["./types/v8-coverage.ts"]
+    }
   },
   "include": [
     "*.ts",
@@ -14,6 +17,7 @@
     ".agents/skills/*/scripts/**/*.ts",
     "skills/*/scripts/**/*.mjs",
     "skills/*/assets/**/*.mjs",
-    "types/strict-json.ts"
+    "types/strict-json.ts",
+    "types/v8-coverage.ts"
   ]
 }
