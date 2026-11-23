@@ -463,6 +463,14 @@ test.each([
     '[A very long English link label](https://example.test/a_(b) "A very long English title for review")',
   ],
   [
+    "リンク先に入れ子の括弧を持つ英語のリンクだけの応答",
+    "[A very long English link label for the review](https://example.test/a_(b_(c)))",
+  ],
+  [
+    "リンク先を山括弧で囲んだ英語のリンクだけの応答",
+    "[A very long English link label for the review](<https://example.test/a b>)",
+  ],
+  [
     "タイトル付きの英語のリンクを並べた日本語の応答",
     `次の PR を作りました。\n\n- ${LINK.replace(")", ' "Open the pull request for review")')}\n- ${LINK.replace(")", " 'Open the pull request for review')")}`,
   ],
@@ -478,6 +486,8 @@ test.each([
   ["JSON に見えて読めない英語の応答", `{ ${ENGLISH}`],
   ["引用符で始まるが JSON の文字列でない英語の応答", `"${ENGLISH}" and ${ENGLISH}`],
   ["タイトルの後ろに英語の文が続く応答", `${LINK.replace(")", ' "title")')} ${ENGLISH}`],
+  ["閉じていない括弧のリンクに見える英語の応答", `[label](https://example.test/a_(b ${ENGLISH}`],
+  ["インラインコードの中のリンクの形の後ろに英語の文が続く応答", `\`[x](y)\` ${ENGLISH}`],
 ])("書き直させる: %s", (_label, message) => {
   expect(run(hook({ last_assistant_message: message })).status).toBe(2);
 });

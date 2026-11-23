@@ -27,6 +27,7 @@ import { blankInlineCode, fencedLines } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
+import { fromMarkdown } from "mdast-util-from-markdown";
 import { recordBlocked } from "./stop-marker.ts";
 import { isCopilotClaudeSettingsPayload, parseHookInput, stopResponseOf } from "./stop-input.ts";
 import { isCliEntry } from "../lib/cli/entry.ts";
@@ -69,13 +70,32 @@ export function prose(message: string): string {
  * リンクの文字は Issue や PR の題を英語のまま貼ったものが多く、応答の言語ではない。
  * prose は response-word-check も使うので、リンクは prose では外さない（使わない語はリンクの文字でも確かめる）。
  */
-// リンク先の中の対になった括弧（`https://example.test/a_(b)`）と、リンク先の後ろのタイトル（`"..."`・`'...'`）も、リンクの一部として外す。
-const MARKDOWN_LINK =
-  /\[[^\]\n]*\]\([^()\s]*(?:\([^()\s]*\)[^()\s]*)*(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\)/g;
+// リンクの範囲は Markdown のパーサーで読む。リンク先の入れ子の括弧・タイトル・エスケープは、正規表現では書き方の数だけ抜けが出る。
+function linkRanges(node: unknown, ranges: [number, number][]): void {
+  if (!isRecord(node)) return;
+  const position = node.position;
+  if (node.type === "link" && isRecord(position)) {
+    const start = isRecord(position.start) ? position.start.offset : undefined;
+    const end = isRecord(position.end) ? position.end.offset : undefined;
+    if (typeof start === "number" && typeof end === "number") ranges.push([start, end]);
+    return;
+  }
+  if (isArray(node.children)) for (const child of node.children) linkRanges(child, ranges);
+}
+
+function stripLinks(message: string): string {
+  const ranges: [number, number][] = [];
+  linkRanges(fromMarkdown(message), ranges);
+  let out = message;
+  for (const [start, end] of ranges.toSorted((a, b) => b[0] - a[0])) {
+    out = `${out.slice(0, start)} ${out.slice(end)}`;
+  }
+  return out;
+}
 
 function languageBody(message: string): string {
   // prose が URL を外すと `](URL)` の形が残らないので、リンクは prose より先に外す。
-  return prose(message.replace(MARKDOWN_LINK, " "));
+  return prose(stripLinks(message));
 }
 
 export type Verdict = { english: boolean; japanese: number; latin: number };
