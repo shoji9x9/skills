@@ -22,6 +22,13 @@
 // 終了コード: 0 はすべて閾値以上、1 は閾値を下回るファイルか設定の古い記述がある、またはテストが失敗した、
 // 2 は判定できない（設定の形の誤り・測定の失敗・前回の結果が無い・CRAP の検査に渡す V8 の記録を残せなかった）。
 // V8 の記録を残せなかったときも閾値は比べ、閾値を下回っていれば 1 を返す。
+import {
+  type FunctionCov,
+  type ProcessCov,
+  type RangeCov,
+  type ScriptCov,
+  mergeProcessCovs,
+} from "@bcoe/v8-coverage";
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -357,6 +364,76 @@ export function keepProjectCoverage(dir: string, root: string, dirs: readonly st
   return false;
 }
 
+/** mergeRecordFiles が書く、合算した V8 の記録のファイルの名前。 */
+export const MERGED_RECORD = "coverage-merged.json";
+
+/** V8 の記録の 1 つのブロックの範囲（開始と終了の位置と、実行された回数）か。 */
+function isRangeCov(value: unknown): value is RangeCov {
+  return (
+    isRecord(value) &&
+    typeof value.startOffset === "number" &&
+    typeof value.endOffset === "number" &&
+    typeof value.count === "number"
+  );
+}
+
+/** V8 の記録の 1 つの関数か。合算は最初の範囲を関数の範囲として読むので、範囲が空のものは受け付けない。 */
+function isFunctionCov(value: unknown): value is FunctionCov {
+  return (
+    isRecord(value) &&
+    typeof value.functionName === "string" &&
+    typeof value.isBlockCoverage === "boolean" &&
+    isArray(value.ranges) &&
+    value.ranges.length > 0 &&
+    value.ranges.every(isRangeCov)
+  );
+}
+
+/** V8 の記録の 1 つのスクリプトか。 */
+function isScriptCov(value: unknown): value is ScriptCov {
+  return (
+    isRecord(value) &&
+    typeof value.scriptId === "string" &&
+    typeof value.url === "string" &&
+    isArray(value.functions) &&
+    value.functions.every(isFunctionCov)
+  );
+}
+
+/**
+ * keepProjectCoverage で絞った V8 の記録を、1 つのファイル（MERGED_RECORD）に合算し、元のファイルを消す。合算できたかを返す。
+ * vitest の `isolate: false` では、ワーカーがテストファイルを続けて実行し、vitest-coverage-setup.ts の `takeCoverage()` が
+ * テストファイルごとに記録を書き出してカウンタを戻す。そのため、同じスクリプトの記録が複数のファイルに分かれる。
+ * fallow は同じスクリプトの記録を合算しないので、分かれたまま渡すと、実行された関数をカバレッジ 0% と読む（Issue #1112）。
+ * 合算は c8 と同じ `@bcoe/v8-coverage` の `mergeProcessCovs` で行う。ソースマップは URL ごとに 1 つを残す。
+ * 記録を読めないか、形が違うか、書けなければ、ディレクトリごと消して false を返す。分かれたままの記録を CRAP の検査に渡さない。
+ */
+export function mergeRecordFiles(dir: string): boolean {
+  try {
+    const covs: ProcessCov[] = [];
+    const sourceMaps: Record<string, unknown> = {};
+    const names = readdirSync(dir);
+    // 合算する記録が無いのに合算できたとすると、空の記録を CRAP の検査に渡す。
+    if (names.length === 0) throw new Error("合算する記録が 1 件も無い");
+    for (const name of names) {
+      const record = readV8Record(join(dir, name));
+      if (record === null || !record.result.every(isScriptCov))
+        throw new Error(`形の違う記録がある: ${name}`);
+      covs.push({ result: record.result.filter(isScriptCov) });
+      for (const [url, map] of Object.entries(record.sourceMaps)) sourceMaps[url] ??= map;
+    }
+    const merged = mergeProcessCovs(covs);
+    const out = join(dir, MERGED_RECORD);
+    writeFileSync(out, JSON.stringify({ result: merged.result, "source-map-cache": sourceMaps }));
+    for (const name of names) if (name !== MERGED_RECORD) rmSync(join(dir, name));
+    return true;
+  } catch (error) {
+    console.error(`run-coverage: V8 の記録を合算できないので消す: ${errorMessage(error)}`);
+    removeRecords(dir);
+    return false;
+  }
+}
+
 /** `reportFocus` が受け取る、閾値の設定・対象のファイル・測定値・--focus の接頭辞・結果の置き場所。 */
 interface FocusReport {
   config: Config;
@@ -475,14 +552,15 @@ function measureAndRead(
 }
 
 /**
- * 測った後の V8 の記録（`<cache>/v8`）を扱う。`keep` なら測る対象のファイルの分に絞って残し、残せたかを返す。
+ * 測った後の V8 の記録（`<cache>/v8`）を扱う。`keep` なら測る対象のファイルの分に絞り、1 つのファイルに合算して残し、残せたかを返す。
  * 元の記録は数百 MB になるので、全体の実行でテストが成功したとき（keep）だけ残す。残した分は、CI の CRAP（lint:crap）が関数ごとのカバレッジとして読む。
  * coverage-final.json は名前の無い関数（コールバックなど）を持たないので、fallow はそれらのカバレッジを推定する。
  * --focus の結果は CRAP が読まず、実行ごとに別のディレクトリを作るので、残すと溜まる。テストが失敗した実行は CRAP まで進まない。どちらも記録を消して true を返す。
  */
 function handleRecords({ root, cache, privates }: MeasureOptions, keep: boolean): boolean {
   const v8Dir = join(cache, "v8");
-  if (keep) return keepProjectCoverage(v8Dir, root, sourceDirs(privates));
+  if (keep)
+    return keepProjectCoverage(v8Dir, root, sourceDirs(privates)) && mergeRecordFiles(v8Dir);
   removeRecords(v8Dir);
   return true;
 }

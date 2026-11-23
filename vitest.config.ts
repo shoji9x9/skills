@@ -21,6 +21,8 @@ export default defineConfig({
       "scripts/lib/testing/vitest-setup/vitest-coverage-setup.ts",
       // ミューテーションテストの実行でだけ、fast-check の seed を固定する（理由はスクリプト内のコメント）。
       "scripts/lib/testing/vitest-setup/vitest-fast-check-setup.ts",
+      // makeTempDirFactory が、消えた共有の一時ディレクトリの代わりに作り直したものを消す（理由はスクリプト内のコメント）。
+      "scripts/lib/testing/vitest-setup/vitest-tmpdir-setup.ts",
     ],
     // 残りはファイル並列で実行し、書き換えるテストだけを後のグループで単独に実行する。
     // `groupOrder` が違うプロジェクトは前のグループが終わってから始まる。
@@ -37,6 +39,11 @@ export default defineConfig({
           // run-skill-eval.sh のように、同じロックを並べたテストどうしで待つものもある。
           // デフォルトの 5 秒で、変異と関係なく落とさない（isolated と同じ理由）。
           testTimeout: 30_000,
+          // テストファイルごとにモジュールを読み直さず、同じワーカーで使い回す（Issue #1112）。
+          // モジュールを読み直す時間が、このプロジェクトの実行時間の大半を占める。測った時間と件数は Issue #1108 と #1112 に記録する。
+          // 使い回すと、同じスクリプトの V8 の記録がテストファイルごとに分かれるので、run-coverage.ts が合算してから CRAP の検査に渡す。
+          // 使い回したときの書き方の決まり（状態の後始末・共有のヘルパーの Hook）は docs/testing.md「並列実行」にある。
+          isolate: false,
           sequence: { groupOrder: 0 },
         },
       },

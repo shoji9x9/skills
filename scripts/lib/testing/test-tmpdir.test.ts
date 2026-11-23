@@ -3,10 +3,15 @@
 // 後片付けを各テストに書かせると書き忘れが再発する（Issue #479 の時点で 40 ファイル超が `/tmp` に残骸を残していた）。
 // 作成をヘルパーへ寄せ、直呼びをここで落とす。
 import { assert, describe, expect, test } from "vitest";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSharedTempDir, makeTempDir, makeTempDirFactory } from "./test-tmpdir.ts";
+import {
+  makeSharedTempDir,
+  makeTempDir,
+  makeTempDirFactory,
+  removeRecreatedRoots,
+} from "./test-tmpdir.ts";
 
 // 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/testing/` にあるので 2 段上がる）。
 const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -93,6 +98,21 @@ describe("makeTempDirFactory", () => {
 test("makeTempDirFactory で作ったものは describe を抜けると消える", () => {
   expect(factoryDirs).toHaveLength(2);
   for (const dir of factoryDirs) expect(existsSync(dir)).toBe(false);
+});
+
+// isolate: false で、前のテストファイルの afterAll が共有のディレクトリを消した後に、同じ関数を使う場合（Issue #1108、#1112）。
+// 前のテストの後始末に頼らず、テストの中で共有のディレクトリを消して、その状態を作る。
+describe("makeTempDirFactory（共有のディレクトリが消えた後）", () => {
+  const make = makeTempDirFactory("test-tmpdir-reused-");
+  test("共有のディレクトリが消えた後も作れ、作り直したものは removeRecreatedRoots で消える", () => {
+    const first = make("a-");
+    rmSync(dirname(first), { recursive: true, force: true });
+    const dir = make("b-");
+    expect(existsSync(dir)).toBe(true);
+    expect(dirname(dir)).not.toBe(dirname(first));
+    removeRecreatedRoots();
+    expect(existsSync(dir)).toBe(false);
+  });
 });
 
 // --- 直呼びの検査 -------------------------------------------------------------

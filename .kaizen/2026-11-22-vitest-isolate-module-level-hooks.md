@@ -3,8 +3,8 @@ date: 2026-11-22
 type: doc
 priority: medium
 confidence: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [docs/testing.md, scripts/lib/testing/test-tmpdir.ts, scripts/coverage/run-coverage.ts]
 session: claude-code
 ---
 

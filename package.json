@@ -20,6 +20,7 @@
     "typecheck": "tsc -b --force"
   },
   "devDependencies": {
+    "@bcoe/v8-coverage": "^1.0.2",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
     "@e2e-dev/web": "^0.15.5",

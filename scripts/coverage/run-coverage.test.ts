@@ -22,8 +22,10 @@ import { afterEach, expect, test, vi } from "vitest";
 import { makeTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import {
   FOCUS_STALE_MS,
+  MERGED_RECORD,
   keepProjectCoverage,
   main,
+  mergeRecordFiles,
   readC8Summary,
   sweepFocusDirs,
   targetFiles,
@@ -45,6 +47,7 @@ const run = (args: string[]) =>
  * ランナーを一時ディレクトリに置いたリポジトリにコピーし、前回の測定の結果（要約）を置いて、--reuse の CLI を起動する。
  * ランナーはリポジトリの直下を自分の位置から決めるので、コピーしたリポジトリの結果と設定を読む。
  * --reuse は測り直さない（pnpm を起動しない）ので、リポジトリの外に置ける。
+ * ランナーが import する依存のパッケージ（記録を合算する `@bcoe/v8-coverage`）は、本物のリポジトリのものへのリンクで読ませる。
  */
 function runCopiedCli(pct: number) {
   const root = makeTempDir("run-coverage-cli-");
@@ -75,6 +78,11 @@ function runCopiedCli(pct: number) {
     }),
   );
   write("skills/x/a.mjs", "export const a = 1;\n");
+  mkdirSync(join(root, "node_modules", "@bcoe"), { recursive: true });
+  symlinkSync(
+    join(ROOT, "node_modules", "@bcoe", "v8-coverage"),
+    join(root, "node_modules", "@bcoe", "v8-coverage"),
+  );
   const m = { total: 1, covered: 1, skipped: 0, pct };
   write(
     "node_modules/.cache/coverage/report/coverage-summary.json",
@@ -257,9 +265,10 @@ test(
     expect(existsSync(stale), "通常の実行が前回の結果を消していない").toBe(false);
     expect(first.status, first.out).toBe(0);
     // CRAP が読む V8 の記録を、測る対象のファイルの分だけ残す。リポジトリは node_modules の下にあるが、それでも残す。
-    expect(v8Urls(join(root, "node_modules", ".cache", "coverage", "v8"))).toEqual([
-      pathToFileURL(join(root, "skills/x/a.mjs")).href,
-    ]);
+    const v8Dir = join(root, "node_modules", ".cache", "coverage", "v8");
+    expect(v8Urls(v8Dir)).toEqual([pathToFileURL(join(root, "skills/x/a.mjs")).href]);
+    // 絞った記録は、1 つのファイルに合算して残す。
+    expect(readdirSync(v8Dir)).toEqual([MERGED_RECORD]);
     expect(first.out).toMatch(/対象 1 ファイルのうち 1 ファイルが閾値以上（除外 0）/);
     const again = runMain(["--reuse"], root);
     expect(again.status, again.out).toBe(0);
@@ -572,3 +581,145 @@ test("keepProjectCoverage: 記録のディレクトリが無ければ、残す�
   const root = makeTempDir("run-coverage-v8-none-");
   expect(keepProjectCoverage(join(root, "v8"), root, ["skills/"])).toBe(false);
 });
+
+/** 1 つの関数（範囲 0〜10、実行の回数 count）だけを持つスクリプトの記録。 */
+const scriptCov = (url: string, count: number) => ({
+  scriptId: "1",
+  url,
+  functions: [
+    {
+      functionName: "f",
+      isBlockCoverage: true,
+      ranges: [{ startOffset: 0, endOffset: 10, count }],
+    },
+  ],
+});
+
+/** 合算した記録の、URL ごとの最初の関数の実行の回数。 */
+function mergedCounts(dir: string): Record<string, number | undefined> {
+  const merged = parseJsonAs<{
+    result: { url: string; functions: { ranges: { count: number }[] }[] }[];
+  }>(readFileSync(join(dir, MERGED_RECORD), "utf8"));
+  return Object.fromEntries(merged.result.map((s) => [s.url, s.functions[0]?.ranges[0]?.count]));
+}
+
+test("mergeRecordFiles: 同じスクリプトの記録を合算して 1 つのファイルにし、ソースマップを URL ごとに残して、元のファイルを消す", () => {
+  const dir = join(makeTempDir("run-coverage-merge-"), "v8");
+  mkdirSync(dir);
+  const map = { lineLengths: [1] };
+  // isolate: false では、実行した後の記録（count 1）と、カウンタを戻した後の記録（count 0）に分かれる。
+  writeFileSync(
+    join(dir, "a.json"),
+    JSON.stringify({
+      result: [scriptCov("file:///r/a.mjs", 1)],
+      "source-map-cache": { "file:///r/a.mjs": map },
+    }),
+  );
+  writeFileSync(
+    join(dir, "b.json"),
+    JSON.stringify({ result: [scriptCov("file:///r/a.mjs", 0), scriptCov("file:///r/b.mjs", 2)] }),
+  );
+  expect(mergeRecordFiles(dir)).toBe(true);
+  expect(readdirSync(dir)).toEqual([MERGED_RECORD]);
+  expect(mergedCounts(dir)).toEqual({ "file:///r/a.mjs": 1, "file:///r/b.mjs": 2 });
+  expect(
+    parseJsonAs<{ "source-map-cache": unknown }>(readFileSync(join(dir, MERGED_RECORD), "utf8"))[
+      "source-map-cache"
+    ],
+  ).toEqual({ "file:///r/a.mjs": map });
+});
+
+test.each([
+  ["JSON でない", "{"],
+  [
+    "関数の範囲が空",
+    JSON.stringify({
+      result: [
+        {
+          ...scriptCov("file:///r/a.mjs", 1),
+          functions: [{ functionName: "f", isBlockCoverage: true, ranges: [] }],
+        },
+      ],
+    }),
+  ],
+  [
+    "回数が数値でない",
+    JSON.stringify({
+      result: [
+        {
+          ...scriptCov("file:///r/a.mjs", 1),
+          functions: [
+            {
+              functionName: "f",
+              isBlockCoverage: true,
+              ranges: [{ startOffset: 0, endOffset: 10, count: "1" }],
+            },
+          ],
+        },
+      ],
+    }),
+  ],
+  ["functions が無い", JSON.stringify({ result: [{ scriptId: "1", url: "file:///r/a.mjs" }] })],
+])(
+  "mergeRecordFiles: 形の違う記録（%s）があれば、分かれたまま残さずにディレクトリごと消して false を返す",
+  (_, text) => {
+    const dir = join(makeTempDir("run-coverage-merge-bad-"), "v8");
+    mkdirSync(dir);
+    writeFileSync(
+      join(dir, "a.json"),
+      JSON.stringify({ result: [scriptCov("file:///r/a.mjs", 1)] }),
+    );
+    writeFileSync(join(dir, "b.json"), text);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(mergeRecordFiles(dir)).toBe(false);
+    expect(existsSync(dir)).toBe(false);
+    expect(error.mock.calls[0]?.[0]).toMatch(
+      /V8 の記録を合算できないので消す: 形の違う記録がある: b\.json/,
+    );
+  },
+);
+
+test("mergeRecordFiles: 合算する記録が 1 件も無ければ、空の記録を残さずに false を返す", () => {
+  const dir = join(makeTempDir("run-coverage-merge-empty-"), "v8");
+  mkdirSync(dir);
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(mergeRecordFiles(dir)).toBe(false);
+  expect(existsSync(dir)).toBe(false);
+  expect(error.mock.calls[0]?.[0]).toMatch(/合算する記録が 1 件も無い/);
+});
+
+test(
+  "main: テストファイルの間でモジュールを使い回しても（isolate: false）、どのテストファイルが実行した関数も合算した記録で実行済みになる",
+  { timeout: 120_000 },
+  () => {
+    // 2 つのテストファイルが別の関数を実行する。ワーカーを 1 つにして、同じワーカーで続けて実行させる。
+    const root = miniRepo(`import { expect, test } from "vitest";
+import { twice } from "../skills/x/a.mjs";
+test("a", () => expect(twice(2)).toBe(4));
+`);
+    writeFileSync(
+      join(root, "tests/b.test.mjs"),
+      `import { expect, test } from "vitest";
+import { half } from "../skills/x/a.mjs";
+test("b", () => expect(half(4)).toBe(2));
+`,
+    );
+    writeFileSync(
+      join(root, "vitest.config.mjs"),
+      `export default { test: { include: ["tests/**/*.test.mjs"], exclude: [], isolate: false, maxWorkers: 1, experimental: { viteModuleRunner: false }, setupFiles: ["tests/setup.mjs"] } };\n`,
+    );
+    const res = runMain([], root);
+    expect(res.status, res.out).toBe(0);
+    const v8Dir = join(root, "node_modules", ".cache", "coverage", "v8");
+    const merged = parseJsonAs<{
+      result: { url: string; functions: { functionName: string; ranges: { count: number }[] }[] }[];
+    }>(readFileSync(join(v8Dir, MERGED_RECORD), "utf8"));
+    const script = merged.result.find(
+      (s) => s.url === pathToFileURL(join(root, "skills/x/a.mjs")).href,
+    );
+    const counts = Object.fromEntries(
+      (script?.functions ?? []).map((f) => [f.functionName, f.ranges[0]?.count]),
+    );
+    expect(counts).toMatchObject({ twice: 1, half: 1 });
+  },
+);

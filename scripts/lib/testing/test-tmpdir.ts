@@ -14,7 +14,10 @@
 //   並べたテストの中では、vitest が「いま実行中のテスト」を正しく追えない（vitest 4 の実測で、テスト a の中で b を返し、
 //   `await` の後は undefined を返した）。そこで `makeTempDir` を呼ぶと、別のテストの終わりに消える予約になり、
 //   まだ使っているディレクトリが消える。それを避けるため、`makeTempDir` は並べたテストの中では例外にする（Issue #590）。
-import { mkdtempSync, rmSync } from "node:fs";
+//   テストファイルの間でモジュールを使い回す設定（vitest の `isolate: false`）では、共有のヘルパーがモジュールの最上位で作った関数を、
+//   後のテストファイルも使う。共有のディレクトリは最初のファイルの `afterAll` で消えているので、使うときに無ければ作り直す。
+//   作り直したものは、テストファイルごとに実行する setupFiles（`vitest-setup/vitest-tmpdir-setup.ts`）が、そのファイルの終わりに消す。
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, onTestFinished, TestRunner } from "vitest";
@@ -41,10 +44,25 @@ export function makeSharedTempDir(prefix: string, base: string = tmpdir()): stri
   return dir;
 }
 
+/** makeTempDirFactory が、消えた共有のディレクトリの代わりに作り直したもの。テストファイルの終わりに消す。 */
+const recreatedRoots = new Set<string>();
+
 export function makeTempDirFactory(
   prefix: string,
   base: string = tmpdir(),
 ): (name: string) => string {
-  const root = makeSharedTempDir(prefix, base);
-  return (name) => mkdtempSync(join(root, name)); // tmpdir-ok: makeSharedTempDir の下・afterAll で消す
+  let root = makeSharedTempDir(prefix, base);
+  return (name) => {
+    if (!existsSync(root)) {
+      root = mkdtempSync(join(base, prefix)); // tmpdir-ok: recreatedRoots に入れ、テストファイルの終わりに消す
+      recreatedRoots.add(root);
+    }
+    return mkdtempSync(join(root, name)); // tmpdir-ok: makeSharedTempDir の下・afterAll で消す
+  };
+}
+
+/** makeTempDirFactory が作り直したディレクトリを消す（setupFiles の afterAll から呼ぶ）。 */
+export function removeRecreatedRoots(): void {
+  for (const dir of recreatedRoots) rmSync(dir, { recursive: true, force: true });
+  recreatedRoots.clear();
 }
