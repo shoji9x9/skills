@@ -146,6 +146,9 @@ CI だけで実行する検査が 2 つある。
 
 - `Unit tests` ジョブの CRAP（`pnpm run lint:crap`）: 複雑なのにテストが通っていない関数。カバレッジは、`pnpm run test:coverage` が残す V8 の記録（`node_modules/.cache/coverage/v8/`）を渡す。
   `coverage-final.json` は名前の無い関数（コールバックなど）を持たないので、渡すと fallow がそれらのカバレッジを推定する。
+  `run-coverage.ts` は、記録を 1 つのファイル（`coverage-merged.json`）に合算してから残す。
+  同じスクリプトの記録は、プロセスごとのファイルに分かれる。parallel プロジェクトはテストファイルの間でモジュールを使い回す（`isolate: false`）ので、同じプロセスの中でもテストファイルごとに分かれる。
+  fallow は分かれた記録を合算しないので、分かれたまま渡すと、テストで実行された関数をカバレッジ 0% と読む。
   カバレッジが無いと値を推定して誤検知が多くなるので、pre-commit には入れない。既存の指摘は `.config/fallow/crap-baseline.json`。
   作り直すときは、`pnpm run test:coverage` を全体で実行してから、次のコマンドを実行する。
   `pnpm exec fallow health --complexity -c .config/fallow/crap.jsonc --coverage node_modules/.cache/coverage/v8 --save-baseline .config/fallow/crap-baseline.json`
