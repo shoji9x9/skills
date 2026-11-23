@@ -841,6 +841,18 @@
       ]
     },
     {
+      "id": "covered-by-unreadable-annotation-element-accepted",
+      "why": "annotations の object でない要素を読み飛ばす（読めない要素を持つテストを両側で実行されるテストとして数える。Issue #1127）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  return t.annotations.some((a) => !isPlainObject(a) || a.type === \"fail\");\n",
+      "replace": "  return t.annotations.some((a) => isPlainObject(a) && a.type === \"fail\");\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の要素が object でない（Issue #1127）",
+        "covered_by のテストが expectedStatus: passed でも失敗を期待する側は実行されないものとして落とす: annotations の要素が null（Issue #1127）"
+      ]
+    },
+    {
       "id": "test-identity-without-location",
       "why": "テストの同定から位置を外す（同じ題の別のテストの project を合算し、片側だけ走る 2 本を 1 本の両側のテストとして通す。Codex レビュー #510）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",

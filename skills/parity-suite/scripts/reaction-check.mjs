@@ -443,7 +443,8 @@ function testListSuites(report) {
 }
 
 /**
- * 一覧のテストが失敗を期待するか。annotations に type: fail があるか、annotations が無いか配列でないときは期待するとみなす
+ * 一覧のテストが失敗を期待するか。annotations に type: fail か object でない要素があるときは、期待するとみなす。
+ * annotations が無いか配列でないときも期待するとみなす
  * （Playwright の一覧は annotations を必ず配列で出すので、欠けた一覧は作り変えたものとして、通ることを期待するテストに数えない）。
  * @param {Record<string, unknown>} t
  * @returns {boolean}
@@ -544,7 +545,7 @@ function resolutionProblem(path, name, testIndex) {
   }
   const absentIn = REQUIRED_PROJECTS.filter((p) => !hit.projects.has(p));
   if (absentIn.length === 0) return null;
-  return `${path}.covered_by: "${name}" が ${absentIn.join(" / ")} プロジェクトで実行されない（現側専用・新側専用のスペックや、その側で静的に飛ばす test.skip / test.fixme は両側の合否を押さえない）`;
+  return `${path}.covered_by: "${name}" が ${absentIn.join(" / ")} プロジェクトで実行されない（現側専用・新側専用のスペックや、その側で静的に飛ばす test.skip / test.fixme と、失敗を期待する test.fail(題, 本文) は両側の合否を押さえない）`;
 }
 
 /**
