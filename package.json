@@ -45,7 +45,7 @@
     "mdast-util-gfm": "^3.1.0",
     "micromark": "^4.0.3",
     "micromark-extension-gfm": "^3.0.0",
-    "oxfmt": "^0.77.0",
+    "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
     "oxlint-tsgolint": "^7.0.2006",
     "semantic-release": "^25.0.9",
