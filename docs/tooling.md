@@ -349,6 +349,19 @@ node が無い環境では警告だけを出して通す。設定は Claude Code
 語の言い換えを説明するときと、固有名詞や複合語の一部として字義どおりに使うとき（`NAT ゲートウェイ` など）は、インラインコードで書けば止めない。`stop_hook_active` の扱いと印は、上の Hook と同じである。
 textlint の設定を読めないときや規則が無効なときは、書き直させずに exit 1 にする。設定は Claude Code だけである。
 
+ツールの失敗と拒否の時点の案内（Claude Code の PostToolUseFailure）として、`scripts/hooks/tool-error-guide.ts` が、エラーの文を一覧 `scripts/hooks/tool-error-guides.json` の行と照らす。
+一致した行の案内と規約の場所を、`additionalContext` で次の応答の前に渡す。
+同じセッションで、直前の失敗と同じツール・同じ入力・同じエラーが続いたら、同じ呼び出しを繰り返さないよう求める案内も渡す。間に成功した呼び出しを挟んでも、直前の失敗の記録は消さない。
+Hook は、実行を始めたツールが失敗したときと、worktree の隔離セッションがコマンド（Bash・PowerShell・Monitor）を拒否したときに呼ばれる。
+入力の検証で返されたエラー（Edit の置換元が見つからないなど）、PreToolUse の Hook による拒否、権限の拒否では呼ばれないので、一覧に行を足しても案内は出ない。
+呼ばれる条件の出典は <https://code.claude.com/docs/en/hooks> と、`claude -p` で 1 回ずつ起動した実測である。
+
+学びごとに Hook を作らず、一覧に行を足して対応する。行には、エラーの文の正規表現（`error`）、案内（`guide`）、規約の場所（`rule`。`<パス>「<見出し>」` の形）を書く。
+絞り込みの `tool` は `tool_name` に、`input` は `tool_input` を `JSON.stringify` した文字列に当てる正規表現で、省略するとその軸では絞らない。
+`input` の文字列では、改行が `\n` の 2 文字に、引用符が `\"` になる。
+一致する例（`examples`）と一致しない例（`non_examples`）も書く。`tool-error-guide.test.ts` が、各行が例どおりに一致することと、`rule` のファイルと見出しが在ることを確かめる。
+設定は Claude Code だけである。
+
 シークレットの走査は `gitleaks` で行う。pre-commit は staged の差分を（`gitleaks git --staged`）、CI はリポジトリ全体と全履歴を（`Secret scan` ジョブ、`fetch-depth: 0`）走査する。
 
 どのファイルにどのフォーマッタを当てるかは、`lefthook.yml` の glob と `package.json` の `format:*` で決める。「リントと整形」の表はその要約で、ツールが扱える範囲の上限ではない。

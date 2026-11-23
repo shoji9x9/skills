@@ -1,0 +1,76 @@
+{
+  "guides": [
+    {
+      "id": "worktree-compound-git",
+      "tool": "^(Bash|PowerShell|Monitor)$",
+      "error": "names git in a form too complex to verify|this command is too complex to verify",
+      "guide": "この呼び出しは実行されていません。heredoc・複合コマンド・コマンド置換を含む処理は、Write ツールでスクリプトにして絶対パスで実行し、git の操作は単独の呼び出しにしてください。同じ応答で後に並べた呼び出し（git commit など）があれば、それはこの拒否の後も実行されます。その結果を確かめてから次に進んでください。",
+      "rule": "skills/git-worktree/references/isolation.md「隔離中の Bash は 1 コマンドずつ素の形で書く」",
+      "examples": [
+        {
+          "tool_name": "Bash",
+          "error": "This session is isolated in the worktree /tmp/repo/.claude/worktrees/probe, but this command names git in a form too complex to verify that it stays inside the worktree. Refusing to run it."
+        },
+        {
+          "tool_name": "Bash",
+          "error": "This session is isolated in the worktree /tmp/repo/.claude/worktrees/probe, but this command is too complex to verify. Refusing to run it."
+        },
+        {
+          "tool_name": "PowerShell",
+          "error": "This session is isolated in the worktree C:/repo/.claude/worktrees/probe, but this command names git in a form too complex to verify that it stays inside the worktree."
+        }
+      ],
+      "non_examples": [
+        {
+          "tool_name": "Edit",
+          "error": "this command names git in a form too complex to verify"
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 128\nfatal: not a git repository"
+        }
+      ]
+    },
+    {
+      "id": "replace-source-after-format",
+      "tool": "^Bash$",
+      "error": "AssertionError|substring not found",
+      "input": "\\.replace\\(|re\\.sub\\(",
+      "guide": "文字列の置換の置換元がファイルと一致しませんでした。置換元は、記憶や整形の前に書いた形から組み立てず、直前に読んだ内容からそのまま取ってください。フォーマッタを通した後は読み直してください。",
+      "rule": "AGENTS.md「編集」",
+      "examples": [
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1\nTraceback (most recent call last):\nAssertionError: import block",
+          "tool_input": {
+            "command": "python3 - <<'PY'\ns = s.replace(old, new)\nassert old in s0, 'import block'\nPY"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1\nValueError: substring not found",
+          "tool_input": {
+            "command": "python3 - <<'PY'\ni = s.index(old)\ns = s.replace(old, new)\nPY"
+          }
+        }
+      ],
+      "non_examples": [
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1\nFAILED test_x.py::test_y - AssertionError: 1 != 2",
+          "tool_input": { "command": "pytest test_x.py" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1\nNameError: name 'old' is not defined",
+          "tool_input": { "command": "python3 -c \"s = s.replace(old, new)\"" }
+        },
+        {
+          "tool_name": "Write",
+          "error": "AssertionError: import block",
+          "tool_input": { "content": "s = s.replace(old, new)" }
+        }
+      ]
+    }
+  ]
+}
