@@ -909,7 +909,9 @@ export function realShapeTestList(
   const merge = (suite: Suite): void => {
     const merged: Spec[] = [];
     for (const spec of suite.specs) {
-      const same = merged.find((m) => m.title === spec.title && m.line === spec.line);
+      const same = merged.find(
+        (m) => m.title === spec.title && m.line === spec.line && m.column === spec.column,
+      );
       if (same) same.tests.push(...spec.tests);
       else merged.push({ ...spec, tests: [...spec.tests] });
     }
