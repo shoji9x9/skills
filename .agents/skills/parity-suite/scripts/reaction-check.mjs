@@ -67,7 +67,7 @@ import { canonicalize } from "./lib/json.mjs";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "9";
+export const VERSION = "10";
 
 /**
  * 撮る状態を指す 1 行（使い回しの照合の単位）。
