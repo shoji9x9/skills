@@ -194,7 +194,8 @@ describe("エージェントのツールを限り、リポジトリの設定を�
       expect(optionValues(args, "--setting-sources"), `${path} の --setting-sources`).toStrictEqual(
         ["user"],
       );
-      expect(args, `${path} の --strict-mcp-config`).toMatch(/(?<!\S)--strict-mcp-config(?!\S)/);
+      // 引用符の中の文字列を数えないよう、語に分けてから探す。
+      expect(shellWords(args), `${path} の --strict-mcp-config`).toContain("--strict-mcp-config");
     }
   });
 });
