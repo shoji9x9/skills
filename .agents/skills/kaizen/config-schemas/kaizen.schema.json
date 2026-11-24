@@ -79,6 +79,20 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
       "x-layers": ["repo"],
       "x-env": "KAIZEN_SCHEDULE_EFFORT"
+    },
+    "tool_error_guides": {
+      "description": "ツールの失敗か拒否の時点で、エラーの文に合う規約を案内する Hook が読む一覧の、リポジトリのルートからの相対パス。apply が、条件に当たる学びを文章ではなくこの一覧の行で閉じる。英数字と . _ - / だけを使い、/ で始めず、.. の区切りを含めない",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"],
+      "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "tool_error_guides_doc": {
+      "description": "tool_error_guides の一覧の、行の書き方と、Hook が呼ばれる失敗・呼ばれない失敗を書いた文書の、リポジトリのルートからの相対パス。書き方の制約は tool_error_guides と同じ",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"],
+      "pattern": "^(?!(?:.*/)?\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
     }
   },
   "x-legacy": {

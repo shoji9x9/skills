@@ -4,5 +4,9 @@
   "schedule_enabled": true,
   // セッション開始時に、pending の学びを何件まで注入するか（priority の高い順に注入する）。
   // 省いた件数に high が出たら、上限を上げずに、high の学びを適用するか priority を見直す。
-  "inject_max_entries": 30
+  "inject_max_entries": 30,
+  // ツールの失敗か拒否の時点で規約を案内する Hook（scripts/hooks/tool-error-guide.ts）が読む一覧と、その書き方を書いた文書。
+  // kaizen の apply は、ツールの失敗の時点で再発した学びを、文章ではなくこの一覧の行で閉じる。
+  "tool_error_guides": "scripts/hooks/tool-error-guides.json",
+  "tool_error_guides_doc": "docs/tooling.md"
 }

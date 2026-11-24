@@ -357,7 +357,8 @@ Hook は、実行を始めたツールが失敗したときと、worktree の隔
 入力の検証で返されたエラー（Edit の置換元が見つからないなど）、PreToolUse の Hook による拒否、権限の拒否では呼ばれないので、一覧に行を足しても案内は出ない。
 呼ばれる条件の出典は <https://code.claude.com/docs/en/hooks> と、`claude -p` で 1 回ずつ起動した実測である。
 
-学びごとに Hook を作らず、一覧に行を足して対応する。行には、エラーの文の正規表現（`error`）、案内（`guide`）、規約の場所（`rule`。`<パス>「<見出し>」` の形）を書く。
+学びごとに Hook を作らず、一覧に行を足して対応する。kaizen の apply は、`.config/skills/shoji9x9/kaizen.jsonc` の `tool_error_guides` と `tool_error_guides_doc` でこの一覧とこの節を読み、条件に当たる学びをこの一覧の行で閉じる。
+行には、エラーの文の正規表現（`error`）、案内（`guide`）、規約の場所（`rule`。`<パス>「<見出し>」` の形）を書く。
 絞り込みの `tool` は `tool_name` に、`input` は `tool_input` を `JSON.stringify` した文字列に当てる正規表現で、省略するとその軸では絞らない。
 `input` の文字列では、改行が `\n` の 2 文字に、引用符が `\"` になる。
 一致する例（`examples`）と一致しない例（`non_examples`）も書く。`tool-error-guide.test.ts` が、各行が例どおりに一致することと、`rule` のファイルと見出しが在ることを確かめる。

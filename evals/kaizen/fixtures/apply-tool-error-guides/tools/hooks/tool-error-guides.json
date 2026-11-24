@@ -1,0 +1,11 @@
+{
+  "guides": [
+    {
+      "id": "port-in-use",
+      "error": "EADDRINUSE",
+      "guide": "開発サーバが既に起動しています。起動したときに保存した PID でプロセスを終了してから起動し直してください。",
+      "rule": "docs/dev-server.md「開発サーバの起動と終了」",
+      "examples": ["Error: listen EADDRINUSE: address already in use :::3000"]
+    }
+  ]
+}

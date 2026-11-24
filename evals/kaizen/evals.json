@@ -708,6 +708,79 @@
           "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
         }
       ]
+    },
+    {
+      "id": 32,
+      "fixture": "fixtures/apply-tool-error-guides",
+      "prompt": "fixture の .kaizen にある pending の学びを、kaizen の apply で適用して。グループは 1 つで、適用することは承認済みなので、確認せずに書き込んでよい。どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。最後に、バンドルされた lifecycle 検査を実行して終了コードを示して。",
+      "assertions": [
+        "tools/hooks/tool-error-guides.json に、error が ERR_PNPM_OUTDATED_LOCKFILE のエラーの文に一致する行を 1 行足している",
+        "足した行の rule が、AGENTS.md の「作業の規約」を指している",
+        "足した行の examples に、学びに書かれたエラーの文（ERR_PNPM_OUTDATED_LOCKFILE を含む文）を入れている",
+        "AGENTS.md に、lockfile の更新についての規約を新しく足していない（作業の規約の箇条が元のまま）",
+        "lockfile の更新を強制する新しい Hook・lint・pre-commit のスクリプトのファイルを作っていない",
+        "2026-11-02-frozen-lockfile-recurred.md の status を applied にし、applied-to に tools/hooks/tool-error-guides.json を書いている",
+        "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "tools/hooks/tool-error-guides.json に、error が ERR_PNPM_OUTDATED_LOCKFILE のエラーの文に一致する行を 1 行足している",
+          "prompt_quote": "pending の学びを、kaizen の apply で適用して。"
+        },
+        {
+          "assertion": "足した行の rule が、AGENTS.md の「作業の規約」を指している",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "足した行の examples に、学びに書かれたエラーの文（ERR_PNPM_OUTDATED_LOCKFILE を含む文）を入れている",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "AGENTS.md に、lockfile の更新についての規約を新しく足していない（作業の規約の箇条が元のまま）",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "lockfile の更新を強制する新しい Hook・lint・pre-commit のスクリプトのファイルを作っていない",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "2026-11-02-frozen-lockfile-recurred.md の status を applied にし、applied-to に tools/hooks/tool-error-guides.json を書いている",
+          "prompt_quote": "pending の学びを、kaizen の apply で適用して。"
+        },
+        {
+          "assertion": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "fixture": "fixtures/apply-tool-error-guides-absent",
+      "prompt": "fixture の .kaizen にある pending の学びを、kaizen の apply で適用して。グループは 1 つで、適用することは承認済みなので、確認せずに書き込んでよい。どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。最後に、バンドルされた lifecycle 検査を実行して終了コードを示して。",
+      "assertions": [
+        "エラーの文と案内を並べた一覧のファイル（tool-error-guides.json など）を新しく作っていない",
+        "適用先を選んだ理由で、規約を強制する機構を作るかを、効果（再発したこと）と費用（例外・分岐・実行時間のどれか）の両方に触れて判断している",
+        "AGENTS.md に、作業の規約の lockfile の箇条と同じ内容の規約を、別の行に新しく足していない",
+        "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "エラーの文と案内を並べた一覧のファイル（tool-error-guides.json など）を新しく作っていない",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "適用先を選んだ理由で、規約を強制する機構を作るかを、効果（再発したこと）と費用（例外・分岐・実行時間のどれか）の両方に触れて判断している",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "AGENTS.md に、作業の規約の lockfile の箇条と同じ内容の規約を、別の行に新しく足していない",
+          "prompt_quote": "どのファイルに何を書いたかと、その適用先を選んだ理由を説明して。"
+        },
+        {
+          "assertion": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
+        }
+      ]
     }
   ]
 }
