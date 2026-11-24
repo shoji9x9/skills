@@ -247,9 +247,16 @@ describe.concurrent("runtime dir と CLI の場所", () => {
   });
 
   test("stage 6 は、同じ番号の項目の comm が eval-sandbox.sh と違えば、run の中の別のプロセスとして通す", async () => {
+    // ホストの上で実行するので、PID 名前空間の値も別のものに上書きし、stage 6 のすべての行を ok にする。
+    // ほかの stage はスタブが実行しないので、終了コードはこの stage の判定で決まる。
     const { result } = await sandbox(["--verify", "MARKER"], {
-      env: { FAKE_BWRAP_MODE: "exec-processes", FAKE_BWRAP_SET_ENV: "HOST_COMM=not-this-shell" },
+      env: {
+        FAKE_BWRAP_MODE: "exec-processes",
+        FAKE_BWRAP_SET_ENV: "HOST_COMM=not-this-shell HOST_PIDNS=pid:[0]",
+      },
     });
+    expect(result.status, result.stdout).toBe(0);
+    expect(result.stdout).toContain("stage6 host PID namespace: separate (ok)");
     expect(result.stdout).toMatch(
       /^stage6 host process \d+: hidden \(ok; the pid belongs to .+ inside\)$/mu,
     );
