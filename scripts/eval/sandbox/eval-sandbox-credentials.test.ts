@@ -197,6 +197,25 @@ describe.concurrent("runtime dir と CLI の場所", () => {
     ]);
   });
 
+  // Issue #1134。ホストの /proc を見せると、run は祖先のプロセスの環境と / を読める場合がある。
+  test("run に、PID 名前空間と /proc を別に持たせる", async () => {
+    const { result, bwrapArgs } = await sandbox(["--version"]);
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(bwrapArgs).toContain("--unshare-pid");
+    expect(flagValues(bwrapArgs, "--proc")).toEqual(["/proc"]);
+  });
+
+  test("stage 6 は、ホストの上で実行されると、PID 名前空間とホストのプロセスが見えるので失敗にする", async () => {
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes" },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("stage6 positive control (own /proc entry): readable (ok)");
+    expect(result.stdout).toContain("stage6 host PID namespace: SHARED (FAIL)");
+    expect(result.stdout).toMatch(/^stage6 host process \d+: VISIBLE \(FAIL\)$/mu);
+  });
+
   test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", async () => {
     const { result, home } = await sandbox(["--verify", "MARKER"], {
       repoUnderHome: true,

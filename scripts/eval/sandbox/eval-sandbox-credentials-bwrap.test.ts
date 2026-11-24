@@ -64,32 +64,43 @@ if touch "$HOME/.claude/.probe" 2>/dev/null; then echo "claude writable"; else e
 `;
 }
 
+/** 使い捨ての $HOME で、本文 body の CLI のスタブを sandbox の中から起動する。 */
+function runCli(
+  name: string,
+  body: string,
+  env: (runtimeDir: string) => Record<string, string> = () => ({}),
+) {
+  const { home, runtimeDir } = makeRealHome(name);
+  const project = makeTempDir("eval-sandbox-credentials-project-");
+  const fakeBin = join(project, "bin");
+  mkdirSync(fakeBin);
+  const fakeCli = join(fakeBin, "claude-wrapper");
+  writeFileSync(fakeCli, body, "utf8");
+  chmodSync(fakeCli, 0o755);
+  return spawnSync(sourceScript, ["--version"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: project,
+    encoding: "utf8",
+    env: {
+      ...hostEnv(),
+      EVAL_SANDBOX_CLI: "claude-wrapper",
+      EVAL_SANDBOX_VENDOR: "claude-code",
+      EVAL_SANDBOX_NET: "off",
+      HOME: home,
+      XDG_RUNTIME_DIR: runtimeDir,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      ...env(runtimeDir),
+    },
+  });
+}
+
 describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
   test("run の中から、許可リストの外の目印は読めず、許可リストの中と CLI の認証は読める", () => {
-    const { home, runtimeDir } = makeRealHome("run");
-    const project = makeTempDir("eval-sandbox-credentials-project-");
-    const fakeBin = join(project, "bin");
-    mkdirSync(fakeBin);
-    const fakeCli = join(fakeBin, "claude-wrapper");
-    writeFileSync(fakeCli, visibilityReport(), "utf8");
-    chmodSync(fakeCli, 0o755);
-    const result = spawnSync(sourceScript, ["--version"], {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: project,
-      encoding: "utf8",
-      env: {
-        ...hostEnv(),
-        EVAL_SANDBOX_CLI: "claude-wrapper",
-        EVAL_SANDBOX_VENDOR: "claude-code",
-        EVAL_SANDBOX_NET: "off",
-        HOME: home,
-        XDG_RUNTIME_DIR: runtimeDir,
-        DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
-        GH_TOKEN: "MARKER-GH-TOKEN-NOT-A-SECRET",
-        LANG: "C.UTF-8",
-        PATH: `${fakeBin}:${process.env.PATH}`,
-      },
-    });
+    const result = runCli("run", visibilityReport(), (runtimeDir) => ({
+      DBUS_SESSION_BUS_ADDRESS: `unix:path=${runtimeDir}/bus`,
+      GH_TOKEN: "MARKER-GH-TOKEN-NOT-A-SECRET",
+      LANG: "C.UTF-8",
+    }));
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout.split("\n").filter(Boolean)).toEqual([
       ...Object.keys(credentialFiles).map((p) => `hidden ${p}`),
@@ -103,7 +114,28 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
     ]);
   });
 
-  test("--verify の stage 5 は、使い捨ての $HOME で 5 つとも ok を出す", () => {
+  test("run の中から、ホストのプロセス（eval-sandbox.sh と、その環境の目印）は見えない（Issue #1134）", () => {
+    // 件数だけを出す。ホストのプロセスの環境や cmdline の中身は出さない。
+    // cmdline は user namespace でも読める（実測）ので、eval-sandbox.sh が見えるかは cmdline で数える。
+    const body = `#!/usr/bin/env bash
+script=0 marker=0
+for d in /proc/[0-9]*; do
+  [ "\${d#/proc/}" != "$$" ] || continue
+  { tr '\\0' '\\n' <"$d/cmdline"; } 2>/dev/null | grep -q 'eval-sandbox\\.sh$' && script=$((script+1))
+  { tr '\\0' '\\n' <"$d/environ"; } 2>/dev/null | grep -q MARKER-HOST-ENV-1134 && marker=$((marker+1))
+done
+if [ -r /proc/$$/environ ]; then echo "own environ readable"; else echo "OWN ENVIRON UNREADABLE"; fi
+echo "script=$script marker=$marker"
+`;
+    const result = runCli("processes", body, () => ({ HOST_ONLY_TOKEN: "MARKER-HOST-ENV-1134" }));
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.split("\n").filter(Boolean)).toEqual([
+      "own environ readable",
+      "script=0 marker=0",
+    ]);
+  });
+
+  test("--verify の stage 5 は、使い捨ての $HOME で 5 つとも ok を出し、stage 6 はホストのプロセスが見えないことを示す", () => {
     const { home, runtimeDir } = makeRealHome("verify");
     const result = spawnSync(sourceScript, ["--verify", "MARKER-NOT-PLANTED-1008"], {
       timeout: CHILD_TIMEOUT_MS,
@@ -137,6 +169,9 @@ describe.skipIf(outsideTmp === null)("本物の bwrap", () => {
     expect(result.stdout).toMatch(
       /^stage5 environment outside the allowlist: \d+ host variables as expected \(ok\)$/mu,
     );
+    expect(result.stdout).toContain("stage6 positive control (own /proc entry): readable (ok)");
+    expect(result.stdout).toContain("stage6 host PID namespace: separate (ok)");
+    expect(result.stdout).toMatch(/^stage6 host process \d+: hidden \(ok\)$/mu);
   });
 });
 
