@@ -1,7 +1,7 @@
 ---
 date: 2026-10-29
 type: doc
-priority: high
+priority: medium
 confidence: medium
 status: pending
 applied-to: []
@@ -78,3 +78,8 @@ KEDB 照合は「一括」「expect_failing」「テスト名」で行った。`
   どちらも merge される前に気付けたが、ローカルレビューは当てにできない。CI が止めたときに失うのは、push から CI の失敗までの 1 往復（数分）で、2 回目にだけ当たる。
   費用は、pre-commit でテストの一覧（`vitest list` など）を取る実行時間（対象のテストファイルごとに数秒）と、`test.each` で組み立てる名前を一覧と同じ形で扱う処理である。例外の一覧は要らない。
   言い訳を規約に書いた後で 3 回目が起きたら作る、という順序を推奨する。
+
+## 優先度の見直し（2026-11-24・Issue #1119）
+
+priority を high から medium に下げた。2 回とも merge の前に、ローカルレビューか CI の `Mutation proof (PR)` が見つけた。失ったのは push から CI の失敗までの 1 往復で、作業は止まらなかった（定義は kaizen の `references/extract.md`「学びファイルのフォーマット」）。
+提案のとおり、3 回目が起きたら pre-commit のチェックを作る。

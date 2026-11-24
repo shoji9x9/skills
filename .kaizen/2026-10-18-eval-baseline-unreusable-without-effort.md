@@ -1,7 +1,7 @@
 ---
 date: 2026-10-18
 type: hook
-priority: high
+priority: medium
 confidence: high
 status: pending
 applied-to: []
@@ -52,3 +52,8 @@ KEDB 照合（`reuse-baseline`・`reasoning-effort`）で、このノートだ�
 - `run-skill-eval.sh` で、`--reasoning-effort` を付けない新しい run に「この run は `--reuse-baseline` で再利用できない」と stderr で警告するか、`--model` を付けた run では `--reasoning-effort` も必須にする
 - または、元の run と再利用の側の effort がどちらも空なら一致として扱えるようにする（実行時のデフォルト値が変わりうるので、CLI のバージョンの一致を条件にする）
 - `docs/skill-development.md` の「without-skill baseline の再利用」に、元の run も effort を明示して実行しておく必要があることを書く
+
+## 優先度の見直し（2026-11-24・Issue #1119）
+
+priority を high から medium に下げた。2 回とも、失ったのは without_skill の run の 1 回分の時間と費用か、比べ方を変える手間で、作業は止まらなかった（定義は kaizen の `references/extract.md`「学びファイルのフォーマット」）。
+再発は記録に残るので、3 回目が起きたら high に戻して、`run-skill-eval.sh` の警告を作る。

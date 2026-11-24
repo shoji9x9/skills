@@ -71,6 +71,80 @@
           "tool_input": { "content": "s = s.replace(old, new)" }
         }
       ]
+    },
+    {
+      "id": "check-at-exit-position",
+      "tool": "^Bash$",
+      "error": "^Exit code [12]\\b",
+      "input": "\"command\":\"(?:[^\"\\\\]|\\\\.)*?(\\]\\]?\\s*&&|(?:[;&|(]|\\\\n)\\s*ls\\s)(?:[^;&|\\\\\"]|\\\\\")*(?:\\\\n)*\"[,}]",
+      "guide": "呼び出しの最後に置いた確認（`[ ... ] && ...` か `ls <パス>`）が 0 以外で終わり、前の処理が成功していても呼び出し全体がエラーになった可能性があります。まず前の処理の出力を読み、成功していれば同じ呼び出しを繰り返さないでください。有無の確認は `if [ -e <パス> ]; then echo 在る; else echo 無し; fi` の形で書き、終了コードを 0 に保ってください。",
+      "rule": "docs/agent-workflow.md「終了コードを決める最後の位置に、条件式を置かない」",
+      "examples": [
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 2\nls: cannot access '/home/u/.claude/agents': No such file or directory",
+          "tool_input": { "command": "git grep -n model; echo ---; ls ~/.claude/agents" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1",
+          "tool_input": {
+            "command": "node check.ts >/dev/null && echo ok; [ -e tests/x/iteration-12 ] && echo EXISTS"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1",
+          "tool_input": { "command": "f=$(ls a 2>/dev/null); [ -n \"$f\" ] && node -e 1" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 2",
+          "tool_input": { "command": "date +%F; ls .kaizen/2026-11-2*-real-repo* 2>/dev/null" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1",
+          "tool_input": { "command": "pnpm run build; [ -e dist/out ] && echo \"EXISTS\"" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 2",
+          "tool_input": { "command": "git grep -n model\nls ~/.claude/agents\n" }
+        }
+      ],
+      "non_examples": [
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1\nFAIL x.test.ts",
+          "tool_input": { "command": "pnpm exec vitest run" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1",
+          "tool_input": { "command": "[ -e x ] && echo y; pnpm test" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 2\nls: cannot access 'missing'",
+          "tool_input": { "command": "ls missing; echo done" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 127",
+          "tool_input": { "command": "[ -e x ] && foo" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1",
+          "tool_input": { "command": "if [ -e x ]; then echo a; else echo b; fi" }
+        },
+        {
+          "tool_name": "Bash",
+          "error": "Exit code 1",
+          "tool_input": { "command": "ls x | head", "description": "Check a; ls b" }
+        }
+      ]
     }
   ]
 }
