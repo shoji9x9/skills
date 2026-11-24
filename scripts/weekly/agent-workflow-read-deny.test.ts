@@ -57,11 +57,12 @@ function shellWords(args: string): string[] {
 
 /**
  * 値を取らない option（flag）が claude_args にあるかを返す。引用符の中の文字列を数えないよう、語に分けてから探す。
- * 直前の語が `--` で始まる option なら、その option の値として書かれたとみなして数えない。
+ * 直前の語が `--` で始まる option で、値を `=` で同じ語に含まないなら、その option の値として書かれたとみなして数えない。
  */
 function hasFlag(args: string, flag: string) {
   const words = shellWords(args);
-  return words.some((word, i) => word === flag && !(words[i - 1] ?? "").startsWith("--"));
+  const takesValue = (prev: string) => prev.startsWith("--") && !prev.includes("=");
+  return words.some((word, i) => word === flag && !takesValue(words[i - 1] ?? ""));
 }
 
 /** claude_args の option の値を、`--opt value` と `--opt=value` の両方の形で返す。 */
@@ -107,6 +108,8 @@ describe("hasFlag は、別の option の値として書いた flag を数えな
     ['--model "label --strict-mcp-config "', false],
     ['--model "--strict-mcp-config"', false],
     ["--model --strict-mcp-config", false],
+    // 値を `=` で同じ語に含む option の後の語は、独立した flag である。
+    ["--model=opus --strict-mcp-config", true],
   ])("%j は %j", (args, expected) => {
     expect(hasFlag(args, "--strict-mcp-config")).toBe(expected);
   });
