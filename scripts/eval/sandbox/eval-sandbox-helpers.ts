@@ -63,12 +63,14 @@ ${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 // | 環境変数            | 許可リストの外 / 中（軸の一覧は eval-sandbox-env.test.ts）          |
 // | 起動の前に止める構成 | runtime dir と git worktree list（軸の一覧は eval-sandbox-preflight.test.ts） |
 //
-// bwrap のスタブは呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。
+// bwrap のスタブは呼び出しごとに引数を追記する（--verify は stage ごとに複数回呼ぶ）。
 // 起動の前の確認（CLI が見えるか）の呼び出しは記録せず、FAKE_BWRAP_HIDDEN（改行区切り）に
 // 挙げたパスを除いて「見える」と答える。何が隠れるかを測るのは、本物の bwrap のテストである。
 // FAKE_BWRAP_MODE=exec-credentials では、--verify の stage 5 の呼び出しだけを、隠さずにホストの上で実行する。
+// FAKE_BWRAP_MODE=exec-processes では、stage 6 の呼び出しだけを同じように実行する（ホストの上なので、PID 名前空間は分かれない）。
 // --setenv と --unsetenv は反映する。FAKE_BWRAP_LEAK_ENV に挙げた名前は 1 を入れて渡し（許可リストの外の変数が run に渡った状態）、
 // FAKE_BWRAP_DROP_ENV に挙げた名前は外す（渡すはずの変数が欠けた状態）。
+// FAKE_BWRAP_SET_ENV に挙げた NAME=VALUE は、eval-sandbox.sh が --setenv で渡した値の後に足して上書きする。
 // eval-sandbox.sh は bwrap を許可リストの環境変数だけで起動するので、スタブの設定（FAKE_BWRAP_*）は
 // 環境変数では届かない。スタブは隣の fake-bwrap.env から読む（export しないので、実行するコマンドには渡らない）。
 // FAKE_BWRAP_ENV_OUT を指定すると、呼び出しごとに、受け取った環境変数の名前（値は書かない）を 1 行ずつ追記し、
@@ -80,7 +82,13 @@ const FAKE_BWRAP_CONFIG = `config="$(dirname -- "$0")/fake-bwrap.env"
   echo --
 } >>"$FAKE_BWRAP_ENV_OUT"
 `;
-const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
+// 実行する stage の呼び出しは、その stage だけが --setenv で渡す変数で見分ける。
+const FAKE_BWRAP_EXEC = `case "\${FAKE_BWRAP_MODE:-}" in
+exec-credentials) exec_marker=HOME_LISTS ;;
+exec-processes) exec_marker=HOST_PID ;;
+*) exec_marker="" ;;
+esac
+if [ -n "$exec_marker" ]; then
   envs=() unsets=() cmd=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -90,9 +98,10 @@ const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
     *) shift ;;
     esac
   done
-  case " \${envs[*]} " in *" HOME_LISTS="*) ;; *) exit 0 ;; esac
+  case " \${envs[*]} " in *" $exec_marker="*) ;; *) exit 0 ;; esac
   # ホストの /run/user/<uid> の中身で結果が変わらないよう、runtime dir の一覧をテストの下に絞る。
-  if [ -n "\${FAKE_BWRAP_RUNTIME_UNDER:-}" ]; then
+  # 一覧を持つのは stage 5 の呼び出しだけなので、ほかの stage では絞らない。
+  if [ "$exec_marker" = HOME_LISTS ] && [ -n "\${FAKE_BWRAP_RUNTIME_UNDER:-}" ]; then
     for e in "\${envs[@]}"; do case "$e" in HOME_LISTS=*) lists="\${e#HOME_LISTS=}" ;; esac; done
     while IFS= read -r -d '' l; do
       case "\${l#*|}" in "$FAKE_BWRAP_RUNTIME_UNDER"/*) printf '%s\\0' "$l" ;; esac
@@ -102,6 +111,7 @@ const FAKE_BWRAP_EXEC = `if [ "\${FAKE_BWRAP_MODE:-}" = exec-credentials ]; then
   for u in "\${unsets[@]}"; do unset "$u"; done
   for u in \${FAKE_BWRAP_DROP_ENV:-}; do unset "$u"; done
   for u in \${FAKE_BWRAP_LEAK_ENV:-}; do envs+=("$u=1"); done
+  for u in \${FAKE_BWRAP_SET_ENV:-}; do envs+=("$u"); done
   # SHLVL は、このスタブ（bash）が exec のときに足す。本物の bwrap は足さないので、env -u で外して揃える。
   exec env -u SHLVL "\${envs[@]}" "\${cmd[@]}"
 fi

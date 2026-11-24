@@ -12,6 +12,7 @@
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない（/run/user/<uid> の扱いは eval-sandbox.test.ts） |
 // | 環境変数（stage 5）        | 許可リストの外が渡る / 許可リストの中が欠ける（スタブで再現する）。渡す変数そのものは eval-sandbox-env.test.ts |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
@@ -195,6 +196,70 @@ describe.concurrent("runtime dir と CLI の場所", () => {
     expect(probeArgs.slice(probeArgs.indexOf("_") + 1).filter(Boolean)).toEqual([
       join(bin, "claude"),
     ]);
+  });
+
+  // Issue #1134。ホストの /proc を見せると、run は祖先のプロセスの環境と / を読める場合がある。
+  test("run に、PID 名前空間と /proc を別に持たせる", async () => {
+    const { result, bwrapArgs } = await sandbox(["--version"]);
+    expect(result.status, result.stderr).toBe(0);
+    if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
+    expect(bwrapArgs).toContain("--unshare-pid");
+    expect(flagValues(bwrapArgs, "--proc")).toEqual(["/proc"]);
+  });
+
+  test("stage 6 は、ホストの上で実行されると、PID 名前空間とホストのプロセスが見えるので失敗にする", async () => {
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes" },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("stage6 positive control (own /proc entry): readable (ok)");
+    expect(result.stdout).toContain("stage6 host PID namespace: SHARED (FAIL)");
+    expect(result.stdout).toMatch(/^stage6 host process \d+: VISIBLE \(FAIL\)$/mu);
+  });
+
+  // PID 名前空間だけを分けてホストの /proc を見せる構成では、名前空間の行は ok になる。プロセスの行が失敗にする。
+  test("stage 6 は、ホストのプロセスの項目が在るのに comm を読めなければ、見分けられないので失敗にする", async () => {
+    // /proc/sys は在り、その下に comm は無い。
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes", FAKE_BWRAP_SET_ENV: "HOST_PID=sys" },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(
+      "stage6 host process sys: UNVERIFIABLE (FAIL: the entry exists but its comm is unreadable)",
+    );
+  });
+
+  test("stage 6 は、run の中で自分の PID 名前空間を読めなければ、別だと示せないので失敗にする", async () => {
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes" },
+      // stage 6 の呼び出しだけ、readlink が失敗する PATH で実行する。
+      setup: ({ root }) => {
+        const dir = join(root, "failing-readlink");
+        mkdirSync(dir);
+        writeFileSync(join(dir, "readlink"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+        return { env: { FAKE_BWRAP_SET_ENV: `PATH=${dir}:/usr/bin:/bin` } };
+      },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(
+      "stage6 host PID namespace: UNVERIFIABLE (FAIL: /proc/self/ns/pid is unreadable)",
+    );
+  });
+
+  test("stage 6 は、同じ番号の項目の comm が eval-sandbox.sh と違えば、run の中の別のプロセスとして通す", async () => {
+    // ホストの上で実行するので、PID 名前空間の値も別のものに上書きし、stage 6 のすべての行を ok にする。
+    // ほかの stage はスタブが実行しないので、終了コードはこの stage の判定で決まる。
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: {
+        FAKE_BWRAP_MODE: "exec-processes",
+        FAKE_BWRAP_SET_ENV: "HOST_COMM=not-this-shell HOST_PIDNS=pid:[0]",
+      },
+    });
+    expect(result.status, result.stdout).toBe(0);
+    expect(result.stdout).toContain("stage6 host PID namespace: separate (ok)");
+    expect(result.stdout).toMatch(
+      /^stage6 host process \d+: hidden \(ok; the pid belongs to .+ inside\)$/mu,
+    );
   });
 
   test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", async () => {

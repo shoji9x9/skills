@@ -55,7 +55,8 @@
 # and (5) every host path under $HOME (and under the XDG and symlinked directories
 # hidden with it) outside the allowlist is absent while every path bound back is
 # readable, the runtime dir is empty, and every host variable outside the environment
-# allowlist is unset while every allowlisted one is still set.
+# allowlist is unset while every allowlisted one is still set. (6) The run reads its
+# own /proc entry while this script's process and PID namespace stay invisible.
 #
 # Repo-internal tooling; not bundled in any distributed skill.
 set -euo pipefail
@@ -127,7 +128,13 @@ command -v bwrap >/dev/null 2>&1 || {
 # `--chdir` is added per mode at run time: the CLI needs the disposable project as
 # cwd, but `--verify` is invoked from this repo — a path that the tmpfs below hides,
 # so chdir there would abort bwrap before any check runs.
-args=(--dev-bind / / --die-with-parent)
+# The run gets a PID namespace and a /proc of its own (Issue #1134). With the host's
+# /proc, the run sees every host process: /proc/<pid>/cmdline is readable (measured),
+# and /proc/<ancestor>/environ and /root hold the operator's full environment and
+# $HOME. Those two are refused only while bwrap puts the run in a user namespace of
+# its own (an unprivileged bwrap); a setuid bwrap does not, and then the run reads
+# them. With its own /proc, the run sees no host process whatever bwrap's mode is.
+args=(--dev-bind / / --unshare-pid --proc /proc --die-with-parent)
 [ "${vendor}" = "codex" ] && args+=(--setenv CODEX_HOME "${codex_home}")
 
 scratch_state="$(mktemp)"
@@ -945,6 +952,40 @@ exit $rc'
 	run_bwrap "${args[@]}" --ro-bind "${home_lists}" "${home_lists}" \
 		--setenv HOME_LISTS "${home_lists}" \
 		--chdir / -- /bin/bash -c "${credentials_script}" || rc=$?
+	# Stage 6: host processes (Issue #1134). The run must not see this shell, which
+	# holds the operator's full environment. Judged by a pair: the run reads its own
+	# /proc/$$/environ (the positive control; without it, "absent" could mean that
+	# /proc is not mounted at all), and this shell's pid and PID namespace are not
+	# visible from inside. Both are checked because each misses one mistake: a separate
+	# PID namespace with the host's /proc still shows this shell, and the namespace line
+	# names the missing --unshare-pid. A process inside may hold the same pid number, so
+	# an entry whose comm differs passes; one whose comm cannot be read fails, because
+	# it cannot be told apart from this shell. Neither value is a secret, so --setenv may carry them.
+	# shellcheck disable=SC2016 # deliberate: the variables expand inside the sandboxed shell
+	processes_script='set -u; rc=0
+printf "stage6 positive control (own /proc entry): "
+if [ -r "/proc/$$/environ" ]; then echo "readable (ok)"; else echo "NOT READABLE (FAIL: /proc is not usable, so hiding is unproven)"; rc=1; fi
+printf "stage6 host PID namespace: "
+if ! pidns="$(readlink /proc/self/ns/pid 2>/dev/null)" || [ -z "$pidns" ]; then echo "UNVERIFIABLE (FAIL: /proc/self/ns/pid is unreadable)"; rc=1
+elif [ "$pidns" = "$HOST_PIDNS" ]; then echo "SHARED (FAIL)"; rc=1
+else echo "separate (ok)"; fi
+printf "stage6 host process %s: " "$HOST_PID"
+if [ ! -e "/proc/$HOST_PID" ]; then echo "hidden (ok)"
+elif ! comm="$(cat "/proc/$HOST_PID/comm" 2>/dev/null)"; then echo "UNVERIFIABLE (FAIL: the entry exists but its comm is unreadable)"; rc=1
+elif [ "$comm" = "$HOST_COMM" ]; then echo "VISIBLE (FAIL)"; rc=1
+else echo "hidden (ok; the pid belongs to $comm inside)"; fi
+exit $rc'
+	# Read on the host first: an empty value would match nothing inside and pass both lines.
+	host_pidns="$(readlink /proc/self/ns/pid 2>/dev/null || true)"
+	host_comm="$(cat "/proc/$$/comm" 2>/dev/null || true)"
+	if [ -z "${host_pidns}" ] || [ -z "${host_comm}" ]; then
+		echo "stage6 host values: UNREADABLE (FAIL: this shell's PID namespace or comm cannot be read, so hiding is unproven)"
+		rc=1
+	else
+		run_bwrap "${args[@]}" --setenv HOST_PID "$$" \
+			--setenv HOST_PIDNS "${host_pidns}" --setenv HOST_COMM "${host_comm}" \
+			--chdir / -- /bin/bash -c "${processes_script}" || rc=$?
+	fi
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported
 	# "probe planted" (it sets rc=1 otherwise), so "absent" cannot mean "never written".

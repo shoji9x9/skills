@@ -198,7 +198,7 @@ describe.concurrent("runtime dir が先に置いたマウントの宛先か cwd 
       if (bwrapArgs === null) throw new Error("bwrap が呼ばれていない");
       const real = realpathSync(run);
       const tmpfs = flagValues(bwrapArgs, "--tmpfs").filter((target) => target === real);
-      // スタブの bwrap は呼び出しごとに引数を追記する（--verify は 2 回呼ぶ）。呼び出しは --die-with-parent で数える。
+      // スタブの bwrap は呼び出しごとに引数を追記する（--verify は stage ごとに複数回呼ぶ）。呼び出しは --die-with-parent で数える。
       const calls = bwrapArgs.filter((arg) => arg === "--die-with-parent").length;
       expect(tmpfs).toHaveLength(calls);
     },
