@@ -70,6 +70,7 @@ ${FAKE_BWRAP_PROBE}printf '%s\\n' "$@" >"${capturedArgs}"
 // FAKE_BWRAP_MODE=exec-processes では、stage 6 の呼び出しだけを同じように実行する（ホストの上なので、PID 名前空間は分かれない）。
 // --setenv と --unsetenv は反映する。FAKE_BWRAP_LEAK_ENV に挙げた名前は 1 を入れて渡し（許可リストの外の変数が run に渡った状態）、
 // FAKE_BWRAP_DROP_ENV に挙げた名前は外す（渡すはずの変数が欠けた状態）。
+// FAKE_BWRAP_SET_ENV に挙げた NAME=VALUE は、eval-sandbox.sh が --setenv で渡した値の後に足して上書きする。
 // eval-sandbox.sh は bwrap を許可リストの環境変数だけで起動するので、スタブの設定（FAKE_BWRAP_*）は
 // 環境変数では届かない。スタブは隣の fake-bwrap.env から読む（export しないので、実行するコマンドには渡らない）。
 // FAKE_BWRAP_ENV_OUT を指定すると、呼び出しごとに、受け取った環境変数の名前（値は書かない）を 1 行ずつ追記し、
@@ -110,6 +111,7 @@ if [ -n "$exec_marker" ]; then
   for u in "\${unsets[@]}"; do unset "$u"; done
   for u in \${FAKE_BWRAP_DROP_ENV:-}; do unset "$u"; done
   for u in \${FAKE_BWRAP_LEAK_ENV:-}; do envs+=("$u=1"); done
+  for u in \${FAKE_BWRAP_SET_ENV:-}; do envs+=("$u"); done
   # SHLVL は、このスタブ（bash）が exec のときに足す。本物の bwrap は足さないので、env -u で外して揃える。
   exec env -u SHLVL "\${envs[@]}" "\${cmd[@]}"
 fi

@@ -216,6 +216,27 @@ describe.concurrent("runtime dir と CLI の場所", () => {
     expect(result.stdout).toMatch(/^stage6 host process \d+: VISIBLE \(FAIL\)$/mu);
   });
 
+  // PID 名前空間だけを分けてホストの /proc を見せる構成では、名前空間の行は ok になる。プロセスの行が失敗にする。
+  test("stage 6 は、ホストのプロセスの項目が在るのに comm を読めなければ、見分けられないので失敗にする", async () => {
+    // /proc/sys は在り、その下に comm は無い。
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes", FAKE_BWRAP_SET_ENV: "HOST_PID=sys" },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(
+      "stage6 host process sys: UNVERIFIABLE (FAIL: the entry exists but its comm is unreadable)",
+    );
+  });
+
+  test("stage 6 は、同じ番号の項目の comm が eval-sandbox.sh と違えば、run の中の別のプロセスとして通す", async () => {
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes", FAKE_BWRAP_SET_ENV: "HOST_COMM=not-this-shell" },
+    });
+    expect(result.stdout).toMatch(
+      /^stage6 host process \d+: hidden \(ok; the pid belongs to .+ inside\)$/mu,
+    );
+  });
+
   test("$HOME の下のリポジトリを隠すマウントは、$HOME の tmpfs が覆うので、stage 5 はそのパスも確かめる", async () => {
     const { result, home } = await sandbox(["--verify", "MARKER"], {
       repoUnderHome: true,

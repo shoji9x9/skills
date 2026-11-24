@@ -958,7 +958,9 @@ exit $rc'
 	# /proc is not mounted at all), and this shell's pid and PID namespace are not
 	# visible from inside. Both are checked because each misses one mistake: a separate
 	# PID namespace with the host's /proc still shows this shell, and the namespace line
-	# names the missing --unshare-pid. Neither value is a secret, so --setenv may carry them.
+	# names the missing --unshare-pid. A process inside may hold the same pid number, so
+	# an entry whose comm differs passes; one whose comm cannot be read fails, because
+	# it cannot be told apart from this shell. Neither value is a secret, so --setenv may carry them.
 	# shellcheck disable=SC2016 # deliberate: the variables expand inside the sandboxed shell
 	processes_script='set -u; rc=0
 printf "stage6 positive control (own /proc entry): "
@@ -966,7 +968,10 @@ if [ -r "/proc/$$/environ" ]; then echo "readable (ok)"; else echo "NOT READABLE
 printf "stage6 host PID namespace: "
 if [ "$(readlink /proc/self/ns/pid 2>/dev/null)" = "$HOST_PIDNS" ]; then echo "SHARED (FAIL)"; rc=1; else echo "separate (ok)"; fi
 printf "stage6 host process %s: " "$HOST_PID"
-if [ -e "/proc/$HOST_PID/environ" ] && [ "$(cat "/proc/$HOST_PID/comm" 2>/dev/null)" = "$HOST_COMM" ]; then echo "VISIBLE (FAIL)"; rc=1; else echo "hidden (ok)"; fi
+if [ ! -e "/proc/$HOST_PID" ]; then echo "hidden (ok)"
+elif ! comm="$(cat "/proc/$HOST_PID/comm" 2>/dev/null)"; then echo "UNVERIFIABLE (FAIL: the entry exists but its comm is unreadable)"; rc=1
+elif [ "$comm" = "$HOST_COMM" ]; then echo "VISIBLE (FAIL)"; rc=1
+else echo "hidden (ok; the pid belongs to $comm inside)"; fi
 exit $rc'
 	run_bwrap "${args[@]}" --setenv HOST_PID "$$" \
 		--setenv HOST_PIDNS "$(readlink /proc/self/ns/pid)" --setenv HOST_COMM "$(cat "/proc/$$/comm")" \
