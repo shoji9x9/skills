@@ -36,11 +36,60 @@ const withString = (step: Step | undefined, key: string) => {
   return typeof value === "string" ? value : "";
 };
 
-/** claude_args の option の値を、空白区切りと `=` 区切りの両方で返す。引用符で囲んだ値は引用符を外す。 */
-const optionValues = (args: string, option: string) =>
-  [...args.matchAll(new RegExp(`(?<!\\S)${option}(?:=|\\s+)("[^"]*"|\\S+)`, "g"))].map((m) =>
-    (m[1] ?? "").replace(/^"(.*)"$/, "$1"),
+/**
+ * claude_args を、シェルと同じく空白で区切り、引用符で囲んだ部分を語の一部として分ける。
+ * 引用符の中の文字列（別の引数の値に書いた `--tools` など）を option と読まないためである。
+ * 語は、引用符の無い文字の並び・`"..."`・`'...'` の連なりとして読む。
+ * それ以外の構文（`\`・`#`・閉じていない引用符）は語として読めずに残るので、判定できないとして例外にする。
+ */
+function shellWords(args: string): string[] {
+  const word = /\s*((?:[^\s"'\\#]+|"[^"]*"|'[^']*')+)/y;
+  const words: string[] = [];
+  let pos = 0;
+  for (let m = word.exec(args); m !== null; m = word.exec(args)) {
+    words.push((m[1] ?? "").replaceAll(/"([^"]*)"|'([^']*)'/g, "$1$2"));
+    pos = word.lastIndex;
+  }
+  const rest = args.slice(pos).trim();
+  if (rest !== "") throw new Error(`claude_args の ${rest.slice(0, 20)} を語として読めない`);
+  return words;
+}
+
+/** claude_args の option の値を、`--opt value` と `--opt=value` の両方の形で返す。 */
+function optionValues(args: string, option: string) {
+  const words = shellWords(args);
+  const values: string[] = [];
+  for (const [i, word] of words.entries()) {
+    if (word === option) values.push(words[i + 1] ?? "");
+    else if (word.startsWith(`${option}=`)) values.push(word.slice(option.length + 1));
+  }
+  return values;
+}
+
+describe("optionValues は、claude_args を引数の語に分けてから option を探す", () => {
+  test.each([
+    ['--tools "Read,Grep" --x', ["Read,Grep"]],
+    ["--tools=Read,Grep", ["Read,Grep"]],
+    ["--tools Read\n--strict-mcp-config", ["Read"]],
+    // 引用符の中の文字列は option ではない。
+    ['--model "label --tools Read "', []],
+    // 閉じた引用符の直後の文字は、同じ語の一部になる。
+    ['--tools "Read,Grep"junk', ["Read,Grepjunk"]],
+    [`--allowed-tools "Bash(echo 'a b')"`, ["Bash(echo 'a b')"]],
+    ["--tools", [""]],
+  ])("%j から %j を取り出す", (args, expected) => {
+    expect(
+      optionValues(args, "--tools").concat(optionValues(args, "--allowed-tools")),
+    ).toStrictEqual(expected);
+  });
+
+  test.each(['--tools "Read', "--tools Read\\ Grep", "--tools Read # x"])(
+    "判定できない構文（%j）は例外にする",
+    (args) => {
+      expect(() => optionValues(args, "--tools")).toThrow();
+    },
   );
+});
 
 const GIT_DENY = "Read(./.git/**)";
 
