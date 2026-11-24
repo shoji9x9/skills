@@ -712,6 +712,20 @@
       ]
     },
     {
+      "term": "被験体",
+      "instead": "eval を実行する使い捨てのプロジェクト、eval で実行するエージェント",
+      "message": "「被験体」は使わない。「eval を実行する使い捨てのプロジェクト」「eval で実行するエージェント」のように、何を指すかを書く。",
+      "example": "成果物を被験体へコピーする。",
+      "tokens": [
+        {
+          "surface_form": "被験"
+        },
+        {
+          "surface_form": "体"
+        }
+      ]
+    },
+    {
       "term": "fail-closed・fail-open・fail-safe",
       "instead": "振る舞いを書く（判定できないときは失敗として扱う、など）",
       "message": "「fail-closed」「fail-open」「fail-safe」は使わない。「判定できないときは失敗として扱う」のように振る舞いを書く。",

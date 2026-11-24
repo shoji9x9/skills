@@ -48,14 +48,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 #### 関数の大きさ
 
 大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくく、レビューでも読みにくい。
-そこで、`oxlint.config.ts` で関数の大きさを制限する。閾値は oxlint のデフォルトをそのまま使う。
-
-| ルール | 閾値 |
-| --- | --- |
-| `max-lines-per-function` | 50 行（空行とコメントも数える） |
-| `max-depth` | 4 |
-| `max-params` | 3 |
-| `max-nested-callbacks` | 10 |
+そこで、`oxlint.config.ts` で関数の大きさを制限する。閾値は oxlint のデフォルトを使う（値は `oxlint.config.ts` のコメントにある）。
 
 テストのファイル（`scripts/**/*.test.ts`）では、vitest から import した `describe` のコールバックだけを行数の上限から外す。
 `suite`・名前空間の import（`v.describe`）・vitest の修飾（`describe.skip`・`describe.each(表)` など）も `describe` として扱う。`describe` はファイルの大半を包むので、長くなってもよいとする。
@@ -586,6 +579,10 @@ fixture の検査も strict のままにする。型が足りない fixture は�
 | --- | --- |
 | `./node_modules/.bin/<tool>` を直接指定しない（`AGENTS.md`「技術スタック」） | 誤ると、リポジトリの外では起動が `No version is set for shim` でその場で失敗するので気付ける。コマンドの文字列で判定する Hook は、引用の中の文章（commit message・`grep` の引数）も止める |
 | commit の `--amend` をしない（`AGENTS.md`「ブランチ運用」） | `--amend` を使って誤った記録が無いうちは、チェックの費用が見合わない。コマンドの文字列で判定する Hook は、引用の中の文章も止める。`bash-command-guard.sh` には規則を足さないと決めている |
+| ディレクトリの直下のファイルを 20 件以下に保つ（`AGENTS.md`「ディレクトリ構造」） | 件数のチェックは、効果が費用に見合わない。チェックを置くと、20 件を超えてよいディレクトリを例外の一覧に持ち続ける必要がある |
+| branch 名を `feature/<issue番号>-<英語の短い説明>` にする（`AGENTS.md`「ブランチ運用」） | `issue-start` と `issue-batch` が `gh issue develop` で名前を決めて作る。PR の head の branch で規約に合わないのは、計測のための一時的な branch（`probe/`・`measure/`・`tmp/`）だけで、チェックはそれも止めてしまう |
+| `package-lock.json` を作らない（`AGENTS.md`「技術スタック」） | 作った記録が無い。作ると新しいファイルとして commit の差分に出るので、レビューで気付ける |
+| `.agents/rules/doc-altitude.md` の Tier の表と `scripts/gates/docs/doc-tiers.json` を同じ内容に保つ | 食い違った記録が無い。表の文書の列（private skill の説明など）は JSON の glob と字面が違い、突き合わせに書き方ごとの分岐が要る |
 
 ### 同梱するパッケージの更新
 

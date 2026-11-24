@@ -3,6 +3,7 @@
 // 拒否の規則 `Read(./.git/**)` が Read・Grep・Glob とサブエージェントに当たることは、手元の claude -p で確かめた。
 // 確かめた内容は .agents/rules/github-actions-authoring.md と Issue #1031 にある。
 // 規則が消えても、ほかの検査と run は成功のまま進むので、エージェントを動かすワークフローの宣言をここで確かめる。
+// 同じ理由で、使えるツールを --tools で限ることと、リポジトリの設定を読ませないこと（--setting-sources user・--strict-mcp-config）も確かめる。
 // 対象は、.github/workflows/ と skills/*/assets/ の YAML のうち、Claude Code の段を持つものすべてである。
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -35,9 +36,11 @@ const withString = (step: Step | undefined, key: string) => {
   return typeof value === "string" ? value : "";
 };
 
-/** claude_args の、引用符で囲んだ値を持つオプションの値をすべて返す。 */
+/** claude_args の option の値を、空白区切りと `=` 区切りの両方で返す。引用符で囲んだ値は引用符を外す。 */
 const optionValues = (args: string, option: string) =>
-  [...args.matchAll(new RegExp(`${option} "([^"]*)"`, "g"))].map((m) => m[1] ?? "");
+  [...args.matchAll(new RegExp(`(?<!\\S)${option}(?:=|\\s+)("[^"]*"|\\S+)`, "g"))].map((m) =>
+    (m[1] ?? "").replace(/^"(.*)"$/, "$1"),
+  );
 
 const GIT_DENY = "Read(./.git/**)";
 
@@ -101,9 +104,39 @@ describe("エージェントに .git/ を読ませない", () => {
     for (const step of found) {
       const args = withString(step, "claude_args");
       // `--permission-mode=<mode>` の形も CLI は受け付けるので、空白と `=` の両方で値を取る。
-      const modes = [...args.matchAll(/--permission-mode(?:=|\s+)(\S+)/g)].map((m) => m[1]);
-      expect(modes, `${path} の --permission-mode`).toStrictEqual(["default"]);
+      expect(optionValues(args, "--permission-mode"), `${path} の --permission-mode`).toStrictEqual(
+        ["default"],
+      );
       expect(args, path).not.toContain("dangerously-skip-permissions");
+    }
+  });
+});
+
+// 使えるツールを拒否の一覧で限ると、エージェントがツールを足すたびに抜けが出る（#958）。
+// リポジトリの .claude/settings.json の Hook と .mcp.json の MCP サーバーは --tools の制限の外で動く（#977）。
+// 規約は .agents/rules/github-actions-authoring.md「エージェントのツールが読める場所と書ける場所」にある。
+describe("エージェントのツールを限り、リポジトリの設定を読ませない", () => {
+  test.each(WORKFLOWS)("%s の Claude Code の段は、--tools で使えるツールを限る", (path) => {
+    const found = claudeSteps(path);
+    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
+    for (const step of found) {
+      const tools = optionValues(withString(step, "claude_args"), "--tools");
+      // 2 つ書くと、どちらが使われるかを確かめていない。1 つにまとめる。
+      expect(tools, `${path} の --tools`).toHaveLength(1);
+      expect(tools[0], `${path} の --tools`).not.toBe("");
+    }
+  });
+
+  test.each(WORKFLOWS)("%s の Claude Code の段は、user の設定だけを読み、MCP を限る", (path) => {
+    const found = claudeSteps(path);
+    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
+    for (const step of found) {
+      const args = withString(step, "claude_args");
+      // project・local を含めると、リポジトリの .claude/settings.json の Hook と permissions を読む。
+      expect(optionValues(args, "--setting-sources"), `${path} の --setting-sources`).toStrictEqual(
+        ["user"],
+      );
+      expect(args, `${path} の --strict-mcp-config`).toMatch(/(?<!\S)--strict-mcp-config(?!\S)/);
     }
   });
 });

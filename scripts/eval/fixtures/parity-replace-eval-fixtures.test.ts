@@ -30,7 +30,7 @@ test.each(["lightweight-deploy-target", "records-committed-same-repo"])(
     const dir = makeTempDir(`parity-replace-${name}-`);
     cpSync(join(fixturesRoot, name), dir, { recursive: true });
     run(dir, "./setup.sh");
-    // 被験体が手順を読めないよう、setup.sh は残らない
+    // eval で実行するエージェントが手順を読めないよう、setup.sh は残らない
     expect(existsSync(join(dir, "setup.sh"))).toBe(false);
     expect(run(dir, "git", "status", "--porcelain", "--untracked-files=all")).toBe("");
     const record = parseJsonAs<{ new: { commit: string; tree: string } }>(

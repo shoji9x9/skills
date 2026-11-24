@@ -283,8 +283,7 @@ describe("エージェントが読める範囲を、リポジトリの中に限�
     expect(args).toContain(
       '--allowed-tools "Read(./**),Grep(./**),Glob(./**),Edit(./${{ env.REPORT_FILE }})"',
     );
-    expect(args).toContain("--setting-sources user");
-    expect(args).toContain("--strict-mcp-config");
+    // --setting-sources user と --strict-mcp-config は、scripts/weekly/agent-workflow-read-deny.test.ts が全ワークフローで確かめる。
     // 権限の確認を外すフラグと、読める場所を足すフラグは、--allowed-tools のパスの規則を迂回する。
     for (const flag of ["dangerously-skip-permissions", "--add-dir"]) {
       expect(args).not.toContain(flag);

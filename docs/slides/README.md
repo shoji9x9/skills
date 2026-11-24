@@ -7,7 +7,7 @@
 | `storylines/ja/` | 章ごとのストーリーライン。スライドごとに、伝えることと根拠にした文書を書く |
 | `decks/ja/` | 章ごとのデッキ。`deck.json`（題名・スライドの順序・書体）と、1 枚ずつの `slides/<id>.html`。ストーリーラインと同じ名前で並べる |
 | `decks/en/` | `decks/ja/` の英訳。スライドの数・id・スタイルは日本語版と同じにし、文言だけを訳す |
-| `design-system/` | スライドの色・書体・大きさの決まり（`tokens.json`）と、その使い方（`README.md`） |
+| `design-system/` | スライドの色・書体・大きさの決まり（`tokens.json`）と、その使い方（`README.md`）。`design-system.json` と `components/` は、Slides の Artifact でデッキを作り直すときに入力として渡すファイルで、スクリプトと閲覧ページは読まない |
 | `prompts/` | 作るときにエージェントへ渡した指示。日本語のデッキは、ストーリーラインを指示にして 1 章ずつ人と確かめながら作った。英語版は `translate-decks-en.md` の指示で訳した |
 | `repo-size.md` | リポジトリの規模のスキルごとの内訳（`scripts/tools/repo-size.ts` の出力） |
 
