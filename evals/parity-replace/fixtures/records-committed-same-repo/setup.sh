@@ -41,5 +41,5 @@ done
 git add -- .replace
 GIT_AUTHOR_DATE='2026-05-02T01:00:00Z' GIT_COMMITTER_DATE='2026-05-02T01:00:00Z' \
 	git -c commit.gpgsign=false commit -q -m 'chore: local-dev の green の記録'
-# 被験体が手順を読んで答えを知らないよう、作り終えたら自身を消す（作業ツリーは clean のまま）
+# eval で実行するエージェントが手順を読んで答えを知らないよう、作り終えたら自身を消す（作業ツリーは clean のまま）
 rm -f -- "$0"

@@ -27,7 +27,7 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 文書を 4 つの階層に分け、置き場所と参照の向きを決める。どのファイルがどの階層かは次の表で決める。
 この表が原本である。文書のチェック（`check-doc-refs.ts`・`check-time-sensitive-prose.ts`・`check-version-mentions.ts`）は、表のコピーの `scripts/gates/docs/doc-tiers.json` で階層を決める。
 表を変えたら、この JSON も同じ内容に直す。
-2 つが食い違っていたら、表に合わせて JSON を直す。食い違いを検出するチェックは無い。
+2 つが食い違っていたら、表に合わせて JSON を直す。食い違いを検出するチェックは無い。作らない理由は `docs/tooling.md`「チェックを作らない規約」にある。
 
 | Tier | 文書 | 置くもの |
 | --- | --- | --- |
