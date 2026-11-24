@@ -966,16 +966,26 @@ exit $rc'
 printf "stage6 positive control (own /proc entry): "
 if [ -r "/proc/$$/environ" ]; then echo "readable (ok)"; else echo "NOT READABLE (FAIL: /proc is not usable, so hiding is unproven)"; rc=1; fi
 printf "stage6 host PID namespace: "
-if [ "$(readlink /proc/self/ns/pid 2>/dev/null)" = "$HOST_PIDNS" ]; then echo "SHARED (FAIL)"; rc=1; else echo "separate (ok)"; fi
+if ! pidns="$(readlink /proc/self/ns/pid 2>/dev/null)" || [ -z "$pidns" ]; then echo "UNVERIFIABLE (FAIL: /proc/self/ns/pid is unreadable)"; rc=1
+elif [ "$pidns" = "$HOST_PIDNS" ]; then echo "SHARED (FAIL)"; rc=1
+else echo "separate (ok)"; fi
 printf "stage6 host process %s: " "$HOST_PID"
 if [ ! -e "/proc/$HOST_PID" ]; then echo "hidden (ok)"
 elif ! comm="$(cat "/proc/$HOST_PID/comm" 2>/dev/null)"; then echo "UNVERIFIABLE (FAIL: the entry exists but its comm is unreadable)"; rc=1
 elif [ "$comm" = "$HOST_COMM" ]; then echo "VISIBLE (FAIL)"; rc=1
 else echo "hidden (ok; the pid belongs to $comm inside)"; fi
 exit $rc'
-	run_bwrap "${args[@]}" --setenv HOST_PID "$$" \
-		--setenv HOST_PIDNS "$(readlink /proc/self/ns/pid)" --setenv HOST_COMM "$(cat "/proc/$$/comm")" \
-		--chdir / -- /bin/bash -c "${processes_script}" || rc=$?
+	# Read on the host first: an empty value would match nothing inside and pass both lines.
+	host_pidns="$(readlink /proc/self/ns/pid 2>/dev/null || true)"
+	host_comm="$(cat "/proc/$$/comm" 2>/dev/null || true)"
+	if [ -z "${host_pidns}" ] || [ -z "${host_comm}" ]; then
+		echo "stage6 host values: UNREADABLE (FAIL: this shell's PID namespace or comm cannot be read, so hiding is unproven)"
+		rc=1
+	else
+		run_bwrap "${args[@]}" --setenv HOST_PID "$$" \
+			--setenv HOST_PIDNS "${host_pidns}" --setenv HOST_COMM "${host_comm}" \
+			--chdir / -- /bin/bash -c "${processes_script}" || rc=$?
+	fi
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported
 	# "probe planted" (it sets rc=1 otherwise), so "absent" cannot mean "never written".

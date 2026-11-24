@@ -12,6 +12,7 @@
 // | runtime dir                | 中身が在る（少ない・SIGPIPE が起きる量）/ 空 / 実在しない（/run/user/<uid> の扱いは eval-sandbox.test.ts） |
 // | 環境変数（stage 5）        | 許可リストの外が渡る / 許可リストの中が欠ける（スタブで再現する）。渡す変数そのものは eval-sandbox-env.test.ts |
 // | CLI の実体                 | $HOME の外 / $HOME の下で許可リストの中 / $HOME の下で許可リストの外 |
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
@@ -225,6 +226,23 @@ describe.concurrent("runtime dir と CLI の場所", () => {
     expect(result.status).not.toBe(0);
     expect(result.stdout).toContain(
       "stage6 host process sys: UNVERIFIABLE (FAIL: the entry exists but its comm is unreadable)",
+    );
+  });
+
+  test("stage 6 は、run の中で自分の PID 名前空間を読めなければ、別だと示せないので失敗にする", async () => {
+    const { result } = await sandbox(["--verify", "MARKER"], {
+      env: { FAKE_BWRAP_MODE: "exec-processes" },
+      // stage 6 の呼び出しだけ、readlink が失敗する PATH で実行する。
+      setup: ({ root }) => {
+        const dir = join(root, "failing-readlink");
+        mkdirSync(dir);
+        writeFileSync(join(dir, "readlink"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+        return { env: { FAKE_BWRAP_SET_ENV: `PATH=${dir}:/usr/bin:/bin` } };
+      },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain(
+      "stage6 host PID namespace: UNVERIFIABLE (FAIL: /proc/self/ns/pid is unreadable)",
     );
   });
 
