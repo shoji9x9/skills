@@ -115,6 +115,8 @@ describe("エージェントに .git/ を読ませない", () => {
 // 使えるツールを拒否の一覧で限ると、エージェントがツールを足すたびに抜けが出る（#958）。
 // リポジトリの .claude/settings.json の Hook と .mcp.json の MCP サーバーは --tools の制限の外で動く（#977）。
 // 規約は .agents/rules/github-actions-authoring.md「エージェントのツールが読める場所と書ける場所」にある。
+const ALLOWED_TOOL_NAMES = ["Read", "Grep", "Glob", "Edit", "Write", "Agent", "Bash"];
+
 describe("エージェントのツールを限り、リポジトリの設定を読ませない", () => {
   test.each(WORKFLOWS)("%s の Claude Code の段は、--tools で使えるツールを限る", (path) => {
     const found = claudeSteps(path);
@@ -123,7 +125,14 @@ describe("エージェントのツールを限り、リポジトリの設定を�
       const tools = optionValues(withString(step, "claude_args"), "--tools");
       // 2 つ書くと、どちらが使われるかを確かめていない。1 つにまとめる。
       expect(tools, `${path} の --tools`).toHaveLength(1);
-      expect(tools[0], `${path} の --tools`).not.toBe("");
+      // `--tools default` はすべての組み込みのツールを使わせる（https://code.claude.com/docs/en/cli-reference）。
+      // `*` のような値も限ったことにならないので、ツールの名前を 1 つずつ、知っている名前の一覧と照合する。
+      // 新しいツールを使わせるときは、この一覧に足して、レビューで許すかを決める。
+      const names = (tools[0] ?? "").split(",");
+      expect(names, `${path} の --tools`).not.toContain("");
+      for (const name of names) {
+        expect(ALLOWED_TOOL_NAMES, `${path} の --tools の ${name}`).toContain(name);
+      }
     }
   });
 
