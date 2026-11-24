@@ -55,6 +55,15 @@ function shellWords(args: string): string[] {
   return words;
 }
 
+/**
+ * 値を取らない option（flag）が claude_args にあるかを返す。引用符の中の文字列を数えないよう、語に分けてから探す。
+ * 直前の語が `--` で始まる option なら、その option の値として書かれたとみなして数えない。
+ */
+function hasFlag(args: string, flag: string) {
+  const words = shellWords(args);
+  return words.some((word, i) => word === flag && !(words[i - 1] ?? "").startsWith("--"));
+}
+
 /** claude_args の option の値を、`--opt value` と `--opt=value` の両方の形で返す。 */
 function optionValues(args: string, option: string) {
   const words = shellWords(args);
@@ -89,6 +98,18 @@ describe("optionValues は、claude_args を引数の語に分けてから optio
       expect(() => optionValues(args, "--tools")).toThrow();
     },
   );
+});
+
+describe("hasFlag は、別の option の値として書いた flag を数えない", () => {
+  test.each([
+    ["--setting-sources user --strict-mcp-config", true],
+    ["--strict-mcp-config\n--tools Read", true],
+    ['--model "label --strict-mcp-config "', false],
+    ['--model "--strict-mcp-config"', false],
+    ["--model --strict-mcp-config", false],
+  ])("%j は %j", (args, expected) => {
+    expect(hasFlag(args, "--strict-mcp-config")).toBe(expected);
+  });
 });
 
 const GIT_DENY = "Read(./.git/**)";
@@ -162,6 +183,9 @@ describe("エージェントに .git/ を読ませない", () => {
 });
 
 // 使えるツールを拒否の一覧で限ると、エージェントがツールを足すたびに抜けが出る（#958）。
+// このテストが捕まえるのは、このリポジトリのワークフローと雛形にフラグを書き忘れることである（#958・#977 の誤りはどちらも書き忘れだった）。
+// わざと検査を抜ける書き方（option の値として CLI と違う読み方をさせる形など）は対象にしない。
+// 引数の読み方を CLI とそろえるには、option ごとに値を取るかの一覧が要るからである。
 // リポジトリの .claude/settings.json の Hook と .mcp.json の MCP サーバーは --tools の制限の外で動く（#977）。
 // 規約は .agents/rules/github-actions-authoring.md「エージェントのツールが読める場所と書ける場所」にある。
 const ALLOWED_TOOL_NAMES = ["Read", "Grep", "Glob", "Edit", "Write", "Agent", "Bash"];
@@ -194,8 +218,7 @@ describe("エージェントのツールを限り、リポジトリの設定を�
       expect(optionValues(args, "--setting-sources"), `${path} の --setting-sources`).toStrictEqual(
         ["user"],
       );
-      // 引用符の中の文字列を数えないよう、語に分けてから探す。
-      expect(shellWords(args), `${path} の --strict-mcp-config`).toContain("--strict-mcp-config");
+      expect(hasFlag(args, "--strict-mcp-config"), `${path} の --strict-mcp-config`).toBe(true);
     }
   });
 });
