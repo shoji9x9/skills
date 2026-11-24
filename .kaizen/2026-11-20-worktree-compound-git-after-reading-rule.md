@@ -3,8 +3,8 @@ date: 2026-11-20
 type: hook
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/hooks/tool-error-guides.json]
 recurrence-of: [2026-10-14-worktree-bash-literal-guard-recurs.md, 2026-09-17-worktree-session-rejects-computed-bash.md]
 session: claude-code
 ---
@@ -47,3 +47,9 @@ worktree の隔離セッションで、文章の取り決めを読んだ後も�
 
 - 効果: 同じ原因の再発の記録が 3 回目になる。拒否は実行の前に起きるので害は小さいが、呼び出しを書き直す往復が毎回 1 回増える。
 - 費用: 拒否される形を呼び出し側で列挙すると尽きない（適用済みの学びの apply の判断）。拒否の文を受けて案内するだけなら、形の列挙は要らない。
+
+## 適用（2026-11-24・Issue #1119）
+
+提案の仕組みは、Issue #1122（PR #1130）で足した Hook（`scripts/hooks/tool-error-guide.ts`）と、一覧の行 `worktree-compound-git` である。
+worktree の隔離セッションが git の複合コマンドを拒否した時点で、スクリプトにして実行し直すよう案内する。
+拒否の文に Hook が呼ばれることと、案内がモデルに届くことは、#1122 で `claude -p` を起動して確かめた。

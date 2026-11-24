@@ -1,10 +1,10 @@
 ---
 date: 2026-09-29
-type: doc
+type: hook
 priority: high
 confidence: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/hooks/tool-error-guides.json]
 session: claude-code
 ---
 
@@ -76,3 +76,10 @@ date +%F; ls .kaizen/2026-11-2*-real-repo* 2>/dev/null
 AGENTS.md の「判定結果として期待される非 0 を…漏らさない」は Issue #372 で `docs/agent-workflow.md`「原則」へ移した。
 文章の書き換えで、この原則は `docs/agent-workflow.md`「結果として期待される 0 以外の終了コードを、呼び出し全体の終了コードにしない」の節になった。
 AGENTS.md「シェルの書き方」には要約（「結果として期待される 0 以外の終了コード」）だけがある。
+
+## 適用（2026-11-24・Issue #1119）
+
+ツールの失敗の時点で案内する一覧（`scripts/hooks/tool-error-guides.json`）に、行 `check-at-exit-position` を足した。
+Bash が `Exit code 1` か `Exit code 2` で終わり、コマンドの最後の区切りが `[ ... ] && ...` か `ls <パス>` のときに、前の処理の出力を読んでから進むよう案内する。
+文章の規約があっても 5 回再発したので、規約の文章は足さず、案内の一覧の行で閉じた。Hook は Bash の 0 以外の終了で呼ばれる（`docs/tooling.md`「その他のチェックと整形」）。
+照合はこの学びに書いたエラーの形に絞り、`grep -c` のような別の形には広げていない。
