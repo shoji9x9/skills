@@ -1,0 +1,130 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-11-24T00:46:53Z",
+    "evals_run": [32, 33],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 32,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 53.701,
+        "tokens": 296419,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "tools/hooks/tool-error-guides.json に、error が ERR_PNPM_OUTDATED_LOCKFILE のエラーの文に一致する行を 1 行足している",
+          "passed": true,
+          "evidence": "tools/hooks/tool-error-guides.json に id pnpm-outdated-lockfile、error ERR_PNPM_OUTDATED_LOCKFILE の行が 1 行増えた"
+        },
+        {
+          "text": "足した行の rule が、AGENTS.md の「作業の規約」を指している",
+          "passed": true,
+          "evidence": "rule は AGENTS.md「作業の規約」"
+        },
+        {
+          "text": "足した行の examples に、学びに書かれたエラーの文（ERR_PNPM_OUTDATED_LOCKFILE を含む文）を入れている",
+          "passed": true,
+          "evidence": "examples に学びのエラーの文"
+        },
+        {
+          "text": "AGENTS.md に、lockfile の更新についての規約を新しく足していない（作業の規約の箇条が元のまま）",
+          "passed": true,
+          "evidence": "AGENTS.md は fixture と同じ"
+        },
+        {
+          "text": "lockfile の更新を強制する新しい Hook・lint・pre-commit のスクリプトのファイルを作っていない",
+          "passed": true,
+          "evidence": "新しいファイルは無い"
+        },
+        {
+          "text": "2026-11-02-frozen-lockfile-recurred.md の status を applied にし、applied-to に tools/hooks/tool-error-guides.json を書いている",
+          "passed": true,
+          "evidence": "status: applied、applied-to: [tools/hooks/tool-error-guides.json]"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "応答で lifecycle 検査の exit=0 を示した"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 33,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 80.374,
+        "tokens": 331518,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "エラーの文と案内を並べた一覧のファイル（tool-error-guides.json など）を新しく作っていない",
+          "passed": true,
+          "evidence": "一覧のファイルは無い"
+        },
+        {
+          "text": "適用先を選んだ理由で、規約を強制する機構を作るかを、効果（再発したこと）と費用（例外・分岐・実行時間のどれか）の両方に触れて判断している",
+          "passed": true,
+          "evidence": "応答で、効果（再発 2 回・損失は失敗する実行 1〜2 回）と費用（書き方ごとの分岐・判定の作り直し）を比べて機構を作らないと判断した"
+        },
+        {
+          "text": "AGENTS.md に、作業の規約の lockfile の箇条と同じ内容の規約を、別の行に新しく足していない",
+          "passed": true,
+          "evidence": "既存の lockfile の箇条を「〜しない」の 1 文に置き換え、同じ内容の箇条を別に足していない"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "応答で lifecycle 検査の exit=0 を示した"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 67.0375,
+        "stddev": 18.8607,
+        "min": 53.701,
+        "max": 80.374
+      },
+      "tokens": {
+        "mean": 313968.5,
+        "stddev": 24818.7409,
+        "min": 296419,
+        "max": 331518
+      }
+    }
+  },
+  "notes": [
+    "commit の前のレビューで apply.md の表の順序と文面の書き方を直した後の変更確認。eval 32・33 の with_skill だけを 1 run ずつ実行した。",
+    "without_skill は入力が変わっていないので iteration-36 の結果と比べる。iteration-36 の run は推論の強さを指定していなかったので、再利用（--reuse-baseline）はできなかった。"
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "tool_error_guides": "tools/hooks/tool-error-guides.json",
+  "tool_error_guides_doc": "docs/hooks.md"
+}
