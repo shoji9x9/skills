@@ -19,3 +19,8 @@ ci:43097620748:1,ci,2026-11-24T04:38:14.269Z,p-cdee4961,github-actions,,,,2026-1
 ci:43097620707:1,ci,2026-11-24T04:38:14.269Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-24T04:38:14.269Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,Dependabot auto-merge;pull_request;open,
 ci:43097620755:1,ci,2026-11-24T04:38:14.269Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-24T04:38:14.269Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-11-23T04:15:13.888Z:2026-11-24T04:38:14.269Z,coverage,2026-11-24T04:38:14.269Z,p-cdee4961,,,,,2026-11-23T04:15:13.888Z,2026-11-24T04:38:14.269Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:45327422555:1,ci,2026-11-24T04:41:37.522Z,p-cdee4961,github-actions,,,,2026-11-24T04:35:16.000Z,2026-11-24T04:41:02.000Z,Asia/Tokyo,dependabot/npm_and_yarn/textlint-16.0.0,,,,,,,,,,,CI;pull_request;failure,
+ci:43097620748:1,ci,2026-11-24T04:41:37.522Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-24T04:41:37.522Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CodeQL;pull_request;open,
+ci:43097620707:1,ci,2026-11-24T04:41:37.522Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-24T04:41:37.522Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,Dependabot auto-merge;pull_request;open,
+ci:43097620755:1,ci,2026-11-24T04:41:37.522Z,p-cdee4961,github-actions,,,,2026-11-11T20:42:24.000Z,2026-11-24T04:41:37.522Z,Asia/Tokyo,feature/993-parity-replace-style-free,993,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-11-23T04:38:14.269Z:2026-11-24T04:41:37.522Z,coverage,2026-11-24T04:41:37.522Z,p-cdee4961,,,,,2026-11-23T04:38:14.269Z,2026-11-24T04:41:37.522Z,Asia/Tokyo,,,,,,,,,,,,ok,
