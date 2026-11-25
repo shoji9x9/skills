@@ -116,6 +116,39 @@
       "expect_failing": [
         "archive・collect・report のコマンド 境界より前の行が records/ に残っていても、collect はその行を打ち消さない（境界が無ければ打ち消す）"
       ]
+    },
+    {
+      "id": "rewrite-ignores-concurrent-change",
+      "why": "読んだ後に collect が足した行を確かめずに、records/ のファイルを書き直す（足した行が消える）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "  if (readFileSync(p.f, \"utf8\") !== p.text) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 読んだ後に変わった records/ のファイル（同時に実行した collect が足した）は、書き直さずに残す"
+      ]
+    },
+    {
+      "id": "crlf-from-value",
+      "why": "改行の形を、見出しの行ではなくファイルのどこかの \\r\\n で決める（値の中の改行で LF のファイルを CRLF にする）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "  return { text, moved, kept, crlf: /^[^\\n]*\\r\\n/.test(text) };",
+      "replace": "  return { text, moved, kept, crlf: text.includes(\"\\r\\n\") };",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 値の中の改行は変えずに、行の区切りだけを元のファイルに合わせて書き直す"
+      ]
+    },
+    {
+      "id": "crlf-replaces-value-newlines",
+      "why": "書き上げた CSV の改行をまとめて CRLF にする（値の中の \\r\\n が \\r\\r\\n になる）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "    toCsv(Object.keys(p.kept[0] ?? {}), p.kept, { eol: p.crlf ? \"\\r\\n\" : \"\\n\" }),",
+      "replace": "    p.crlf ? toCsv(Object.keys(p.kept[0] ?? {}), p.kept).replace(/\\n/g, \"\\r\\n\") : toCsv(Object.keys(p.kept[0] ?? {}), p.kept),",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 値の中の改行は変えずに、行の区切りだけを元のファイルに合わせて書き直す"
+      ]
     }
   ]
 }

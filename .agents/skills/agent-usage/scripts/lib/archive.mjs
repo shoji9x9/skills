@@ -101,7 +101,8 @@ function splitFile(f, where, boundary) {
       throw new Error(`${where}:${i + 2}: end・start・observed_at のどれも時刻でない`);
     (t < boundary ? moved : kept).push(r);
   });
-  return { moved, kept, crlf: text.includes("\r\n") };
+  // 改行は見出しの行の終わりで決める。値の中の改行（引用符の中の \r\n）では決めない
+  return { text, moved, kept, crlf: /^[^\n]*\r\n/.test(text) };
 }
 
 /**
@@ -191,7 +192,12 @@ export function runArchive(o) {
   if (o.dryRun) return report;
   writeFileAtomic(archivedBeforePath(o.recordsDir), `${toIso(boundary)}\n`);
   for (const [name, rows] of byMonth) writeOutFile(join(o.out, name), rows);
-  for (const p of changed) rewriteSource(p);
+  // 読んだ後に変わったファイル（同じ作業ツリーで collect が足した）は書き換えない。書き換えると、足された行が消える
+  const modified = changed.filter((p) => !rewriteSource(p));
+  if (modified.length > 0)
+    throw new Error(
+      `読んだ後に変わったので書き直さなかった records/ のファイルがある（collect と同時に実行した）: ${modified.map((p) => p.f).join(", ")}。移した先と境界は書いた。archive をもう一度実行すると、残った行を移す（移した先に同じ行は重ねない）`,
+    );
   return report;
 }
 
@@ -244,15 +250,21 @@ function groupByMonth(plan) {
 /**
  * 行を移した records/ のファイルを、残りの行で書き直す。残りが無ければ消す。見出しと改行は元のファイルに合わせる
  * （parseCsv の行は見出しの列を見出しの順に持つ）。
- * @param {{ f: string; kept: readonly RawRow[]; crlf: boolean }} p
+ * 読んだときの内容（text）と今の内容が違えば、書き換えずに false を返す。
+ * @param {{ f: string; text: string; kept: readonly RawRow[]; crlf: boolean }} p
+ * @returns {boolean} 書き直したか（消したときを含む）
  */
-function rewriteSource(p) {
+export function rewriteSource(p) {
+  if (readFileSync(p.f, "utf8") !== p.text) return false;
   if (p.kept.length === 0) {
     unlinkSync(p.f);
-    return;
+    return true;
   }
-  const text = toCsv(Object.keys(p.kept[0] ?? {}), p.kept);
-  writeFileAtomic(p.f, p.crlf ? text.replace(/\n/g, "\r\n") : text);
+  writeFileAtomic(
+    p.f,
+    toCsv(Object.keys(p.kept[0] ?? {}), p.kept, { eol: p.crlf ? "\r\n" : "\n" }),
+  );
+  return true;
 }
 
 /**

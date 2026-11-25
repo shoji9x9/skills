@@ -27,6 +27,7 @@ import { describe, expect, test } from "vitest";
 import {
   archivedNote,
   readArchivedBefore,
+  rewriteSource,
   rowEndTime,
   runArchive,
 } from "../../../skills/agent-usage/scripts/lib/archive.mjs";
@@ -173,6 +174,43 @@ describe.concurrent("runArchive", () => {
     expect(rest.split("\r\n")[0]).toBe(columns.join(","));
     expect(parseCsv(rest)).toEqual([expect.objectContaining({ key: "stay", future_col: "w" })]);
     expect(rest.replace(/\r\n/g, "")).not.toMatch(/\n/);
+  });
+
+  test("値の中の改行は変えずに、行の区切りだけを元のファイルに合わせて書き直す", () => {
+    for (const eol of ["\r\n", "\n"]) {
+      const d = dirs();
+      const f = join(d.records, "p-0123abcd", "branches", "20260901T000000Z-x.csv");
+      const stay = {
+        ...row("stay", { end: "2026-10-02T00:00:00.000Z" }),
+        detail: "line1\r\nline2",
+      };
+      writeFileSync(
+        f,
+        toCsv(COLUMNS, [row("old", { end: "2026-09-01T00:00:00.000Z" }), stay], { eol }),
+      );
+      expect(archive(d, "2026-10-01").movedRows).toBe(1);
+      expect(readFileSync(f, "utf8"), JSON.stringify(eol)).toBe(toCsv(COLUMNS, [stay], { eol }));
+      expect(parseCsv(readFileSync(f, "utf8"))[0]?.detail).toBe("line1\r\nline2");
+    }
+  });
+
+  test("読んだ後に変わった records/ のファイル（同時に実行した collect が足した）は、書き直さずに残す", () => {
+    const d = dirs();
+    const f = join(d.records, "p-0123abcd", "branches", "20260901T000000Z-x.csv");
+    const read = toCsv(COLUMNS, [row("old", { end: "2026-09-01T00:00:00.000Z" })]);
+    const appended = toCsv(COLUMNS, [
+      row("old", { end: "2026-09-01T00:00:00.000Z" }),
+      row("added", { end: "2026-10-02T00:00:00.000Z" }),
+    ]);
+    writeFileSync(f, appended);
+    // すべての行を移すと読んだファイルでも、消さない
+    expect(rewriteSource({ f, text: read, kept: [], crlf: false })).toBe(false);
+    expect(readFileSync(f, "utf8")).toBe(appended);
+    expect(rewriteSource({ f, text: read, kept: [row("k", {})], crlf: false })).toBe(false);
+    expect(readFileSync(f, "utf8")).toBe(appended);
+    // 読んだときと同じなら書き直す
+    expect(rewriteSource({ f, text: appended, kept: [], crlf: false })).toBe(true);
+    expect(existsSync(f)).toBe(false);
   });
 
   test("移した先のファイルが既にあれば後ろに足し、全列が同じ行は重ねない（途中で止まった後に実行し直した場合）", () => {
