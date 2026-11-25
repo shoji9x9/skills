@@ -13,8 +13,10 @@
       "replace": "    true ||\n",
       "occurrences": 1,
       "expect_failing": [
-        "locateRegionsInPage 領域を丸ごと覆わない要素は飛ばして、覆う祖先を選ぶ",
-        "locateRegionsInPage 切り取る祖先が領域を覆わなければ、覆う要素のままにする"
+        "locateRegionsInPage モジュールの関数 領域を丸ごと覆わない要素は飛ばして、覆う祖先を選ぶ",
+        "locateRegionsInPage ページへ渡すソース 領域を丸ごと覆わない要素は飛ばして、覆う祖先を選ぶ",
+        "locateRegionsInPage モジュールの関数 切り取る祖先が領域を覆わなければ、覆う要素のままにする",
+        "locateRegionsInPage ページへ渡すソース 切り取る祖先が領域を覆わなければ、覆う要素のままにする"
       ]
     },
     {
@@ -25,7 +27,8 @@
       "replace": "stack.find((el) => covers(",
       "occurrences": 1,
       "expect_failing": [
-        "locateRegionsInPage html と body しか覆わない領域は、座標と理由だけを返す"
+        "locateRegionsInPage モジュールの関数 html と body しか覆わない領域は、座標と理由だけを返す",
+        "locateRegionsInPage ページへ渡すソース html と body しか覆わない領域は、座標と理由だけを返す"
       ]
     },
     {
@@ -36,7 +39,8 @@
       "replace": "if (false) return current;",
       "occurrences": 1,
       "expect_failing": [
-        "locateRegionsInPage overflow で切り取る祖先が領域を覆えば、動く中身ではなく祖先を選ぶ"
+        "locateRegionsInPage モジュールの関数 overflow で切り取る祖先が領域を覆えば、動く中身ではなく祖先を選ぶ",
+        "locateRegionsInPage ページへ渡すソース overflow で切り取る祖先が領域を覆えば、動く中身ではなく祖先を選ぶ"
       ]
     },
     {
@@ -47,7 +51,8 @@
       "replace": "return found.length > 0;",
       "occurrences": 1,
       "expect_failing": [
-        "locateRegionsInPage 1 つだけを指すセレクタを作れなければ、特定できたことにしない"
+        "locateRegionsInPage モジュールの関数 1 つだけを指すセレクタを作れなければ、特定できたことにしない",
+        "locateRegionsInPage ページへ渡すソース 1 つだけを指すセレクタを作れなければ、特定できたことにしない"
       ]
     }
   ]

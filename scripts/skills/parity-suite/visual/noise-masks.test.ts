@@ -251,14 +251,26 @@ function isLocatedList(value: unknown): value is Located[] {
   return isArray(value) && value.every((e) => typeof e === "object" && e !== null && "region" in e);
 }
 
-/** ページへ渡すのと同じく、関数のソースだけを評価し直して呼ぶ（本体の外の名前を参照すると失敗する）。 */
-function locate(input: { regions: Rect[]; fullPage: boolean }): Located[] {
-  const located = runFromSource(locateRegionsInPage, [input]);
+/** locateRegionsInPage の戻り値を、領域の配列として読む。 */
+function checked(located: unknown): Located[] {
   assert(isLocatedList(located), "locateRegionsInPage の戻り値が領域の配列でない");
   return located;
 }
 
-describe("locateRegionsInPage", () => {
+type LocateInput = { regions: Rect[]; fullPage: boolean };
+
+/**
+ * describe.each に渡す 2 通りの呼び方。モジュールの関数は、page/noise-masks.page.mjs の locateRegionsInPage を直接呼び、
+ * カバレッジを記録する。ページへ渡すソースは、page.evaluate と同じく関数のソースだけを評価し直して呼ぶ。
+ * 本体が本体の外の名前を参照すると、こちらでは名前が解決できずに失敗する。
+ */
+const RUNS: [string, (input: LocateInput) => unknown][] = [
+  ["モジュールの関数", (input) => locateRegionsInPage(input)],
+  ["ページへ渡すソース", (input) => runFromSource(locateRegionsInPage, [input])],
+];
+
+describe.each(RUNS)("locateRegionsInPage %s", (_label, run) => {
+  const locate = (input: LocateInput): Located[] => checked(run(input));
   const page: Rect = { x: 0, y: 0, width: 800, height: 600 };
 
   function tree() {
