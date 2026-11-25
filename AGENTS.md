@@ -47,7 +47,7 @@ pre-commit と CI で実行するチェックの一覧、ミューテーショ�
 skills/<name>/          スキルの実体（gh skill publish の対象）
   SKILL.md              スキルのメインの指示
   references/           SKILL.md から必要なときに読む補助ドキュメント
-  checks.json           利用者の pre-commit・CI に組み込むべきチェックの宣言（scripts/ に *-check.* を持つスキルだけ）
+  checks.json           利用者の pre-commit・CI に組み込むべきチェックの宣言（scripts/ の直下に *-check.* を持つスキルだけ）
   config-schemas/       設定のスキーマ（設定を読むスキルだけ。読み取りは scripts/skill-config/ に同梱する）
 evals/<name>/           回帰テスト（配布しないので skills/<name>/ の外に置く）
   evals.json            回帰テストの定義
