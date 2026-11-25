@@ -34,7 +34,8 @@ applyTo: ".github/workflows/**"
 - `claude_args` に `--permission-mode default` を渡す。`claude-code-action` は v1.0.273 から auto mode をデフォルトにし、許可の規則に無い呼び出しを安全性の判定で通しうる。
   Bash の許可の規則は、引数まで決めたコマンドで書く。`*` を使うと、引数に任意のパスを渡せる。
   default モードでも、作業ディレクトリと `--add-dir` の中の読み取り（Read・Grep・Glob と、`cat` のような読むだけの Bash）は、許可の規則が無くても通る。読めるパスを絞るには、拒否の規則を使う。
-- `claude-code-action` は agent モードで、エージェントを起動する前に `github_token` を作業ツリーの `.git/config`（remote の URL）に書く。checkout の `persist-credentials: false` はこれを防がない。
+- `claude-code-action` は agent モードで、エージェントを起動する前に `github_token` を使わせる設定を作業ツリーの `.git/config` に書く。
+  `allowed_bots` を指定しないときは remote の URL に token を書き、指定すると環境変数 `GH_TOKEN` を読む credential helper を設定する。checkout の `persist-credentials: false` はこれを防がない。
   作業ディレクトリが checkout の作業ツリーなら、Read の許可の規則に関わらず、`--disallowed-tools` に `Read(./.git/**)` を入れる。
   この規則は Read に加えて Grep と Glob にも当たり、`.git` の中を指すシンボリックリンク・サブエージェントの読み取り・Bash の `cat`・`head`・`grep` も止める。
   Claude Code 2.1.325 の `claude -p` で、絶対パスでの読み取りも含めて確かめた。`Glob(./.git/**)` の形の拒否の規則は、Glob にも当たらなかった。
