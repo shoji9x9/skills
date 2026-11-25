@@ -236,6 +236,7 @@ manifest に書いてよいのは、次のものだけである。
 
 - run ID、入力順と実行順（並べ替えた依存）、Issue URL / 番号
 - 状態、branch、worktree、PR URL
+- Issue の status を In progress にしなかった理由（「issue-start への handoff」の 2）
 - 検証名・結果・証拠 URL / SHA
 - `reviewed_through_sha`: push の前のローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）。
   `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
@@ -263,6 +264,8 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
    利用者への確認に当たる結果（自分以外が付いている・割り当てができない・読み直して自分以外も付いていた）は、確認の代わりに BLOCKED にして担当者の login を残す。
    読み直して自分以外も付いていた場合も、自分を無人で外さない。外すかの判断を、残りの作業として最終報告に載せる。
 2. branch を使い回すか、`gh issue develop` で作る。Issue を作った時刻より後の base の変更と、今のコードから独立に導き直した影響範囲を突き合わせる。
+   branch を作った後と、使い回す branch に入った後に、`issue-start` の `references/issue-status.md` の手順で Issue の status を In progress にする。
+   設定できなくても Issue を BLOCKED にせずに続け、設定しなかったことと理由を manifest と最終報告に残す。
 3. すべて解決済みなら `SKIPPED` にする。書かれた範囲の外に大きく広がる場合や、要件の選択が要る場合は `BLOCKED` にする。
 4. 実装し、リポジトリの規約が求める最小の範囲の lint と test を実行する。
    worktree に入った後の Bash は、`git-worktree` の `references/isolation.md`「隔離中の Bash は 1 コマンドずつ素の形で書く」の形で最初から書く。
