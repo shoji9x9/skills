@@ -1,0 +1,125 @@
+{
+  "$comment": [
+    "row-align.test.ts のうち、全画面の組の行の対応づけ（Issue #1107）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-diff/row-align.test.ts",
+  "mutations": [
+    {
+      "id": "no-coverage-floor",
+      "why": "対応の付いた行が少ない組も対応づける（内容が大きく変わった組を、対応づけたことにする）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "  if (ratio < minCoverage) return { aligned: false, reason: \"low_coverage\", coverage };",
+      "replace": "  if (false) return { aligned: false, reason: \"low_coverage\", coverage };",
+      "occurrences": 1,
+      "expect_failing": [
+        "内容が大きく変わった組は対応づけず、従来どおり同じ座標の候補が出る",
+        "対応の付いた行の割合は、丸める前の値でしきい値と比べる（丸めると下限に届いたことになる組を通さない）"
+      ]
+    },
+    {
+      "id": "trust-derived-record",
+      "why": "記録の帯・挿入・削除・ずれを source から導き直した値と突き合わせない（手で直した記録を通す）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "    if (JSON.stringify(canonicalize(recorded)) !== JSON.stringify(canonicalize(derived[key]))) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "記録を読む側は、source から導き直した値と食い違う記録と、書き手の不変条件を破る記録を拒む"
+      ]
+    },
+    {
+      "id": "source-order-unchecked",
+      "why": "source の範囲と順序を確かめない（current に無い行や、逆順の対応を通す）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "    if (cy < 0 || cy >= currentHeight || cy <= last) return null;",
+      "replace": "    if (false) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "記録を読む側は、source から導き直した値と食い違う記録と、書き手の不変条件を破る記録を拒む"
+      ]
+    },
+    {
+      "id": "no-removed-runs",
+      "why": "削除された行を記録しない（上の要素が縮んだ組で、原因の行が消える）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "    if (cy > expected) runs.push({ new_y: ny, current_y: expected, rows: cy - expected });",
+      "replace": "    if (false) runs.push({ new_y: ny, current_y: expected, rows: cy - expected });",
+      "occurrences": 1,
+      "expect_failing": [
+        "上の要素が縮んだ組では、削除の境目の行が原因の候補になり、ずれは負の dy で結びつく",
+        "ずれは dy が変わった帯ごとに分け、間の行を原因の行にする。dy が 0 に戻った帯はずれにしない"
+      ]
+    },
+    {
+      "id": "no-removal-band",
+      "why": "削除の境目の行を候補にしない（ツールが差を出さないので、原因の候補が無くなる）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "  const bands = removed.map((r) => {",
+      "replace": "  const bands = removed.slice(0, 0).map((r) => {",
+      "occurrences": 1,
+      "expect_failing": [
+        "上の要素が縮んだ組では、削除の境目の行が原因の候補になり、ずれは負の dy で結びつく",
+        "pixel-crops.mjs は、ずれの原因の行に縦の範囲が重なる候補だけを結びつける"
+      ]
+    },
+    {
+      "id": "link-every-region",
+      "why": "ずれに、原因の行に重ならない候補も結びつける（ずれた帯の中の別の差を原因として扱う）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "    const causes = regions.filter((r) => r.bbox.y < bottom && top < r.bbox.y + r.bbox.height);",
+      "replace": "    const causes = regions.filter(() => true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "ずれた本文の中の色の違いは、原因に結びつかない独立した候補として出る",
+        "pixel-crops.mjs は、ずれの原因の行に縦の範囲が重なる候補だけを結びつける"
+      ]
+    },
+    {
+      "id": "aligned-image-unchecked",
+      "why": "位置引数の current が記録どおりに並べ直した画像かを確かめない（別の画像の差を対応づけた組の候補として出す）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "  if (row >= 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pixel-crops.mjs は、対応づけの引数の片方だけ・並べ直していない current・対応づけなかった記録を exit 2 で拒む"
+      ]
+    },
+    {
+      "id": "region-names-no-place",
+      "why": "対応づけた組で、現側の rect を new の座標へ動かさない（ずれた帯の中の差に、現側の論理名が重ならない）",
+      "file": "skills/parity-diff/scripts/region-names.mjs",
+      "find": "    side === \"current\" ? rects.flatMap((r) => mapCurrentRect(r, blocks)) : rects;",
+      "replace": "    rects;",
+      "occurrences": 1,
+      "expect_failing": [
+        "region-names.mjs は、対応づけた組では現側の rect を new の座標へ動かしてから重なりを決める"
+      ]
+    },
+    {
+      "id": "coverage-compared-after-rounding",
+      "why": "丸めた割合でしきい値と比べる（しきい値の少し下の組を対応づけたことにする）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "  if (ratio < minCoverage) return { aligned: false, reason: \"low_coverage\", coverage };",
+      "replace": "  if (coverage < minCoverage) return { aligned: false, reason: \"low_coverage\", coverage };",
+      "occurrences": 1,
+      "expect_failing": [
+        "対応の付いた行の割合は、丸める前の値でしきい値と比べる（丸めると下限に届いたことになる組を通さない）"
+      ]
+    },
+    {
+      "id": "stale-aligned-image-kept",
+      "why": "対応づけなかった組で、前の実行が残した並べ直した画像を消さない（古い画像をツールに渡しうる）",
+      "file": "skills/parity-diff/scripts/row-align.mjs",
+      "find": "  else rmSync(alignedPath, { force: true });",
+      "replace": "  else void rmSync;",
+      "occurrences": 1,
+      "expect_failing": [
+        "対応づけなかった組では、同じ --out に前の実行が残した並べ直した画像を消す"
+      ]
+    }
+  ]
+}

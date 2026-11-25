@@ -105,6 +105,7 @@
     "scripts/eval/sandbox/eval-sandbox-preflight.mutations.json": 18.3,
     "scripts/skills/parity-diff/diff-report.mutations.json": 1.4,
     "scripts/skills/parity-diff/region-names.mutations.json": 2.1,
+    "scripts/skills/parity-diff/row-align.mutations.json": 3.5,
     "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5,
     "scripts/lib/text/tracking-diff.property.mutations.json": 1.2,
     "scripts/skills/browser-test/feature-check.mutations.json": 28.7

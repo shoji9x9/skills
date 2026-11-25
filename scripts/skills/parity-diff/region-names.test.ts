@@ -229,7 +229,17 @@ test("pixel-crops.mjs の出力は regions と strict_only_regions の両方を�
       { id: 1, kind: "threshold", bbox: rect([0, 0, 1, 1]) },
       { id: "s1", kind: "strict_only", bbox: rect([2, 2, 1, 1]) },
     ],
+    // alignment の欠けた出力（対応づけを入れる前の pixel-crops.mjs）は、対応づけていない組として読む。
+    blocks: null,
   });
+  expect(readRegions({ regions: [], strict_only_regions: [], alignment: null })).toEqual({
+    regions: [],
+    blocks: null,
+  });
+  // 対応づけの記録として読めない alignment は、対応づけていない組として扱わず、形の誤りにする。
+  expect(
+    readRegions({ regions: [], strict_only_regions: [], alignment: { aligned: true } }),
+  ).toHaveProperty("error");
   expect(readRegions({ regions: [] })).toHaveProperty("error");
   expect(
     readRegions({ regions: [{ id: 1, bbox: rect([0, 0, 0, 1]) }], strict_only_regions: [] }),

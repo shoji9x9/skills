@@ -28,7 +28,9 @@
   - `diff.png` は、記録した `pixel_tool` が出力した差分画像である。差分画素は、差分画像に付いた印の色で判定する（多くのツールのデフォルトは赤）。
     判定の色は `--diff-color`（デフォルトは `ff0000` の近く）で変えられる。判定の基準はスクリプトの中に書いてある
   - crop は、bbox の周りに `--crop-margin`（デフォルトは 24px）の文脈を含めて切り出す。1px の罫線の差なども crop だけで判断できるようにするためで、bbox 自体は広げない
-  - 出力は `{ summary, regions, strict_only_regions }` である。`regions[]` は `bbox`・`pixels`（しきい値つき）・crop 対を持つ。`strict_pixels` は、その bbox の中のしきい値なしの画素数である
+  - 出力は `{ summary, regions, strict_only_regions, alignment }` である。
+    `alignment` は、行を対応づけた組だけが持ち、それ以外の組では `null` になる（下の「全画面の組で、ずれた行を対応づける」）。
+    `regions[]` は `bbox`・`pixels`（しきい値つき）・crop 対を持つ。`strict_pixels` は、その bbox の中のしきい値なしの画素数である
   - 同じ場所の 1 つの差は、1 つの候補にする。芯がしきい値を超え、縁がしきい値の内側に収まる差（アイコンの輪郭のにじみなど）は、次のように扱う。
     - しきい値の内側の画素のうち、`regions[]` の芯（しきい値つきの画素の bbox）を `--pad` だけ広げた範囲にあるものを、その領域に取り込む。`bbox` は外側（両方を包む bbox）に広げる。
     - 取り込みは画素単位で行い、範囲は「芯＋`--pad`」に限る。連結成分・マージした塊・外接 bbox を単位にすると、疎に散った差や、ページ全体に広がる 1 つの差（背景色の 1 階調のずれなど）を丸ごと取り込んでしまう。
@@ -56,6 +58,55 @@
     候補を出せていない状態は分類できていない状態なので、「差が無い」と読ませない。
     下限を下げて候補にするか、strict 側のノイズ基準値と比べて説明を付ける
   - `pngjs` に依存する。記録したツールが `pixelmatch` なら、プロジェクトに入っていることが多い。無ければ、導入してよいかをユーザーに確認する（このスキルは自分ではインストールしない）
+
+### 全画面の組で、ずれた行を対応づける
+
+全画面の撮影（`capture_conditions.full_page: true`）の組では、上の要素の高さが変わると、その下の内容がすべて縦にずれる。
+同じ座標で比べると下の全域が差分になり、原因が 1 つでも、ずれた領域が別々の候補として数えられる。
+画像の高さも変わるので、記録したツールは寸法の違う 2 枚を比べられない。
+そこで、全画面の組では、ツールで比べる前に同梱の [`../scripts/row-align.mjs`](../scripts/row-align.mjs) で行を対応づける。
+
+```text
+node <スキルディレクトリ>/scripts/row-align.mjs <current.png> <new.png> --out <dir> [--min-coverage <0..1>] [--fill-color <hex>]
+```
+
+- 両側に 1 回だけ現れる行を手がかりにし、順序の合う手がかりから上下に、行が同じとみなせる間だけ対応を広げる。アンチエイリアス程度の差は同じとみなす。
+  対応の付いた行が続く範囲を帯にし、帯の間の行は上をそろえて対応づける。考え方は imuratalpay/ui-diff（MIT）の `src/align.ts` に倣った
+- `--out` に `alignment.json` を書く。対応づけた組では、current の行を new の座標に並べ直した `current-aligned.png` も書く。
+  current に対応する行の無い new の行（挿入された行）は、`--fill-color`（デフォルトは `ff00ff`）で塗る
+- 終了コードは、0 が対応づけた、1 が対応づけなかった、2 が入力の誤りである。1 のときは `reason` に理由が出る。
+  - `width_mismatch`: 幅が違う
+  - `no_anchor`: 両側に 1 回だけ現れる行で、共通のものが無い
+  - `low_coverage`: 対応の付いた行が、new の行の `--min-coverage`（デフォルトは 0.5）に届かない。内容が大きく変わった組である。デフォルトは ui-diff の作りに合わせて決めた値で、実測から決めたものではない
+  - `no_shift`: 両側の高さが同じで、どの行も同じ行と対応する（ずれが無い）
+- 対応づけた組（exit 0）では、`current-aligned.png` と new を、記録したツールとしきい値（`differ.pixel_tool`・`differ.pixel_threshold`）で比べて差分画像を作る。
+  その差分画像を、`pixel-crops.mjs` に `--alignment <dir>/alignment.json --original-current <並べ直す前の current.png>` と一緒に渡す。位置引数の current には `current-aligned.png` を渡す。
+
+  ```text
+  node <スキルディレクトリ>/scripts/pixel-crops.mjs <dir>/current-aligned.png <new.png> <diff.png> --out <dir> \
+    --alignment <dir>/alignment.json --original-current <current.png> [そのほかの引数]
+  ```
+
+- 対応づけなかった組（exit 1）は、元の 2 枚を同じ座標で比べ、`--alignment` を渡さずに `pixel-crops.mjs` を実行する。対応づけたことにしない。
+  寸法が違う組は、ツールでも `pixel-crops.mjs` でも比べられない。対応づけを入れる前と同じく、撮り方の違いとして原因を確かめる
+- ビューポートの中で撮った組（`full_page: false`）には使わない。要素の位置関係は、特性照合の相対的な幾何で比べている。横方向のずれも対象にしない
+- `pixel-crops.mjs` は、`alignment.json` の帯・挿入・削除・ずれを記録のまま信じず、`source`（new の行ごとの比べる相手）から導き直して突き合わせる。
+  位置引数の current が、並べ直す前の current と記録から作り直した画像と同じかも確かめる。どれかが食い違えば exit 2 にする。
+  `alignment.json` の `version` が同梱の `row-align.mjs` の `VERSION` と違うときと、`aligned` が `true` でないときも exit 2 にする
+- 縦にずれただけの行は、並べ直した画像では同じ内容どうしで比べるので、ツールが差にせず、候補にならない。
+  ずれは差分から外さない。`pixel-crops.mjs` の出力の `alignment.shifted[]` に、ずれた帯ごとに `id`（`d1` から）・`new_y`・`height`・`dy`（new − current）を残す。
+  ずれの原因になった行（`cause_rows`。直前の `dy` が違う帯の終わりから、ずれた帯の始まりまで）に重なる候補の `id` を、`cause_regions` に持つ。
+  原因の候補の側は、結びついたずれの `id` を `causes_shifts` に持つ
+- 挿入された行と、削除だけで高さが変わった位置（境目の上下 2 行）は、ツールの差分画像に印が無くても候補にする。原因の候補が、ツールの印の有無で消えないようにするためである。
+  足した画素は、しきい値つきの数（`threshold_pixels`）に含め、そのうちツールの印の無い画素を `summary.alignment_forced_pixels` と候補ごとの `alignment_forced_pixels` に出す。
+  削除された行の内容は new の座標に置けないので、`alignment.removed[]` の `current_y`・`rows` で、並べ直す前の current の行を読む
+- ずれた帯の中の別の差（色の違いなど）は、並べ直した画像でも差になるので、`causes_shifts` が空の独立した候補として出る
+- 原因の候補が無いずれ（`cause_regions` が空）は、stderr に警告する（`--min-cluster` で原因の行の候補を捨てたときに起きる）
+- 対応づけた組の候補の `bbox` は、new の画像の座標である（`current-aligned.png` は new と同じ座標を持つ）。crop 対も `current-aligned.png` と new から切り出す。
+  [`region-names.mjs`](../scripts/region-names.mjs) は `pixel-crops.mjs` の出力の `alignment` を読み、現側の `rect` とマスクの矩形を new の座標へ動かしてから比べる（下の「領域に論理名を対応づける」）
+- 強度のチェックは、やり直さない。ツールとしきい値は変えず、ツールに渡す current の行の並びだけを変えるからである。
+  new のどの行も、ツールは current のどれかの行か埋め色と比べるので、対応づけで差が消えることは無い（行を同じとみなした差も、ツールが画素ごとに比べる）。
+  並べ直したことと対応づけの結果は、`alignment.json` と `pixel-crops.mjs` の出力の `alignment`、`diff-metadata.json` の `pixel_alignment` に残す
 
 ### 画素の量は 2 本で報告する（しきい値つきと、しきい値なし）
 
@@ -117,6 +168,10 @@ node <スキルディレクトリ>/scripts/region-names.mjs <pixel-crops.mjs の
   領域が要素を含む場合も、要素が領域を含む場合も重なる。面積の閾値は置かない。小さな重なりを閾値で消すと、名前の付いた要素の差を「名前なし」として読ませるからである。
   代わりに、論理名ごとに `region_coverage`（交わり ÷ 領域の面積）と `element_coverage`（交わり ÷ 要素の面積）を出し、`region_coverage` の大きい順に並べる。
   ページ全体を包む論理名のように広い要素は、`element_coverage` が小さく出るので、分類ではそれを手がかりに、領域を最もよく覆う狭い論理名から読む
+- 行を対応づけた組（`pixel-crops.mjs` の出力の `alignment` が `null` でない）では、領域の `bbox` は new の画像の座標である。
+  そこで、現側の `rect`・`mask-rects.json` の矩形・`--mask-bbox` の現側の矩形を、画像の画素に直した後に new の座標へ動かしてから比べる。
+  削除された行にあった部分は、new の座標に置けないので比べない。新側の矩形はそのまま比べる。出力の `aligned` が `true` になる。
+  `alignment` が row-align.mjs の記録として読めなければ exit 2 にする。`alignment` の欠けた出力（対応づけを入れる前の `pixel-crops.mjs` の出力）は、対応づけていない組として読む
 - 論理名は、現側と新側のどちらかで重なれば出し、重なった側を `sides` に持つ。片側だけで重なる論理名は、位置や大きさが両側で違う手がかりになる
 - 領域ごとの `status` は、次の表の上の行から順に決める。
 

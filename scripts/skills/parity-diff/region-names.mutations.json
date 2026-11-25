@@ -47,8 +47,8 @@
       "id": "ignore-scale",
       "why": "CSS の px の rect を画像の画素に直さずに比べる（deviceScaleFactor が 1 でない組で、別の要素を名指す）",
       "file": "skills/parity-diff/scripts/region-names.mjs",
-      "find": "    const rect = scaleRect(entry.rect, scale);",
-      "replace": "    const rect = scaleRect(entry.rect, 1);",
+      "find": "    const pieces = place(side, [scaleRect(entry.rect, scale)]);",
+      "replace": "    const pieces = place(side, [scaleRect(entry.rect, 1)]);",
       "occurrences": 1,
       "expect_failing": ["--scale を掛けた rect で比べる（CSS の px と画像の画素）"]
     },
@@ -109,8 +109,8 @@
       "id": "mask-rects-ignore-scale",
       "why": "mask-rects.json の CSS の px の矩形を画像の画素に直さずに比べる（deviceScaleFactor が 1 でない組で、マスクの外の領域を masked にするか、中の領域を masked にしない）",
       "file": "skills/parity-diff/scripts/region-names.mjs",
-      "find": "    return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };",
-      "replace": "    return { rects: painted.map((r) => scaleRect(r, 1)), reason: null };",
+      "find": "    return { rects: toImage(painted), reason: null };",
+      "replace": "    return { rects: place(s.side, painted), reason: null };",
       "occurrences": 1,
       "expect_failing": [
         "CLI: mask-rects.json の矩形にも --scale を掛けて比べる",

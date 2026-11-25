@@ -283,6 +283,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 | 差分レポート | `.replace/parity/<slug>/new/<target>/diff.md` | [`assets/diff-template.md`](assets/diff-template.md) |
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
 | 新側のベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側の `baseline/` と対称のレイアウト） | — |
+| 全画面の組の行の対応づけ | `pixel-crops.mjs` の `--out` と同じディレクトリに置く `alignment.json`（テキストなので Git に入れる）と `current-aligned.png`（新側のベースラインと同じく `artifacts` の設定に従う） | 同梱の [`scripts/row-align.mjs`](scripts/row-align.mjs) が作る（[`references/detect.md`](references/detect.md)「全画面の組で、ずれた行を対応づける」） |
 | 画素の差分の領域に重なる論理名 | `pixel-crops.mjs` の `--out` と同じディレクトリの `region-names.json`（テキストなので Git に入れる） | 同梱の [`scripts/region-names.mjs`](scripts/region-names.mjs) が作る（[`references/detect.md`](references/detect.md)「領域に論理名を対応づける」） |
 | 承認する人が見る HTML のレポート（記録ではなく、`diff.md` と `diff-metadata.json` から作る表示） | `.replace/parity/<slug>/new/<target>/diff-report.html`（スクリーンショットを埋め込むので、`artifacts` の設定に従う。デフォルトでは commit しない） | 同梱の [`scripts/diff-report.mjs`](scripts/diff-report.mjs) が作る |
 | 新側の性能の採取値（現側が `performance.declared: true` のときだけ） | `.replace/parity/<slug>/new/<target>/perf-samples.json`（Git に入れる。比べた結果は `diff-metadata.json` の `performance`） | 採取のスペックは `parity-suite` が置いた `perf/`（`metadata.json` の `suite.perf`） |
@@ -301,7 +302,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - 自己ノイズの測定の 2 回目の採取物（`new/<target>/noise-pass2/`）と、撮影に使ったブラウザの同一性の記録（`new/<target>/browser-identity.<pass>.json`）は成果物ではない。
   測定値と指紋を `diff-metadata.json` に記録したら削除し、commit しない（テキストでも Git に入れない。原本は [`references/capture-new.md`](references/capture-new.md)）。
 - このスキルに同梱した決定論的なツールは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で自動で更新されるようにするため）。
-  対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/region-names.mjs`](scripts/region-names.mjs)・[`scripts/diff-report.mjs`](scripts/diff-report.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
+  対象は [`scripts/row-align.mjs`](scripts/row-align.mjs)・[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/region-names.mjs`](scripts/region-names.mjs)・[`scripts/diff-report.mjs`](scripts/diff-report.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
   [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)・
   [`scripts/source-version.mjs`](scripts/source-version.mjs)（新側のバージョンを取り、基準にした現行のバージョンを照合する。原本は `replace-strategy` の `references/project-config.md`「新側のバージョンの記録」と「現行側のバージョンの記録」）である。
   性能の比較は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs` を `compare` で呼ぶ（コピーしない）。

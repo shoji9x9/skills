@@ -29,6 +29,11 @@
 // （実測した deviceScaleFactor は 1・1.5・2・3）。
 // 四捨五入しないと、小数の縁が 1 画素より細い帯を作り、塗られた縁の画素の領域が覆われていないと判定される。
 //
+// 全画面の撮影で行を対応づけた組（pixel-crops.mjs の出力の alignment が null でない）では、領域の bbox は
+// new の画像の座標である（current は new の座標に並べ直した画像で比べた）。そこで、現側の rect とマスクの矩形を、
+// 画像の画素に直した後に対応づけで new の座標へ動かしてから比べる（row-align.mjs の mapCurrentRect）。
+// 削除された行にあった部分は、new の座標に置けないので落ちる。新側の rect はそのまま比べる。
+//
 // 判定できない領域を「重なる論理名なし」にしない。
 // - traits.json が無い側がある組で、どの論理名とも重ならない領域は status: "unknown" にする
 // - マスクの論理名の位置を決められない組（mask-rects.json の rects が null か、mask-rects.json に記録が無く
@@ -44,17 +49,22 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { isArray } from "./lib/is-array.mjs";
+import { checkAlignmentRecord, mapCurrentRect } from "./row-align.mjs";
 
 /**
  * ツールのバージョン（原本）。重なりの定義や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
 /** @typedef {"current" | "new"} Side */
 /** @typedef {{ name:string, rect:Rect }} NamedRect */
 /** @typedef {{ id:(string|number), kind:("threshold"|"strict_only"), bbox:Rect }} Region */
+/**
+ * 側ごとに、画像の画素の矩形を領域の bbox と同じ座標に置く関数。対応づけていない組では、矩形をそのまま返す。
+ * @typedef {(side:Side, rects:Rect[]) => Rect[]} Place
+ */
 /**
  * 側ごとの traits.json。missing は、`--<side>-traits-missing` で無いと宣言した側である。
  * @typedef {{ side:Side, missing:true } | { side:Side, missing:false, entries:NamedRect[] }} SideTraits
@@ -77,6 +87,20 @@ export const VERSION = "2";
  */
 
 const SIDES = /** @type {const} */ (["current", "new"]);
+
+/** @type {Place} */
+const SAME_PLACE = (_side, rects) => rects;
+
+/**
+ * 対応づけの帯から、現側の矩形を new の座標へ動かす Place を作る。帯が無ければ SAME_PLACE を返す。
+ * @param {Array<{ current_y:number, new_y:number, height:number, dy:number }> | null} blocks
+ * @returns {Place}
+ */
+export function placeFor(blocks) {
+  if (!blocks) return SAME_PLACE;
+  return (side, rects) =>
+    side === "current" ? rects.flatMap((r) => mapCurrentRect(r, blocks)) : rects;
+}
 
 /**
  * 有限の数か。
@@ -199,17 +223,18 @@ function round4(v) {
 /**
  * 1 つの側の traits.json から、領域に重なる論理名を集める。マスクの論理名は除く（塗りつぶされているため）。
  * @param {Rect} bbox
- * @param {{ side:Side, entries:NamedRect[], scale:number, maskNames:Set<string> }} input
+ * 対応づけた組の現側では、1 つの要素が帯ごとの複数の矩形になる。交わりと要素の面積は、その矩形の和で数える。
+ * @param {{ side:Side, entries:NamedRect[], scale:number, maskNames:Set<string>, place?:Place }} input
  * @param {Map<string, { name:string, sides:Side[], overlap_px:number, region_coverage:number, element_coverage:number }>} acc
  */
-function collectSideOverlaps(bbox, { side, entries, scale, maskNames }, acc) {
+function collectSideOverlaps(bbox, { side, entries, scale, maskNames, place = SAME_PLACE }, acc) {
   const regionArea = bbox.width * bbox.height;
   for (const entry of entries) {
     if (maskNames.has(entry.name)) continue;
-    const rect = scaleRect(entry.rect, scale);
-    const area = intersectionArea(bbox, rect);
+    const pieces = place(side, [scaleRect(entry.rect, scale)]);
+    const area = pieces.reduce((n, r) => n + intersectionArea(bbox, r), 0);
     if (area <= 0) continue;
-    const elementCoverage = area / (rect.width * rect.height);
+    const elementCoverage = area / pieces.reduce((n, r) => n + r.width * r.height, 0);
     const prev = acc.get(entry.name);
     if (!prev) {
       acc.set(entry.name, {
@@ -233,14 +258,14 @@ function collectSideOverlaps(bbox, { side, entries, scale, maskNames }, acc) {
 /**
  * 領域に重なる論理名を、region_coverage の大きい順（同じなら element_coverage の大きい順、名前の順）に並べて返す。
  * @param {Rect} bbox
- * @param {{ sides:SideTraits[], scale:number, maskNames:Set<string> }} input
+ * @param {{ sides:SideTraits[], scale:number, maskNames:Set<string>, place?:Place }} input
  */
-export function overlappingNames(bbox, { sides, scale, maskNames }) {
+export function overlappingNames(bbox, { sides, scale, maskNames, place = SAME_PLACE }) {
   /** @type {Map<string, { name:string, sides:Side[], overlap_px:number, region_coverage:number, element_coverage:number }>} */
   const acc = new Map();
   for (const s of sides) {
     if (s.missing) continue;
-    collectSideOverlaps(bbox, { side: s.side, entries: s.entries, scale, maskNames }, acc);
+    collectSideOverlaps(bbox, { side: s.side, entries: s.entries, scale, maskNames, place }, acc);
   }
   return [...acc.values()]
     .sort(
@@ -306,30 +331,36 @@ function recordedMaskRects(maskRects, side, name) {
  * その側の traits.json が無く記録も無いときは、理由を入れない（traits_missing が判定できない理由になる）。
  * @param {string} name
  * @param {SideTraits} s
- * @param {{ scale:number, maskRects:SideMaskRects[] }} input
+ * @param {{ scale:number, maskRects:SideMaskRects[], place:Place }} input
  * @returns {{ rects:Rect[], reason:("absent"|"zero_area"|"unrecordable"|null) }}
  */
-function locateOnSide(name, s, { scale, maskRects }) {
+function locateOnSide(name, s, { scale, maskRects, place }) {
+  /** CSS の px の矩形を画像の画素に直し、領域の bbox と同じ座標に置く。 @param {Rect[]} rects */
+  const toImage = (rects) =>
+    place(
+      s.side,
+      rects.map((r) => scaleRect(r, scale)),
+    );
   const recorded = recordedMaskRects(maskRects, s.side, name);
   if (recorded === null) return { rects: [], reason: "unrecordable" };
   if (recorded !== undefined) {
     const painted = recorded.map(snapMaskRect).filter(hasArea);
-    return { rects: painted.map((r) => scaleRect(r, scale)), reason: null };
+    return { rects: toImage(painted), reason: null };
   }
   if (s.missing) return { rects: [], reason: null };
   const named = s.entries.filter((e) => e.name === name);
   const found = named.filter((e) => hasArea(e.rect));
   if (found.length === 0) return { rects: [], reason: named.length > 0 ? "zero_area" : "absent" };
-  return { rects: found.map((e) => scaleRect(e.rect, scale)), reason: null };
+  return { rects: toImage(found.map((e) => e.rect)), reason: null };
 }
 
 /**
  * マスクの論理名を、側ごとに矩形に直す（locateOnSide）。位置を決められない名前と側は unlocated に入れる。
  * @param {string[]} names
- * @param {{ sides:SideTraits[], scale:number, maskRects?:SideMaskRects[] }} input
+ * @param {{ sides:SideTraits[], scale:number, maskRects?:SideMaskRects[], place?:Place }} input
  * @returns {{ areas:MaskArea[], unlocated:Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"unrecordable") }> }}
  */
-export function locateMaskNames(names, { sides, scale, maskRects = [] }) {
+export function locateMaskNames(names, { sides, scale, maskRects = [], place = SAME_PLACE }) {
   /** @type {MaskArea[]} */
   const areas = [];
   /** @type {Array<{ name:string, side:Side, reason:("absent"|"zero_area"|"unrecordable") }>} */
@@ -338,7 +369,7 @@ export function locateMaskNames(names, { sides, scale, maskRects = [] }) {
     /** @type {Record<Side, Rect[]>} */
     const bySide = { current: [], new: [] };
     for (const s of sides) {
-      const { rects, reason } = locateOnSide(name, s, { scale, maskRects });
+      const { rects, reason } = locateOnSide(name, s, { scale, maskRects, place });
       if (reason !== null) unlocated.push({ name, side: s.side, reason });
       bySide[s.side].push(...rects);
     }
@@ -379,10 +410,13 @@ function unresolvedReasons(sides, unlocated) {
 /**
  * 1 つの領域の状態を決める。
  * @param {Region} region
- * @param {{ sides:SideTraits[], scale:number, masks:MaskArea[], maskNames:Set<string>, reasons:string[] }} input
+ * @param {{ sides:SideTraits[], scale:number, masks:MaskArea[], maskNames:Set<string>, reasons:string[], place?:Place }} input
  */
-export function classifyRegion(region, { sides, scale, masks, maskNames, reasons }) {
-  const names = overlappingNames(region.bbox, { sides, scale, maskNames });
+export function classifyRegion(
+  region,
+  { sides, scale, masks, maskNames, reasons, place = SAME_PLACE },
+) {
+  const names = overlappingNames(region.bbox, { sides, scale, maskNames, place });
   const touchedMasks = masks.filter((m) =>
     SIDES.some((side) => m.bySide[side].some((r) => intersectionArea(region.bbox, r) > 0)),
   );
@@ -406,7 +440,9 @@ export function classifyRegion(region, { sides, scale, masks, maskNames, reasons
 /**
  * pixel-crops.mjs の出力から領域を読む。形が違えば理由を返す。
  * @param {unknown} json
- * @returns {{ error:string } | { regions:Region[] }}
+ * 対応づけた組（alignment が null でも欠けてもいない）では、row-align.mjs の記録として確かめ、帯（blocks）も返す。
+ * alignment の欠けた出力は、対応づけを入れる前の pixel-crops.mjs の出力として、対応づけていない組と同じに読む。
+ * @returns {{ error:string } | { regions:Region[], blocks:(Array<{ current_y:number, new_y:number, height:number, dy:number }> | null) }}
  */
 export function readRegions(json) {
   if (!isPlainObject(json) || !isArray(json.regions) || !isArray(json.strict_only_regions)) {
@@ -421,7 +457,13 @@ export function readRegions(json) {
     key: "strict_only_regions",
   });
   if ("error" in strict) return strict;
-  return { regions: [...threshold.regions, ...strict.regions] };
+  const alignment = json.alignment;
+  if (alignment === undefined || alignment === null) {
+    return { regions: [...threshold.regions, ...strict.regions], blocks: null };
+  }
+  const checked = checkAlignmentRecord(alignment);
+  if ("error" in checked) return { error: checked.error };
+  return { regions: [...threshold.regions, ...strict.regions], blocks: checked.derived.blocks };
 }
 
 /**
@@ -717,7 +759,8 @@ function loadBothSides(paths, load) {
  * 入力のファイルを読む。誤りは stderr に出す文で返す。
  * @param {{ regionsPath:string, currentTraits:(string|null), newTraits:(string|null),
  *   currentMaskRects:{ path:(string|null), auto:boolean }, newMaskRects:{ path:(string|null), auto:boolean } }} paths
- * @returns {{ error:string } | { regions:Region[], sides:SideTraits[], maskRects:SideMaskRects[] }}
+ * @returns {{ error:string } | { regions:Region[], sides:SideTraits[], maskRects:SideMaskRects[],
+ *   blocks:(Array<{ current_y:number, new_y:number, height:number, dy:number }> | null) }}
  */
 function loadInputs({ regionsPath, currentTraits, newTraits, currentMaskRects, newMaskRects }) {
   const read = readJsonFile(regionsPath);
@@ -731,7 +774,12 @@ function loadInputs({ regionsPath, currentTraits, newTraits, currentMaskRects, n
     loadMaskRectsSide,
   );
   if ("error" in maskRects) return maskRects;
-  return { regions: regions.regions, sides: sides.loaded, maskRects: maskRects.loaded };
+  return {
+    regions: regions.regions,
+    blocks: regions.blocks,
+    sides: sides.loaded,
+    maskRects: maskRects.loaded,
+  };
 }
 
 /**
@@ -799,14 +847,19 @@ function warnUnresolved({ sides, maskRects }, unlocated, unknown) {
 /**
  * --mask-bbox で渡した画素の矩形を、両側に同じ矩形を当てるマスクにする。
  * @param {Rect} b
+ * @param {Place} [place]
  * @returns {MaskArea}
  */
-function bboxMask(b) {
-  return { label: `${b.x},${b.y},${b.width},${b.height}`, bySide: { current: [b], new: [b] } };
+function bboxMask(b, place = SAME_PLACE) {
+  // --mask-bbox は現側で測った位置なので、対応づけた組では現側の矩形だけを new の座標へ動かす。
+  return {
+    label: `${b.x},${b.y},${b.width},${b.height}`,
+    bySide: { current: place("current", [b]), new: [b] },
+  };
 }
 
 /**
- * CLI エントリ。stdout に結果の JSON（キーは version・scale・traits・mask_rects・masks・summary・regions）を出す。
+ * CLI エントリ。stdout に結果の JSON（キーは version・scale・aligned・traits・mask_rects・masks・summary・regions）を出す。
  * @param {string[]} argv
  * @returns {number} exit code
  */
@@ -821,15 +874,16 @@ export function main(argv) {
     process.stderr.write(inputs.error);
     return 2;
   }
-  const { regions, sides, maskRects } = inputs;
+  const { regions, sides, maskRects, blocks } = inputs;
   const { scale } = args;
-  const located = locateMaskNames(args.maskNames, { sides, scale, maskRects });
+  const place = placeFor(blocks);
+  const located = locateMaskNames(args.maskNames, { sides, scale, maskRects, place });
   /** @type {MaskArea[]} */
-  const masks = [...located.areas, ...args.maskBboxes.map(bboxMask)];
+  const masks = [...located.areas, ...args.maskBboxes.map((b) => bboxMask(b, place))];
   const reasons = unresolvedReasons(sides, located.unlocated);
   const maskNames = new Set(args.maskNames);
   const results = regions.map((r) =>
-    classifyRegion(r, { sides, scale, masks, maskNames, reasons }),
+    classifyRegion(r, { sides, scale, masks, maskNames, reasons, place }),
   );
   const summary = summarize(results);
   warnUnusedRecords(maskRects, args.maskNames);
@@ -837,6 +891,7 @@ export function main(argv) {
   const out = {
     version: VERSION,
     scale,
+    aligned: blocks !== null,
     traits: Object.fromEntries(sides.map((s) => [s.side, s.missing ? "missing" : "present"])),
     mask_rects: Object.fromEntries(
       maskRects.map((m) => [m.side, m.missing ? "missing" : "present"]),
