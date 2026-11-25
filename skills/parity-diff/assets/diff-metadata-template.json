@@ -56,12 +56,25 @@
     "aria_compare": "<同 differ.aria_compare>",
     "align_tolerance": 1,
     "pixel_crops": "<同梱 pixel-crops.mjs の VERSION>",
+    "row_align": "<同梱 row-align.mjs の VERSION（全画面の組で行の対応づけを試したときだけ記録する。試さなかったときは省略）>",
     "diff_normalize": "<同梱 diff-normalize.mjs の VERSION>",
     "coverage_check": "<同梱 coverage-check.mjs の VERSION（component_coverage を判定したときだけ記録する。判定しなかったときは省略）>",
     "reaction_check": "<インストール済み parity-suite の reaction-check.mjs の VERSION（reaction_coverage を判定したときだけ記録する。判定しなかったときは省略）>",
     "pending_triage_check": "<同梱 pending-triage-check.mjs の VERSION（棚卸しは常に判定するので常に記録する）>",
     "json_normalize_diff": "<同梱 json-normalize-diff.mjs の VERSION（api-resource / batch モードで使う。feature モードでは省略）>"
   },
+  "pixel_alignment": [
+    {
+      "page": "<ページ>",
+      "state": "<状態>",
+      "viewport": "<viewport label>",
+      "aligned": "<row-align.mjs が対応づけたなら true、対応づけなかったなら false（真偽値で書く）>",
+      "reason": "<対応づけなかった理由（width_mismatch / no_anchor / low_coverage / no_shift）。対応づけたなら null>",
+      "alignment": "<その組の alignment.json のパス（並べ直した画像を記録したツールに渡したことの記録）>",
+      "shifted": "<pixel-crops.mjs の出力の alignment.shifted[] の件数（数値）。対応づけなかったなら 0>",
+      "strength_recheck": "<not_required: ツールとしきい値は変えず、ツールに渡す current の行の並びだけを変えた（原本は parity-diff の references/detect.md「全画面の組で、ずれた行を対応づける」）>"
+    }
+  ],
   "noise_baseline_applied": [
     {
       "page": "<ページ>",

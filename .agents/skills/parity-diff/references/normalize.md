@@ -200,7 +200,9 @@ T で扱えない箇所に、インスタンスごとに当てる代わりの手
 `diff-normalize.mjs` は特性照合の Diff しか見ないので、画素の候補への例外は、このスキルがこの工程で当てる。判断は挟まず、次の機械的な一致だけで除く。
 
 - 照合キーは、`slug`・`page`・`state`・`viewport`・`element`（無ければ `none`）・`bbox` である。
-  `bbox` は、`pixel-crops.mjs` が出した候補の `bbox`（`regions[].bbox` か `strict_only_regions[].bbox`）と、`metadata.json.differ.align_tolerance` の範囲で一致すること（座標は現側の crop を基準にする）
+  `bbox` は、`pixel-crops.mjs` が出した候補の `bbox`（`regions[].bbox` か `strict_only_regions[].bbox`）と、`metadata.json.differ.align_tolerance` の範囲で一致すること（座標は現側の crop を基準にする）。
+  行を対応づけた組（[`detect.md`](detect.md)「全画面の組で、ずれた行を対応づける」）の `bbox` は、`current-aligned.png` と new の座標である。
+  対応づけの結果（ずれの量）が変わると同じ差でも `bbox` が動くので、照合が外れた候補は `unexplained` のまま残す
 - 同じ場所の 1 つの差は 1 つの候補であり、台帳には 1 件で書く。
   芯がしきい値を超え、縁がしきい値の内側に収まる差（アイコンの輪郭のにじみなど）は、`pixel-crops.mjs` が縁を芯の領域に取り込み、外側の bbox を持つ 1 件の `regions[]` として出す。
   取り込んだ縁の画素の数は `absorbed_strict_only_pixels`、芯を包む bbox は `threshold_bbox` に出る（原本は [`detect.md`](detect.md)）。

@@ -51,6 +51,11 @@ const CLIS: Cli[] = [
     prefix: ["a.png", "b.png", "d.json"],
     flag: "--out",
   },
+  {
+    path: "skills/parity-diff/scripts/row-align.mjs",
+    prefix: ["a.png", "b.png"],
+    flag: "--out",
+  },
   { path: "skills/parity-suite/scripts/artifact-health-check.mjs", flag: "--metadata" },
   { path: "skills/parity-suite/scripts/capture-scope-check.mjs", flag: "--metadata" },
   { path: "skills/parity-suite/scripts/checkpoint.mjs", prefix: ["record"], flag: "--dir" },

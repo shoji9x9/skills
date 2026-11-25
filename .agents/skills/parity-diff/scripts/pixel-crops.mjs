@@ -35,17 +35,27 @@
 // 縁が --pad より外まで続く差は、それでも 2 件に分かれることがある。
 // そこで、外側の候補に、隣り合う領域の id（overlaps_regions）を付けて警告する。
 //
+// 全画面の撮影で上の要素の高さが変わった組は、row-align.mjs が行を対応づけ、current の行を new の座標に並べ直す。
+// その組では、並べ直した画像（current-aligned.png）と new を記録済みのツールで比べた差分画像を入力にし、
+// --alignment（row-align.mjs の alignment.json）と --original-current（並べ直す前の current）を渡す。
+// 縦にずれただけの行はツールが差にしないので、候補にならない。代わりに、ずれ（alignment.shifted[]）を
+// dy 付きで出力に残し、ずれの原因になった行に重なる候補（cause_regions）に結びつける。ずれを差分から外さない。
+// 挿入された行と、削除だけで高さが変わった境目の行は、ツールの差分画像に印が無くても候補にする（alignment_forced_pixels）。
+// 原因の候補が、ツールの印の有無で消えないようにするためである。
+//
 // 乱数と現在時刻に依存しない。連結成分はラスタの走査順に見つけ、最後の bbox は
 // (y, x) の昇順に並べるので、入力が同じなら出力も同じになる。
 // PNG のデコードとエンコードには pngjs を使う（pixel_tool が pixelmatch なら、プロジェクトに入っていることが多い）。
 // 無ければ、導入してよいかを利用者に確認する。このスクリプトは勝手にインストールしない。
 // TypeScript の構文は使わない（型は JSDoc で書く）。
 
+import { Buffer } from "node:buffer";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
 import { loadPng } from "./lib/png.mjs";
+import { checkAlignmentRecord } from "./row-align.mjs";
 
 /**
  * ツールのバージョン（原本）。まとめ方や出力の形を変えたら上げる。
@@ -53,7 +63,7 @@ import { loadPng } from "./lib/png.mjs";
  *
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
 /** @typedef {{ width:number, height:number, data:Uint8Array }} PngImage */
@@ -664,8 +674,75 @@ function cropImage(img, bbox, { margin, PngCtor }) {
   return out;
 }
 
+/**
+ * ツールの差分画像のマスクに、対応づけで候補にする行（row-align.mjs の forced_rows）を足す。
+ * 足した後のマスクと、そのうちツールの印の無い画素のマスク（forcedOnly）を返す。
+ *
+ * @param {Uint8Array} toolMask
+ * @param {number} width
+ * @param {Array<{ new_y:number, rows:number }>} rows
+ * @returns {{ mask:Uint8Array, forcedOnly:Uint8Array }}
+ */
+export function addForcedRows(toolMask, width, rows) {
+  const mask = Uint8Array.from(toolMask);
+  const forcedOnly = new Uint8Array(toolMask.length);
+  for (const r of rows) {
+    for (let i = r.new_y * width; i < (r.new_y + r.rows) * width; i += 1) {
+      if (mask[i] === 0) forcedOnly[i] = 1;
+      mask[i] = 1;
+    }
+  }
+  return { mask, forcedOnly };
+}
+
+/**
+ * ずれごとに、原因の行（cause_rows）に縦の範囲が重なる候補の id を結びつける。
+ * 候補の側には、結びついたずれの id（causes_shifts）を付ける。
+ *
+ * @param {Array<{ id:string, cause_rows:{ new_y:number, height:number } }>} shifted
+ * @param {Array<{ id:number, bbox:Rect, causes_shifts?:string[] }>} regions
+ * @returns {Array<{ id:string, cause_rows:{ new_y:number, height:number }, cause_regions:number[] }>}
+ */
+export function linkShifts(shifted, regions) {
+  for (const r of regions) r.causes_shifts = [];
+  return shifted.map((s) => {
+    const top = s.cause_rows.new_y;
+    const bottom = top + s.cause_rows.height;
+    const causes = regions.filter((r) => r.bbox.y < bottom && top < r.bbox.y + r.bbox.height);
+    for (const r of causes) r.causes_shifts?.push(s.id);
+    return { ...s, cause_regions: causes.map((r) => r.id) };
+  });
+}
+
+/**
+ * 並べ直した画像が、並べ直す前の current と対応づけの記録から作った画像と同じかを確かめる。
+ * 対応する行があれば current のその行と同じ、無ければ埋め色の不透明な画素だけの行である。
+ *
+ * @param {PngImage} aligned
+ * @param {PngImage} original
+ * @param {{ source:number[], fill:{ r:number, g:number, b:number } }} alignment
+ * @returns {number} 食い違う最初の new の行（無ければ -1）
+ */
+export function firstMismatchedRow(aligned, original, { source, fill }) {
+  const stride = aligned.width * 4;
+  for (let ny = 0; ny < aligned.height; ny += 1) {
+    const cy = source[ny];
+    const row = aligned.data.subarray(ny * stride, (ny + 1) * stride);
+    if (cy >= 0) {
+      const want = original.data.subarray(cy * stride, (cy + 1) * stride);
+      if (Buffer.compare(row, want) !== 0) return ny;
+      continue;
+    }
+    for (let o = 0; o < stride; o += 4) {
+      if (row[o] !== fill.r || row[o + 1] !== fill.g || row[o + 2] !== fill.b || row[o + 3] !== 255)
+        return ny;
+    }
+  }
+  return -1;
+}
+
 const USAGE =
-  "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>] [--strict-min-cluster <count>] [--strict-max-regions <count>]\n";
+  "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>] [--strict-min-cluster <count>] [--strict-max-regions <count>] [--alignment <alignment.json> --original-current <current.png>]\n";
 
 /** 数で受けるオプション（フラグ → 設定の名前）。 */
 /** @type {Map<string, "minCluster" | "pad" | "cropMargin" | "strictMinCluster" | "strictMaxRegions">} */
@@ -679,7 +756,8 @@ const NUMBER_FLAGS = new Map([
 
 /**
  * @typedef {{ positionals: string[], out?: string, minCluster:number, pad:number, cropMargin:number,
- *   diffColor: string, strictMinCluster:number, strictMaxRegions:number }} CliOptions
+ *   diffColor: string, strictMinCluster:number, strictMaxRegions:number,
+ *   alignment?: string, originalCurrent?: string }} CliOptions
  */
 
 /**
@@ -703,7 +781,7 @@ function parseCliArgs(argv) {
     strictMaxRegions: 20,
   };
   const parsed = parseFlags(argv, {
-    values: ["--out", ...NUMBER_FLAGS.keys(), "--diff-color"],
+    values: ["--out", ...NUMBER_FLAGS.keys(), "--diff-color", "--alignment", "--original-current"],
     positionals: 3,
   });
   if (parsed.error !== undefined) return { error: `error: ${parsed.error}\n${USAGE}` };
@@ -715,6 +793,8 @@ function parseCliArgs(argv) {
     if (value !== undefined) options[key] = Number(value);
   }
   options.diffColor = text("--diff-color") ?? options.diffColor;
+  options.alignment = text("--alignment");
+  options.originalCurrent = text("--original-current");
   return options;
 }
 
@@ -814,15 +894,21 @@ function writeCropPair(id, bbox, { PNG, current, next, out, cropMargin }) {
 /**
  * しきい値つきの領域ごとに crop 対を書き出し、候補の一覧にする。書けなければ例外を投げる。
  *
+ * 対応づけた組では、ツールの印の無い足した画素の数（alignment_forced_pixels）も書く。
+ *
  * @param {Array<{ pixels:number, bbox:Rect, threshold_bbox:Rect, absorbed_strict_only_pixels:number }>} regions
- * @param {Uint8Array} strictMask
+ * @param {{ strictMask: Uint8Array, forcedOnly: Uint8Array | null }} masks
  * @param {CropContext} context
  */
-function writeRegionCrops(regions, strictMask, context) {
+function writeRegionCrops(regions, { strictMask, forcedOnly }, context) {
   return regions.map((region, i) => {
     const id = i + 1;
     const { cropCurrentPath, cropNewPath } = writeCropPair(id, region.bbox, context);
+    const forced = forcedOnly
+      ? { alignment_forced_pixels: countInBbox(forcedOnly, context.current.width, region.bbox) }
+      : {};
     return {
+      ...forced,
       id,
       bbox: region.bbox,
       pixels: region.pixels,
@@ -936,6 +1022,62 @@ function warnStrictOnly({
 }
 
 /**
+ * @typedef {{ file:string, record:Record<string, unknown>, source:number[],
+ *   derived:import("./row-align.mjs").Derived, fill:{ r:number, g:number, b:number } }} LoadedAlignment
+ */
+
+/**
+ * 画像の寸法が記録と同じか。
+ *
+ * @param {PngImage} img
+ * @param {{ width:number, height:number }} size
+ * @returns {boolean}
+ */
+function sameSize(img, size) {
+  return img.width === size.width && img.height === size.height;
+}
+
+/**
+ * --alignment と --original-current を読み、位置引数の current が記録どおりに並べ直した画像かを確かめる。
+ * どちらも渡さなければ null を返す。誤りは stderr に出す 1 行で返す。
+ *
+ * @param {CliOptions} options
+ * @param {{ sync: { read: (buf: Buffer) => PngImage } }} PNG
+ * @param {{ current: PngImage, next: PngImage }} images
+ * @returns {{ error: string } | { alignment: LoadedAlignment | null }}
+ */
+function loadAlignment({ alignment: file, originalCurrent }, PNG, { current, next }) {
+  if (file === undefined && originalCurrent === undefined) return { alignment: null };
+  if (file === undefined || originalCurrent === undefined) {
+    return { error: "error: --alignment and --original-current must be given together\n" };
+  }
+  let record;
+  let original;
+  try {
+    record = JSON.parse(readFileSync(file, "utf8"));
+    original = PNG.sync.read(readFileSync(originalCurrent));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: `error: cannot read alignment inputs: ${message}\n` };
+  }
+  const checked = checkAlignmentRecord(record);
+  if ("error" in checked) return { error: `error: ${checked.error}\n` };
+  if (!sameSize(original, checked.current) || !sameSize(next, checked.next)) {
+    return {
+      error:
+        "error: --original-current and <new.png> must have the sizes recorded in the alignment\n",
+    };
+  }
+  const row = firstMismatchedRow(current, original, checked);
+  if (row >= 0) {
+    return {
+      error: `error: <current.png> is not the image row-align.mjs wrote for this alignment (row ${row} differs); pass current-aligned.png\n`,
+    };
+  }
+  return { alignment: { file, ...checked } };
+}
+
+/**
  * 入力を読み、確かめる。誤りは stderr に出す 1 行で返す。
  *
  * @param {string[]} argv
@@ -956,7 +1098,9 @@ async function prepareInputs(argv) {
   }
   const images = readImages(positionals, PNG);
   if ("error" in images) return images;
-  return { options, out, target: validated.target, PNG, ...images };
+  const loaded = loadAlignment(options, PNG, images);
+  if ("error" in loaded) return loaded;
+  return { options, out, target: validated.target, PNG, ...images, alignment: loaded.alignment };
 }
 
 /**
@@ -964,10 +1108,11 @@ async function prepareInputs(argv) {
  * 誤りは stderr に出す 1 行で返す。
  *
  * @param {{ regions: Array<{ pixels:number, bbox:Rect, threshold_bbox:Rect, absorbed_strict_only_pixels:number }>,
- *   strictMask: Uint8Array, strictSelected: Array<{ id:string, pixels:number, bbox:Rect }>, context: CropContext }} input
+ *   strictMask: Uint8Array, forcedOnly: Uint8Array | null, strictSelected: Array<{ id:string, pixels:number, bbox:Rect }>,
+ *   context: CropContext }} input
  * @returns {{ error: string } | { result: ReturnType<typeof writeRegionCrops>, strictResult: ReturnType<typeof writeStrictCrops> }}
  */
-function writeAllCrops({ regions, strictMask, strictSelected, context }) {
+function writeAllCrops({ regions, strictMask, forcedOnly, strictSelected, context }) {
   try {
     mkdirSync(context.out, { recursive: true });
   } catch (err) {
@@ -975,7 +1120,7 @@ function writeAllCrops({ regions, strictMask, strictSelected, context }) {
     return { error: `error: cannot create out dir: ${message}\n` };
   }
   try {
-    const result = writeRegionCrops(regions, strictMask, context);
+    const result = writeRegionCrops(regions, { strictMask, forcedOnly }, context);
     const strictResult = writeStrictCrops(strictSelected, context);
     return { result, strictResult };
   } catch (err) {
@@ -987,23 +1132,34 @@ function writeAllCrops({ regions, strictMask, strictSelected, context }) {
 /**
  * 差分画像と 2 枚の画像から、マスク・summary・候補の領域を作る。
  *
- * @param {{ options: CliOptions, target: { r:number, g:number, b:number }, current: PngImage, next: PngImage, diff: PngImage }} inputs
+ * 対応づけた組では、ツールの印の無い挿入と削除の境目の行（addForcedRows）も候補の材料に足す。
+ * summary のしきい値つきの数は足した画素を含み、そのうちツールの印の無い画素の数を alignment_forced_pixels に出す。
+ *
+ * @param {{ options: CliOptions, target: { r:number, g:number, b:number }, current: PngImage, next: PngImage, diff: PngImage,
+ *   alignment: LoadedAlignment | null }} inputs
  */
-function analyzeImages({ options, target, current, next, diff }) {
-  const mask = buildDiffMask(diff.data, diff, { target, tol: DEFAULT_COLOR_TOLERANCE });
+function analyzeImages({ options, target, current, next, diff, alignment }) {
+  const toolMask = buildDiffMask(diff.data, diff, { target, tol: DEFAULT_COLOR_TOLERANCE });
+  const forced = alignment
+    ? addForcedRows(toolMask, diff.width, alignment.derived.forced_rows)
+    : null;
+  const forcedOnly = forced ? forced.forcedOnly : null;
+  const mask = forced ? forced.mask : toolMask;
   const strict = buildStrictMask(current.data, next.data, {
     pixels: current.width * current.height,
     thresholdMask: mask,
   });
+  // 足した画素も候補の材料なので、しきい値つきの数に含める（含めないと、足した行が strict_only として二重に数えられる）。
   /**
    * 候補を作った後に、strict-only の件数を書き足す。
    *
    * @type {PixelSummary & { strict_only_regions_total?:number, strict_only_regions_emitted?:number,
    *   strict_only_dropped_clusters?:number, strict_only_dropped_pixels?:number,
    *   strict_min_cluster?:number, strict_only_absorbed_pixels?:number,
-   *   strict_only_overlapping_regions?:number }}
+   *   strict_only_overlapping_regions?:number, alignment_forced_pixels?:number }}
    */
   const summary = summarizePixels(mask, strict.mask, strict);
+  if (forcedOnly) summary.alignment_forced_pixels = forcedOnly.reduce((n, v) => n + v, 0);
   const { absorbed, strictClustered } = buildCandidates(mask, strict.mask, {
     width: diff.width,
     height: diff.height,
@@ -1011,7 +1167,7 @@ function analyzeImages({ options, target, current, next, diff }) {
     pad: options.pad,
     strictMinCluster: options.strictMinCluster,
   });
-  return { strict, summary, absorbed, strictClustered };
+  return { strict, summary, absorbed, strictClustered, forcedOnly };
 }
 
 /**
@@ -1033,13 +1189,65 @@ function markAdjacentRegions(strictResult, result) {
 }
 
 /**
+ * strict-only の候補を作った後の件数を summary に書き足す。
+ *
+ * @param {ReturnType<typeof analyzeImages>["summary"]} summary
+ * @param {{ strictClustered: { kept: unknown[], droppedClusters:number, droppedPixels:number }, emitted:number,
+ *   strictMinCluster:number, absorbed: { absorbedPixels:number } }} counts
+ */
+function addStrictCounts(summary, { strictClustered, emitted, strictMinCluster, absorbed }) {
+  summary.strict_only_regions_total = strictClustered.kept.length;
+  summary.strict_only_regions_emitted = emitted;
+  summary.strict_only_dropped_clusters = strictClustered.droppedClusters;
+  summary.strict_only_dropped_pixels = strictClustered.droppedPixels;
+  summary.strict_min_cluster = strictMinCluster;
+  summary.strict_only_absorbed_pixels = absorbed.absorbedPixels;
+}
+
+/**
+ * 対応づけた組の出力（alignment）を作る。ずれごとに原因の候補を結びつけ、原因の候補が無いずれを警告する。
+ * 対応づけていない組では null を返す。
+ *
+ * @param {LoadedAlignment | null} alignment
+ * @param {Array<{ id:number, bbox:Rect, causes_shifts?:string[] }>} result
+ */
+function alignmentOutput(alignment, result) {
+  if (!alignment) return null;
+  const shifted = linkShifts(alignment.derived.shifted, result);
+  const uncaused = shifted.filter((s) => s.cause_regions.length === 0);
+  if (uncaused.length > 0) {
+    process.stderr.write(
+      `warning: ${uncaused.length} shifted run(s) have no candidate on their cause rows ` +
+        `(${uncaused.map((s) => s.id).join(", ")}); lower --min-cluster or triage the shift against the original images\n`,
+    );
+  }
+  // 足した行（挿入と削除の境目）が --min-cluster で捨てられ、どの候補にも入らなかったものを数える。
+  const uncovered = alignment.derived.forced_rows.filter(
+    (r) => !result.some((c) => c.bbox.y < r.new_y + r.rows && r.new_y < c.bbox.y + c.bbox.height),
+  );
+  if (uncovered.length > 0) {
+    process.stderr.write(
+      `warning: ${uncovered.length} inserted or removed row run(s) are in no candidate; lower --min-cluster to classify them\n`,
+    );
+  }
+  return {
+    ...alignment.record,
+    file: alignment.file,
+    shifted,
+    uncaused_shifts: uncaused.map((s) => s.id),
+    uncovered_forced_rows: uncovered,
+  };
+}
+
+/**
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
  *
- * stdout には `{ summary, regions, strict_only_regions }` を出す。
+ * stdout には `{ summary, regions, strict_only_regions, alignment }` を出す。
  * - summary: しきい値つきとしきい値なしの画素数
  * - regions: 記録済みツールが出した差分領域の crop 対。bbox は、芯＋--pad の範囲の strict-only の縁を取り込んだ外側の bbox
  * - strict_only_regions: しきい値の内側にだけ差があり、その範囲の外にある画素から作った領域の crop 対
+ * - alignment: --alignment を渡した組では対応づけの記録（ずれごとの cause_regions を足したもの）、渡さない組では null
  *
  * 分類すべき候補（どちらかの領域）があれば exit 1、無ければ exit 0、入力の誤りは exit 2 で終わる。
  *
@@ -1054,11 +1262,12 @@ export async function main(argv) {
   }
   const { options, out, PNG, current, next } = inputs;
   const { pad, cropMargin, strictMinCluster, strictMaxRegions } = options;
-  const { strict, summary, absorbed, strictClustered } = analyzeImages(inputs);
+  const { strict, summary, absorbed, strictClustered, forcedOnly } = analyzeImages(inputs);
   const strictClusters = strictClustered.kept;
   const written = writeAllCrops({
     regions: absorbed.regions,
     strictMask: strict.mask,
+    forcedOnly,
     strictSelected: selectStrictRegions(strictClusters, strictMaxRegions),
     context: { PNG, current, next, out, cropMargin },
   });
@@ -1067,12 +1276,8 @@ export async function main(argv) {
     return 2;
   }
   const { result, strictResult } = written;
-  summary.strict_only_regions_total = strictClusters.length;
-  summary.strict_only_regions_emitted = strictResult.length;
-  summary.strict_only_dropped_clusters = strictClustered.droppedClusters;
-  summary.strict_only_dropped_pixels = strictClustered.droppedPixels;
-  summary.strict_min_cluster = strictMinCluster;
-  summary.strict_only_absorbed_pixels = absorbed.absorbedPixels;
+  const emitted = strictResult.length;
+  addStrictCounts(summary, { strictClustered, emitted, strictMinCluster, absorbed });
   const splitCount = markAdjacentRegions(strictResult, result);
   summary.strict_only_overlapping_regions = splitCount;
   warnStrictOnly({
@@ -1085,15 +1290,19 @@ export async function main(argv) {
     droppedPixels: strictClustered.droppedPixels,
     options: { pad, strictMinCluster, strictMaxRegions },
   });
-  process.stdout.write(
-    JSON.stringify({ summary, regions: result, strict_only_regions: strictResult }, null, 2) + "\n",
-  );
+  const alignment = alignmentOutput(inputs.alignment, result);
+  const output = { summary, regions: result, strict_only_regions: strictResult, alignment };
+  process.stdout.write(JSON.stringify(output, null, 2) + "\n");
   // 終了コードは「分類すべき候補があるか」を表す。strict-only の候補も候補なので 1 を返す。
   // 下限で捨てた分が残るときも 0 を返さない。候補を出せていないので、分類できていない。
   // ここで 0 にすると「差が無い」と読め、差があるのに合格として扱われる。
   // 説明は summary の数と stderr の警告に出ているので、ノイズ基準値（strict 側）との対比で片付ける。
   const hasCandidate = result.length > 0 || strictResult.length > 0;
-  return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;
+  // 対応づけた組で、原因の候補の無いずれや、候補にならなかった挿入と削除が残るときも、分類できていないので 0 を返さない。
+  const unclassified =
+    alignment !== null &&
+    (alignment.uncaused_shifts.length > 0 || alignment.uncovered_forced_rows.length > 0);
+  return hasCandidate || strictClustered.droppedClusters > 0 || unclassified ? 1 : 0;
 }
 
 // async-cli-exit:begin
