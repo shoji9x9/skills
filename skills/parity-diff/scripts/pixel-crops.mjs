@@ -1221,7 +1221,22 @@ function alignmentOutput(alignment, result) {
         `(${uncaused.map((s) => s.id).join(", ")}); lower --min-cluster or triage the shift against the original images\n`,
     );
   }
-  return { ...alignment.record, file: alignment.file, shifted };
+  // 足した行（挿入と削除の境目）が --min-cluster で捨てられ、どの候補にも入らなかったものを数える。
+  const uncovered = alignment.derived.forced_rows.filter(
+    (r) => !result.some((c) => c.bbox.y < r.new_y + r.rows && r.new_y < c.bbox.y + c.bbox.height),
+  );
+  if (uncovered.length > 0) {
+    process.stderr.write(
+      `warning: ${uncovered.length} inserted or removed row run(s) are in no candidate; lower --min-cluster to classify them\n`,
+    );
+  }
+  return {
+    ...alignment.record,
+    file: alignment.file,
+    shifted,
+    uncaused_shifts: uncaused.map((s) => s.id),
+    uncovered_forced_rows: uncovered,
+  };
 }
 
 /**
@@ -1283,7 +1298,11 @@ export async function main(argv) {
   // ここで 0 にすると「差が無い」と読め、差があるのに合格として扱われる。
   // 説明は summary の数と stderr の警告に出ているので、ノイズ基準値（strict 側）との対比で片付ける。
   const hasCandidate = result.length > 0 || strictResult.length > 0;
-  return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;
+  // 対応づけた組で、原因の候補の無いずれや、候補にならなかった挿入と削除が残るときも、分類できていないので 0 を返さない。
+  const unclassified =
+    alignment !== null &&
+    (alignment.uncaused_shifts.length > 0 || alignment.uncovered_forced_rows.length > 0);
+  return hasCandidate || strictClustered.droppedClusters > 0 || unclassified ? 1 : 0;
 }
 
 // async-cli-exit:begin

@@ -50,7 +50,8 @@
       "occurrences": 1,
       "expect_failing": [
         "上の要素が縮んだ組では、削除の境目の行が原因の候補になり、ずれは負の dy で結びつく",
-        "ずれは dy が変わった帯ごとに分け、間の行を原因の行にする。dy が 0 に戻った帯はずれにしない"
+        "ずれは dy が変わった帯ごとに分け、間の行を原因の行にする。dy が 0 に戻った帯はずれにしない",
+        "原因の行の候補を --min-cluster で捨てた組は、ほかに候補が無くても exit 1 にし、捨てた行とずれを出力に残す"
       ]
     },
     {
@@ -62,7 +63,8 @@
       "occurrences": 1,
       "expect_failing": [
         "上の要素が縮んだ組では、削除の境目の行が原因の候補になり、ずれは負の dy で結びつく",
-        "pixel-crops.mjs は、ずれの原因の行に縦の範囲が重なる候補だけを結びつける"
+        "pixel-crops.mjs は、ずれの原因の行に縦の範囲が重なる候補だけを結びつける",
+        "原因の行の候補を --min-cluster で捨てた組は、ほかに候補が無くても exit 1 にし、捨てた行とずれを出力に残す"
       ]
     },
     {
@@ -119,6 +121,17 @@
       "occurrences": 1,
       "expect_failing": [
         "対応づけなかった組では、同じ --out に前の実行が残した並べ直した画像を消す"
+      ]
+    },
+    {
+      "id": "unclassified-exit-zero",
+      "why": "原因の候補の無いずれと、候補にならなかった挿入と削除が残っても exit 0 にする（分類していない差を合格として扱う）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "  return hasCandidate || strictClustered.droppedClusters > 0 || unclassified ? 1 : 0;",
+      "replace": "  return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "原因の行の候補を --min-cluster で捨てた組は、ほかに候補が無くても exit 1 にし、捨てた行とずれを出力に残す"
       ]
     }
   ]

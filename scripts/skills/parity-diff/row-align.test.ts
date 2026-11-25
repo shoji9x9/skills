@@ -229,6 +229,34 @@ test("上の要素が縮んだ組では、削除の境目の行が原因の候�
   });
 });
 
+test("原因の行の候補を --min-cluster で捨てた組は、ほかに候補が無くても exit 1 にし、捨てた行とずれを出力に残す", () => {
+  const current = page([...HEADER, ...BODY]);
+  const next = page([...range(0, 6), ...BODY]);
+  const { dir, out } = pipeline(current, next);
+  const res = run(PIXEL_CROPS, [
+    join(out, "current-aligned.png"),
+    join(dir, "new.png"),
+    join(dir, "diff.png"),
+    "--out",
+    join(dir, "crops-min"),
+    "--alignment",
+    join(out, "alignment.json"),
+    "--original-current",
+    join(dir, "current.png"),
+    // 境目の候補は 4 行 × 40 画素 = 160 画素なので、下限 200 で捨てられる。
+    "--min-cluster",
+    "200",
+  ]);
+  expect(res.code).toBe(1);
+  const parsedOut = parseObject(res.stdout);
+  expect(parsedOut).toMatchObject({
+    regions: [],
+    alignment: { uncaused_shifts: ["d1"], uncovered_forced_rows: [{ new_y: 4, rows: 4 }] },
+  });
+  expect(res.stderr).toContain("have no candidate on their cause rows");
+  expect(res.stderr).toContain("are in no candidate");
+});
+
 test("幅が違う組は対応づけず、理由を付けて exit 1 で返し、並べ直した画像を書かない", () => {
   const { align, record, out } = pipeline(page([...HEADER, ...BODY]), page(GROWN, { width: 41 }));
   expect(align.code).toBe(1);

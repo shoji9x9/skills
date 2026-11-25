@@ -101,7 +101,8 @@ node <スキルディレクトリ>/scripts/row-align.mjs <current.png> <new.png>
   足した画素は、しきい値つきの数（`threshold_pixels`）に含め、そのうちツールの印の無い画素を `summary.alignment_forced_pixels` と候補ごとの `alignment_forced_pixels` に出す。
   削除された行の内容は new の座標に置けないので、`alignment.removed[]` の `current_y`・`rows` で、並べ直す前の current の行を読む
 - ずれた帯の中の別の差（色の違いなど）は、並べ直した画像でも差になるので、`causes_shifts` が空の独立した候補として出る
-- 原因の候補が無いずれ（`cause_regions` が空）は、stderr に警告する（`--min-cluster` で原因の行の候補を捨てたときに起きる）
+- 原因の候補が無いずれ（`cause_regions` が空）と、どの候補にも入らなかった挿入と削除の境目の行は、`--min-cluster` で原因の行の候補を捨てたときに起きる。
+  `alignment.uncaused_shifts` と `alignment.uncovered_forced_rows` に残し、stderr に警告する。分類できていないので、ほかに候補が無くても exit 1 にする
 - 対応づけた組の候補の `bbox` は、new の画像の座標である（`current-aligned.png` は new と同じ座標を持つ）。crop 対も `current-aligned.png` と new から切り出す。
   [`region-names.mjs`](../scripts/region-names.mjs) は `pixel-crops.mjs` の出力の `alignment` を読み、現側の `rect` とマスクの矩形を new の座標へ動かしてから比べる（下の「領域に論理名を対応づける」）
 - 強度のチェックは、やり直さない。ツールとしきい値は変えず、ツールに渡す current の行の並びだけを変えるからである。
