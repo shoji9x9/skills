@@ -93,6 +93,17 @@
       "expect_failing": [
         "archive・collect・report のコマンド recordWindowDays を短くすると、その範囲より古いファイルを読まず、範囲の外の値は止める"
       ]
+    },
+    {
+      "id": "out-overlap-ignores-symlink",
+      "why": "--out と records/ の重なりを、シンボリックリンクを解決せずに比べる（リンクを通して records/ に書き、次の archive で移した行を消す）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "  const rel = relative(realPathOf(base), realPathOf(dir));",
+      "replace": "  const rel = relative(resolve(base), resolve(dir));",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive シンボリックリンクを通して records/ と重なる --out も、実体のパスで比べて止める"
+      ]
     }
   ]
 }

@@ -2,8 +2,8 @@
 // 境界より前に終わった行は records/ に無いので、collect はその行を書かない（新しい clone でも、ログが長く残っていても書き直さない）。
 // report は、移した先を手元に取得したディレクトリを --archive で受け取って、records/ と合わせて読む。
 
-import { existsSync, readFileSync, unlinkSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { existsSync, readFileSync, realpathSync, unlinkSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { columnsWithExtra } from "./records.mjs";
@@ -141,8 +141,28 @@ function writeOutFile(path, rows) {
  * @returns {boolean}
  */
 function isWithinDir(dir, base) {
-  const rel = relative(resolve(base), resolve(dir));
+  const rel = relative(realPathOf(base), realPathOf(dir));
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+/**
+ * シンボリックリンクを解決した実体のパス。まだ無いパスは、在る一番近い祖先を解決し、残りを後ろに足す。
+ * --out にシンボリックリンク（records/ を指すもの、records/ の祖先を指すもの）を渡したときも、records/ との重なりを見つけるため。
+ * @param {string} p
+ * @returns {string}
+ */
+function realPathOf(p) {
+  const abs = resolve(p);
+  /** @type {string[]} */
+  const rest = [];
+  let cur = abs;
+  while (!existsSync(cur)) {
+    const parent = dirname(cur);
+    if (parent === cur) return abs;
+    rest.unshift(basename(cur));
+    cur = parent;
+  }
+  return join(realpathSync(cur), ...rest);
 }
 
 /**

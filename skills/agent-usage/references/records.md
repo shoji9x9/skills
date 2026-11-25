@@ -67,6 +67,7 @@
 `archive --before <YYYY-MM-DD> --out <dir>` は、終わりの時刻が `--before` の日の UTC の 0 時より前の行を、`records/` から `<dir>` へ移す。
 移した先を、リポジトリの外（Wiki・オブジェクトストレージなど）のどこに置くかは利用者が決める。
 `<dir>` には、`records/` の中のディレクトリと、`records/` を含むディレクトリ（`.agent-usage/` やリポジトリの直下）は渡せない。
+シンボリックリンクを通してこれらを指すときも、archive は実体のパスで比べて止まる。
 `records/` を含むディレクトリを report の `--archive` に渡すと、`records/` と `report/` の CSV もたどって読むからである。
 
 - 行を移すかは、行の終わり（`end`）で決める。`end` が無ければ `start`、それも無ければ `observed_at` で決める。どれも時刻でない行があれば、何も書かずに止まる

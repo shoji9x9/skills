@@ -13,7 +13,15 @@
 //   --archive        渡さない（境界があれば案内を出す）／渡す（records/ と合わせて読む）／無いディレクトリ・空のディレクトリ（止める）。
 //   recordWindowDays デフォルト（60 日）／短くした（その範囲より古いファイルを読まない）／範囲の外の値（止める）。
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
@@ -235,6 +243,40 @@ describe.concurrent("runArchive", () => {
       expect(() =>
         runArchive({ recordsDir: d.records, now: NOW, before: "2026-10-03", out, dryRun: true }),
       ).toThrow(/records\/ を含むディレクトリ/);
+  });
+
+  test("シンボリックリンクを通して records/ と重なる --out も、実体のパスで比べて止める", () => {
+    const d = dirs();
+    const toRecords = join(d.tmp, "link-to-records");
+    const toParent = join(d.tmp, "link-to-parent");
+    symlinkSync(d.records, toRecords);
+    symlinkSync(d.tmp, toParent);
+    // records/ を指すリンク・その下のまだ無いディレクトリ・records/ の親を指すリンク
+    for (const out of [toRecords, join(toRecords, "old", "x"), join(toParent, "records")])
+      expect(() =>
+        runArchive({ recordsDir: d.records, now: NOW, before: "2026-10-03", out, dryRun: true }),
+      ).toThrow(/records\/ の中/);
+    expect(() =>
+      runArchive({
+        recordsDir: d.records,
+        now: NOW,
+        before: "2026-10-03",
+        out: toParent,
+        dryRun: true,
+      }),
+    ).toThrow(/records\/ を含むディレクトリ/);
+    // records/ と重ならない場所を指すリンクは書ける
+    mkdirSync(join(d.tmp, "elsewhere"));
+    symlinkSync(join(d.tmp, "elsewhere"), join(d.tmp, "link-to-elsewhere"));
+    expect(
+      runArchive({
+        recordsDir: d.records,
+        now: NOW,
+        before: "2026-10-03",
+        out: join(d.tmp, "link-to-elsewhere"),
+        dryRun: true,
+      }).movedRows,
+    ).toBe(0);
   });
 
   test("境界のファイルの中身が時刻でなければ、境界が無いとして扱わずに止める", () => {
