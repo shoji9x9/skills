@@ -3,7 +3,7 @@ date: 2026-10-26
 type: skill
 priority: medium
 confidence: high
-status: pending
+status: forgotten
 ---
 
 # PR が main と競合していると CI が起動せず、pr-finalize-loop は no checks を未登録として扱う
