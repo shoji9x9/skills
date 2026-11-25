@@ -102,6 +102,16 @@ describe("readDeterminism", () => {
       { determinism: { fixed_time: FIXED_MS, random_seed: null } },
       /ISO 8601 with a timezone/,
     ],
+    ...[
+      "2026-02-31T03:04:05Z",
+      "2026-04-31T00:00:00Z",
+      "2026-01-02T24:00:00Z",
+      "2026-01-02T03:04:05+24:00",
+    ].map((value): [string, unknown, RegExp] => [
+      `暦に無い日時（${value}）`,
+      { determinism: { fixed_time: value, random_seed: null } },
+      /not a valid date/,
+    ]),
     [
       "時刻が存在しない日付",
       { determinism: { fixed_time: "2026-13-40T03:04:05Z", random_seed: null } },
@@ -188,6 +198,15 @@ describe("installSeededRandom", () => {
   test("差し替えた印に seed を残す", () => {
     expect(seededSandbox(11).run("globalThis.__parityRandomSeed")).toBe(11);
   });
+
+  test("差し替えた関数を残し、今の Math.random と crypto の関数と同じものを指す", () => {
+    const sandbox = seededSandbox(13);
+    expect(
+      sandbox.run(
+        "const a = globalThis.__parityRandomApis; [a.random === Math.random, a.getRandomValues === crypto.getRandomValues, a.randomUUID === crypto.randomUUID]",
+      ),
+    ).toEqual([true, true, true]);
+  });
 });
 
 describe("applyDeterminism", () => {
@@ -227,8 +246,9 @@ describe("applyDeterminism", () => {
 
 describe("verifyDeterminism", () => {
   /** ページで読んだ値を返すだけの偽物。 */
-  const pageReading = (seen: { now: number; later: number; seed: unknown }) => ({
-    evaluate: async () => seen,
+  const pageReading = (seen: { now: number; later: number; seed: unknown; intact?: boolean }) => ({
+    // 差し替えた乱数の関数のままか（intact）は、書かなければ「そのまま」とする
+    evaluate: async () => ({ intact: true, ...seen }),
   });
   const fixedSeeded = { fixedTimeMs: FIXED_MS, randomSeed: 42 };
   const unfixed = { fixedTimeMs: null, randomSeed: null };
@@ -287,6 +307,12 @@ describe("verifyDeterminism", () => {
       seen: { now: 1000, later: 1020, seed: 42 },
       determinism: unfixed,
       message: /random seed/,
+    },
+    {
+      label: "seed は合うが、ページが Math.random を置き換えた",
+      seen: { now: FIXED_MS, later: FIXED_MS, seed: 42, intact: false },
+      determinism: fixedSeeded,
+      message: /replaced Math.random or crypto/,
     },
   ])("$label なら例外で止まる", async ({ seen, determinism, message }) => {
     await expect(verifyDeterminism(pageReading(seen), determinism)).rejects.toThrow(message);

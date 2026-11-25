@@ -22,8 +22,8 @@
       "id": "timezone-optional",
       "why": "タイムゾーンの無い時刻を受け付ける（撮る環境のタイムゾーンで解釈が変わる）",
       "file": "skills/parity-suite/scripts/determinism.mjs",
-      "find": "(Z|[+-]\\d{2}:\\d{2})$/;",
-      "replace": "(Z|[+-]\\d{2}:\\d{2})?$/;",
+      "find": "(Z|([+-])(\\d{2}):(\\d{2}))$/;",
+      "replace": "(Z|([+-])(\\d{2}):(\\d{2}))?$/;",
       "occurrences": 1,
       "expect_failing": ["readDeterminism 時刻にタイムゾーンが無い なら例外で止まる"]
     },
@@ -67,6 +67,32 @@
         "verifyDeterminism seed が当たっていない なら例外で止まる",
         "verifyDeterminism 別の seed が当たっている なら例外で止まる",
         "verifyDeterminism seed 付きにしない記録なのに seed が当たっている なら例外で止まる"
+      ]
+    },
+    {
+      "id": "calendar",
+      "why": "暦に無い日時（2 月 31 日・24 時・+24:00）を、Date.parse と同じく次の日へ繰り越して受け付ける",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "  if (!same || Number(offsetHour) > 23 || Number(offsetMinute) > 59) return null;\n",
+      "replace": "  if (false) return null;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "readDeterminism 暦に無い日時（2026-02-31T03:04:05Z） なら例外で止まる",
+        "readDeterminism 暦に無い日時（2026-04-31T00:00:00Z） なら例外で止まる",
+        "readDeterminism 暦に無い日時（2026-01-02T24:00:00Z） なら例外で止まる",
+        "readDeterminism 暦に無い日時（2026-01-02T03:04:05+24:00） なら例外で止まる",
+        "readDeterminism 時刻が存在しない日付 なら例外で止まる"
+      ]
+    },
+    {
+      "id": "apis-intact",
+      "why": "seed を当てた後にページが乱数の関数を置き換えても通す",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "  if (determinism.randomSeed !== null && seen.intact !== true) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "verifyDeterminism seed は合うが、ページが Math.random を置き換えた なら例外で止まる"
       ]
     }
   ]

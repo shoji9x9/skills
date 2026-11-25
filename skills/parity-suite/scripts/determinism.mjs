@@ -49,7 +49,59 @@ export function assertPageVersion(pageVersion) {
 const MAX_SEED = 0xffffffff;
 
 /** 時刻の書式。タイムゾーンを省いた形は、撮る環境のタイムゾーンで解釈が変わるので受け付けない。 */
-const FIXED_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/;
+const FIXED_TIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+/**
+ * 時刻の文字列を UTC のミリ秒にする。暦に無い日時（2 月 31 日・24 時など）とオフセットは null にする。
+ * `Date.parse` は暦に無い日付を次の月へ繰り越して有限の値を返す（`2026-02-31` は `2026-03-03` になる）ので、
+ * 年月日と時分秒を組み立て直して、入力と同じになるかで確かめる。
+ * @param {string} value - FIXED_TIME_PATTERN に一致した文字列
+ * @returns {number | null}
+ */
+function parseFixedTime(value) {
+  const match = FIXED_TIME_PATTERN.exec(value);
+  if (match === null) return null;
+  const [
+    ,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second,
+    fraction = "",
+    ,
+    sign,
+    offsetHour = "0",
+    offsetMinute = "0",
+  ] = match;
+  const fields = [year, month, day, hour, minute, second].map(Number);
+  const local = Date.UTC(
+    fields[0],
+    fields[1] - 1,
+    fields[2],
+    fields[3],
+    fields[4],
+    fields[5],
+    Number(fraction.padEnd(3, "0")),
+  );
+  const back = new Date(local);
+  const same = [
+    back.getUTCFullYear(),
+    back.getUTCMonth() + 1,
+    back.getUTCDate(),
+    back.getUTCHours(),
+    back.getUTCMinutes(),
+    back.getUTCSeconds(),
+  ].every((n, i) => n === fields[i]);
+  if (!same || Number(offsetHour) > 23 || Number(offsetMinute) > 59) return null;
+  const offset =
+    sign === undefined
+      ? 0
+      : (sign === "-" ? -1 : 1) * (Number(offsetHour) * 60 + Number(offsetMinute));
+  return local - offset * 60000;
+}
 
 /**
  * 撮影に当てる時刻と乱数の条件。
@@ -92,8 +144,8 @@ function readFixedTime(record) {
       `determinism.fixed_time must be ISO 8601 with a timezone (e.g. 2026-01-02T03:04:05Z) or null (got ${JSON.stringify(value)})`,
     );
   }
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) {
+  const ms = parseFixedTime(value);
+  if (ms === null) {
     throw new Error(`determinism.fixed_time is not a valid date (got ${JSON.stringify(value)})`);
   }
   return { fixedTimeMs: ms };
@@ -170,15 +222,15 @@ export async function applyDeterminism(page, determinism) {
 }
 
 /**
- * ページで読んだ値（最初の時刻・待った後の時刻・seed の印）。
- * @typedef {{ now: number, later: number, seed: unknown }} PageReading
+ * ページで読んだ値（最初の時刻・待った後の時刻・seed の印・差し替えた乱数の関数のままか）。
+ * @typedef {{ now: number, later: number, seed: unknown, intact: boolean }} PageReading
  */
 
 /**
  * ページで読んだ時刻と seed が、記録した条件と同じかを確かめる。ページを開いた後、撮る前に呼ぶ。
  * 食い違えば例外にする（撮らずに止まる）。当て忘れ・当てた値の誤り・別の処理による上書きを見つける。
  * 時刻を固定しない条件（fixedTimeMs が null）では、間を置いて 2 回読んだ時刻が進むこと（固定されていないこと）を確かめる。
- * seed を使わない条件では、差し替えの印が無いことを確かめる。
+ * seed を使う条件では、撮る前も乱数の関数が差し替えた関数のままかを確かめる。seed を使わない条件では、差し替えの印が無いことを確かめる。
  * @param {{ evaluate(fn: () => Promise<PageReading>): Promise<PageReading> }} page
  * @param {Determinism} determinism - readDeterminism の戻り値
  */
@@ -186,10 +238,21 @@ export async function verifyDeterminism(page, determinism) {
   const seen = await page.evaluate(async () => {
     /** @type {unknown} */
     const marker = Reflect.get(globalThis, "__parityRandomSeed");
+    /** @type {unknown} */
+    const apis = Reflect.get(globalThis, "__parityRandomApis");
+    // 差し替えた後に、ページの scripts が乱数の関数を別の関数に置き換えていないか
+    const cryptoObject = globalThis.crypto;
+    const intact =
+      typeof apis === "object" &&
+      apis !== null &&
+      Math.random === Reflect.get(apis, "random") &&
+      (cryptoObject === undefined ||
+        cryptoObject.getRandomValues === Reflect.get(apis, "getRandomValues")) &&
+      (cryptoObject === undefined || cryptoObject.randomUUID === Reflect.get(apis, "randomUUID"));
     const first = Date.now();
     // 固定した時刻でもタイマーは進むので、待った後に読んだ値が同じなら時刻は固定されている
     await new Promise((resolve) => setTimeout(resolve, 20));
-    return { now: first, later: Date.now(), seed: marker === undefined ? null : marker };
+    return { now: first, later: Date.now(), seed: marker === undefined ? null : marker, intact };
   });
   if (
     determinism.fixedTimeMs !== null &&
@@ -207,6 +270,11 @@ export async function verifyDeterminism(page, determinism) {
   if (seen.seed !== determinism.randomSeed) {
     throw new Error(
       `page random seed is ${JSON.stringify(seen.seed)} but capture_conditions.determinism.random_seed is ${JSON.stringify(determinism.randomSeed)}: applyDeterminism を page.goto の前に呼ぶ`,
+    );
+  }
+  if (determinism.randomSeed !== null && seen.intact !== true) {
+    throw new Error(
+      "page replaced Math.random or crypto after the seeded functions were installed: 乱数で決まる表示を seed で固定できないので、random_seed を null にするか、置き換える処理を止める",
     );
   }
 }

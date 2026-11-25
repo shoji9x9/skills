@@ -26,7 +26,13 @@ export function installSeededRandom(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return (t ^ (t >>> 14)) >>> 0;
   };
-  Math.random = () => next() / 4294967296;
+  const random = () => next() / 4294967296;
+  Math.random = random;
+  /**
+   * 差し替えた関数。verifyDeterminism が、撮る前もこの関数のままかを確かめる。
+   * @type {{ random: () => number, getRandomValues: unknown, randomUUID: unknown }}
+   */
+  const installed = { random, getRandomValues: undefined, randomUUID: undefined };
   const cryptoObject = globalThis.crypto;
   if (cryptoObject && typeof cryptoObject.getRandomValues === "function") {
     const original = cryptoObject.getRandomValues.bind(cryptoObject);
@@ -50,6 +56,7 @@ export function installSeededRandom(seed) {
       configurable: true,
       writable: true,
     });
+    installed.getRandomValues = getRandomValues;
     if (typeof cryptoObject.randomUUID === "function") {
       const randomUUID = () => {
         const bytes = getRandomValues(new Uint8Array(16));
@@ -63,7 +70,9 @@ export function installSeededRandom(seed) {
         configurable: true,
         writable: true,
       });
+      installed.randomUUID = randomUUID;
     }
   }
   Object.defineProperty(globalThis, "__parityRandomSeed", { value: seed, configurable: true });
+  Object.defineProperty(globalThis, "__parityRandomApis", { value: installed, configurable: true });
 }
