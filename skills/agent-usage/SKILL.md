@@ -1,7 +1,7 @@
 ---
 name: agent-usage
 description: コーディングエージェント（Claude Code・Codex）の利用実績を、人別にリポジトリへ記録して集計するスキル。ローカルのログからモデル別・日別のトークン数と費用、1 回の指示で動き続けた時間、エージェントが止まっていた時間（人の確認中・CI 待ち・レビュー待ち・未活用）を記録し、PR のレビューの回数と費用も集める。コミットの前に Hook が記録するかを確かめ、要約は HTML、明細は CSV にする。「利用実績を記録して」「エージェントの費用を集計して」「エージェントが止まっていた時間を見たい」「agent-usage」や setup / collect / decline / report を伴う依頼で発動する。
-argument-hint: "[setup | collect | decline | report | status]"
+argument-hint: "[setup | collect | decline | report | archive | status]"
 license: MIT
 ---
 
@@ -16,7 +16,8 @@ license: MIT
 agent-usage setup [--person-id <p-xxxxxxxx>] [--time-zone <IANA 名>] [--billing none|user]
 agent-usage collect [--stage] [--no-github]
 agent-usage decline
-agent-usage report [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--out <dir>]
+agent-usage report [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--out <dir>] [--archive <dir>]...
+agent-usage archive --before <YYYY-MM-DD> --out <dir> [--dry-run]
 agent-usage status
 ```
 
@@ -26,7 +27,10 @@ agent-usage status
 - `collect`: ログと GitHub から、まだ記録していない分を `.agent-usage/records/` の今のブランチのファイルに足す（ブランチごとに 1 ファイル）。`--stage` は書いたファイルを stage し、今のブランチの判断を「記録する」にする
 - `decline`: 今のブランチの判断を「記録しない」にする。そのブランチでは、コミットの前に確認しない
 - `report`: 記録を集計し、`.agent-usage/report/<yyyyMMdd>/` に `index.html`・`usage.csv`・`intervals.csv`・`reviews.csv`・`prs.csv`・`meta.json` を書く。同じ日に実行し直したら上書きする。期間を省けば、すべての記録を集計する。
-  `meta.json` には、渡した `--since`・`--until`（省いたら `null`）・期間・作成時刻・タイムゾーンを書く。古いレポートを整理するスクリプトは、この値で期間を省いたレポートを見分けられる
+  `meta.json` には、渡した `--since`・`--until`（省いたら `null`）・期間・作成時刻・タイムゾーンを書く。古いレポートを整理するスクリプトは、この値で期間を省いたレポートを見分けられる。
+  `--archive` は、archive で移した記録を手元に取得したディレクトリで、`records/` と合わせて読む（繰り返し指定できる）
+- `archive`: 終わりの時刻が `--before` の日の UTC の 0 時より前の行を、`records/` から `--out` のディレクトリへ月ごとのファイルにして移し、移した境界を `records/.archived-before` に書く。
+  collect は境界より前の行を書かない。移すときの注意（実行するブランチ・記録を共有する人のバージョン）は [`references/records.md`](references/records.md)「古い行を移す」にある
 - `status`: セットアップの有無・今のブランチの判断・人の設定を表示する
 
 ## 前提

@@ -282,6 +282,18 @@ export function branchFiles(dir, label) {
 }
 
 /**
+ * 書き直すファイルの列: COLUMNS の順に、rows が持つ知らない列を後ろに足す（列の違うバージョンが書いた値を落とさない）。
+ * @param {readonly Record<string, string>[]} rows
+ * @returns {string[]}
+ */
+export function columnsWithExtra(rows) {
+  /** @type {Set<string>} */
+  const known = new Set(COLUMNS);
+  const extra = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((c) => !known.has(c));
+  return [...COLUMNS, ...extra];
+}
+
+/**
  * ブランチのファイル（path）に行を足す。ファイルが無ければ作る。
  * 見出しが今の列と同じなら、既存の内容をそのまま残して後ろに足すので、git の差分は足した行だけになる（改行は既存のファイルに合わせる）。
  * 見出しが違う（列の違うバージョンが書いた）ときだけ、今の列と既存の列を合わせた見出しで全体を書き直す（知らない列の値を落とさない）。
@@ -308,11 +320,8 @@ export function appendBranchFile(path, rows) {
     return path;
   }
   const prevRows = parseCsv(lf);
-  /** @type {Set<string>} */
-  const known = new Set(COLUMNS);
-  const extra = [...new Set(prevRows.flatMap((r) => Object.keys(r)))].filter((c) => !known.has(c));
   // 書き直しは一時ファイルから rename で置き換える（途中で止まっても、行の消えたファイルを残さない）。改行は既存のファイルに合わせる
-  const rewritten = toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]);
+  const rewritten = toCsv(columnsWithExtra(prevRows), [...prevRows, ...rows]);
   writeFileAtomic(path, crlf ? rewritten.replace(/\n/g, "\r\n") : rewritten);
   return path;
 }

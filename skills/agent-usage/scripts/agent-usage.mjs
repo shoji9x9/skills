@@ -5,14 +5,15 @@
 //   agent-usage.mjs setup [--person-id <p-xxxxxxxx>] [--time-zone <IANA 名>] [--billing none|user]。
 //   agent-usage.mjs collect [--stage] [--no-github]。
 //   agent-usage.mjs decline。
-//   agent-usage.mjs report [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--out <dir>]。
+//   agent-usage.mjs report [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--out <dir>] [--archive <dir>]...。
+//   agent-usage.mjs archive --before <YYYY-MM-DD> --out <dir> [--dry-run]。
 //   agent-usage.mjs status。
 //   agent-usage.mjs gate --agent <claude-code|codex>      （PreToolUse の Hook から呼ぶ。stdin に Hook の JSON）。
 //
 // 終了コード: 0 = 成功（gate は「通す」）、1 = 失敗、2 = 引数の誤り（stderr に usage を出す）か、gate が止める。
 
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CONFIG_NAME,
@@ -32,15 +33,18 @@ import { recordDecision } from "./lib/record-decision.mjs";
 import { branchesRecordedElsewhere, branchMerged } from "./lib/merged.mjs";
 import { errorMessage } from "./lib/error-message.mjs";
 import { parseFlags } from "./lib/flags.mjs";
+import { isArray } from "./lib/is-array.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { unknownKindsNote, usageDir } from "./lib/records.mjs";
 import { otherWorktreeRowsNote, runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
+import { runArchive } from "./lib/archive.mjs";
 import {
   isUtcTimeZone,
   isValidTimeZone,
   parseTime,
   systemTimeZone,
+  toIso,
   utcTimeZoneGuidance,
 } from "./lib/time.mjs";
 import { spawnSync } from "node:child_process";
@@ -53,7 +57,8 @@ const USAGE = [
   "usage: agent-usage.mjs setup [--person-id <p-xxxxxxxx>] [--time-zone <IANA 名>] [--billing none|user]",
   "       agent-usage.mjs collect [--stage] [--no-github]",
   "       agent-usage.mjs decline",
-  "       agent-usage.mjs report [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--out <dir>]",
+  "       agent-usage.mjs report [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--out <dir>] [--archive <dir>]...",
+  "       agent-usage.mjs archive --before <YYYY-MM-DD> --out <dir> [--dry-run]",
   "       agent-usage.mjs status",
   "       agent-usage.mjs gate --agent <claude-code|codex>",
 ].join("\n");
@@ -62,15 +67,18 @@ const USAGE = [
  * サブコマンドの引数を読む。誤りは UsageError にする。
  * @param {string[]} args
  * @param {readonly string[]} flags 値を取らない引数
- * @param {readonly string[]} options 値を取る引数
- * @returns {{ flags: Set<string>; options: Map<string, string> }}
+ * @param {readonly string[] | { values: readonly string[]; repeat: readonly string[] }} options 値を取る引数。
+ *   繰り返してよい引数があれば、values に値を取る引数を、repeat にそのうち繰り返してよい引数を渡す
+ * @returns {{ flags: Set<string>; options: Map<string, string>; lists: Map<string, string[]> }}
  */
 function parseArgs(args, flags, options) {
-  const parsed = parseFlags(args, { values: options, bools: flags });
+  const spec = isArray(options) ? { values: options } : options;
+  const parsed = parseFlags(args, { ...spec, bools: flags });
   if (parsed.error !== undefined) throw new UsageError(parsed.error);
   return {
     flags: new Set(Object.keys(parsed.bools)),
     options: new Map(Object.entries(parsed.strings)),
+    lists: new Map(Object.entries(parsed.lists)),
   };
 }
 
@@ -103,6 +111,10 @@ function printCollect(r) {
   if (unknown !== "") console.log(`警告: ${unknown}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
+  if (r.archivedRowsSkipped > 0 && r.archivedBefore !== null)
+    console.log(
+      `移した境界（${toIso(r.archivedBefore)}）より前に終わったので書かなかった行: ${r.archivedRowsSkipped}`,
+    );
   const elsewhere = otherWorktreeRowsNote(r.otherWorktreeRows);
   if (elsewhere !== "") console.log(elsewhere);
   if (r.retractedRows > 0)
@@ -350,7 +362,10 @@ function statusCommand(rest, context) {
  * @returns {number}
  */
 function reportCommand(rest, context) {
-  const a = parseArgs(rest, [], ["--since", "--until", "--out"]);
+  const a = parseArgs(rest, [], {
+    values: ["--since", "--until", "--out", "--archive"],
+    repeat: ["--archive"],
+  });
   const repo = requireSetup(context.cwd);
   const out = runReport({
     root: repo.root,
@@ -359,15 +374,47 @@ function reportCommand(rest, context) {
     since: a.options.get("--since") ?? null,
     until: a.options.get("--until") ?? null,
     out: a.options.get("--out") ?? null,
+    archives: (a.lists.get("--archive") ?? []).map((d) => resolve(context.cwd, d)),
   });
   for (const f of out.files) console.log(`書いた: ${f}`);
   console.log(`行: ${out.rows}（重複を除いた後） / 期間: ${out.period}`);
   const unknown = unknownKindsNote(out.unknownKinds);
   if (unknown !== "") console.log(`警告: ${unknown}`);
+  if (out.archivedNote !== "") console.log(`注意: ${out.archivedNote}`);
   // HTML の冒頭だけでは、作った人が読まずに渡すことがあるので、端末にも出す
   console.log(
     `タイムゾーン: ${out.timeZone}（設定（.local.jsonc か人ごとの設定）の値か、無ければマシンの値。collect が記録済みの行は、記録したときのタイムゾーンで日付と時刻を切る）`,
   );
+  return 0;
+}
+
+/**
+ * @param {string[]} rest
+ * @param {CommandContext} context
+ * @returns {number}
+ */
+function archiveCommand(rest, context) {
+  const a = parseArgs(rest, ["--dry-run"], ["--before", "--out"]);
+  const before = a.options.get("--before");
+  const outDir = a.options.get("--out");
+  if (before === undefined) throw new UsageError("--before が無い");
+  if (outDir === undefined) throw new UsageError("--out が無い");
+  const repo = requireSetup(context.cwd);
+  const dryRun = a.flags.has("--dry-run");
+  const r = runArchive({
+    recordsDir: join(usageDir(repo.root), "records"),
+    now: context.now,
+    before,
+    out: resolve(context.cwd, outDir),
+    dryRun,
+  });
+  const verb = dryRun ? "移す（--dry-run なので何も書いていない）" : "移した";
+  console.log(
+    `境界: ${toIso(r.boundary)}（前の境界: ${r.previous === null ? "無し" : toIso(r.previous)}） / ${verb}行: ${r.movedRows}`,
+  );
+  for (const f of r.outFiles) console.log(`${dryRun ? "書く" : "書いた"}: ${f}`);
+  for (const f of r.rewritten) console.log(`${dryRun ? "書き直す" : "書き直した"}: ${f}`);
+  for (const f of r.removed) console.log(`${dryRun ? "消す" : "消した"}: ${f}`);
   return 0;
 }
 
@@ -400,6 +447,7 @@ const COMMANDS = new Map([
   ["decline", declineCommand],
   ["status", statusCommand],
   ["report", reportCommand],
+  ["archive", archiveCommand],
   ["gate", gateCommand],
 ]);
 

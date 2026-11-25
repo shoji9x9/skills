@@ -108,6 +108,9 @@ export function localParts(ms, tz) {
 /** 1 時間（使用量を区切る幅）。 */
 export const HOUR = 3600000;
 
+/** 1 日（UTC の日。タイムゾーンの日の長さではない）。 */
+export const DAY = 86400000;
+
 /** オフセットの単位。どのタイムゾーンのオフセットも、この倍数で、変わるのもこの区切りの境目である。 */
 export const QUARTER_HOUR = 900000;
 

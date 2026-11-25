@@ -10,8 +10,9 @@
 //     idle         それ以外（未活用）。
 //   集計の期間の終わりは、人ごとに、その人のタイムゾーンでの until の日の終わりか、report を実行した時刻の早い方。
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { archivedNote, readArchivedBefore } from "../archive.mjs";
 import { loadRepoConfig, loadUserConfig, resolved } from "../config.mjs";
 import { toCsv } from "../csv.mjs";
 import { RUN_BINS, STATUSES, STOP_CATEGORIES } from "./categories.mjs";
@@ -1219,8 +1220,31 @@ export function reportMeta(d) {
 }
 
 /**
- * @param {{ root: string; now: number; env: NodeJS.ProcessEnv; since: string | null; until: string | null; out: string | null }} o
- * @returns {{ files: string[]; rows: number; period: string; timeZone: string; unknownKinds: Map<string, number> }}
+ * records/ と、移した記録のディレクトリ（--archive。読むだけで書き換えない）の行を読む。重複は集計で key ごとに 1 行にまとめる。
+ * @param {string} recordsDir
+ * @param {readonly string[]} archives
+ */
+function readAllRecords(recordsDir, archives) {
+  const read = readRecords(recordsDir);
+  const rows = [...read.rows];
+  let files = read.files;
+  const unknownKinds = new Map(read.unknownKinds);
+  for (const a of archives) {
+    // 渡したディレクトリが無いときに、移した期間を警告なしに集計から外さない
+    if (!statSync(a, { throwIfNoEntry: false })?.isDirectory())
+      throw new Error(`--archive のディレクトリが無い（ファイルを渡したときも含む）: ${a}`);
+    const r = readRecords(a);
+    if (r.files === 0) throw new Error(`--archive のディレクトリに記録（*.csv）が無い: ${a}`);
+    rows.push(...r.rows);
+    files += r.files;
+    for (const [k, n] of r.unknownKinds) unknownKinds.set(k, (unknownKinds.get(k) ?? 0) + n);
+  }
+  return { rows, files, unknownKinds };
+}
+
+/**
+ * @param {{ root: string; now: number; env: NodeJS.ProcessEnv; since: string | null; until: string | null; out: string | null; archives?: readonly string[] }} o
+ * @returns {{ files: string[]; rows: number; period: string; timeZone: string; unknownKinds: Map<string, number>; archivedNote: string }}
  */
 export function runReport(o) {
   for (const [name, v] of /** @type {const} */ ([
@@ -1236,8 +1260,11 @@ export function runReport(o) {
   const config = loadRepoConfig(o.root, o.env, resolvedConfig);
   // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
   const tz = loadUserConfig(o.root, o.env, { r: resolvedConfig })?.timeZone ?? systemTimeZone();
-  const { rows, files, unknownKinds } = readRecords(join(dir, "records"));
-  if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
+  const archives = o.archives ?? [];
+  const recordsDir = join(dir, "records");
+  const boundaryNote = archivedNote(readArchivedBefore(recordsDir), archives.length);
+  const { rows, files, unknownKinds } = readAllRecords(recordsDir, archives);
+  if (files === 0) throw new Error(`${recordsDir} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {
     config,
     bundledPricing: loadBundledPricing(),
@@ -1266,5 +1293,6 @@ export function runReport(o) {
     period: data.period,
     timeZone: tz,
     unknownKinds,
+    archivedNote: boundaryNote,
   };
 }

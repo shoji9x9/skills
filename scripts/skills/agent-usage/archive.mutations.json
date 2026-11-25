@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "archive.test.ts のうち、古い行を移す archive と、移した境界・読む範囲を collect が扱う判定を検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/archive.test.ts",
+  "mutations": [
+    {
+      "id": "collect-ignores-boundary",
+      "why": "collect が、移した境界より前に終わった行も書く（移した行を records/ に戻す）",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (archivedBefore !== null && (rowEndTime(r) ?? Number.NEGATIVE_INFINITY) < archivedBefore) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "archive・collect・report のコマンド archive で移した行を、新しい clone の collect は書き直さず、report は --archive を渡すと同じ集計を出す"
+      ]
+    },
+    {
+      "id": "archive-moves-at-boundary",
+      "why": "ちょうど境界に終わる行も移す（境界より後の collect が書き直しうる行を records/ から消す）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "    (t < boundary ? moved : kept).push(r);",
+      "replace": "    (t <= boundary ? moved : kept).push(r);",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 終わりの時刻が境界より前の行だけを、終わりの UTC の年月のファイルへ移し、境界を書く"
+      ]
+    },
+    {
+      "id": "row-time-from-start",
+      "why": "行を移すかを、終わりではなく始まりの時刻で決める（境界をまたぐ行を移し、collect の判定とずれる）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "  return parseTime(r.end) ?? parseTime(r.start) ?? parseTime(r.observed_at);",
+      "replace": "  return parseTime(r.start) ?? parseTime(r.end) ?? parseTime(r.observed_at);",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 終わりの時刻が境界より前の行だけを、終わりの UTC の年月のファイルへ移し、境界を書く"
+      ]
+    },
+    {
+      "id": "out-file-duplicates",
+      "why": "実行し直したときに、移した先に既にある行を重ねて書く",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "    if (seen.has(s)) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 移した先のファイルが既にあれば後ろに足し、全列が同じ行は重ねない（途中で止まった後に実行し直した場合）"
+      ]
+    },
+    {
+      "id": "unreadable-boundary-as-none",
+      "why": "境界のファイルを読めないときに、境界が無いとして扱う（移した行を collect が書き直す）",
+      "file": "skills/agent-usage/scripts/lib/archive.mjs",
+      "find": "  if (t === null)\n    throw new Error(",
+      "replace": "  if (t === null) return null;\n  if (false)\n    throw new Error(",
+      "occurrences": 1,
+      "expect_failing": [
+        "runArchive 境界のファイルの中身が時刻でなければ、境界が無いとして扱わずに止める",
+        "archive・collect・report のコマンド archive と report --archive の引数の誤りと、読めない境界を止める"
+      ]
+    },
+    {
+      "id": "github-since-ignores-boundary",
+      "why": "GitHub を、移した境界より前から取る",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const floor = Math.max(o.now - o.lookbackMs, o.archivedBefore ?? Number.NEGATIVE_INFINITY);",
+      "replace": "  const floor = o.now - o.lookbackMs;",
+      "occurrences": 1,
+      "expect_failing": [
+        "githubSince 取り始める時刻は、範囲（lookbackMs）と移した境界の遅い方より前に戻らない"
+      ]
+    },
+    {
+      "id": "github-since-fixed-lookback",
+      "why": "GitHub を初めて取る範囲が、読む範囲（recordWindowDays）に関わらず 60 日のまま（読んでいない記録と同じ行を書き重ねる）",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const floor = Math.max(o.now - o.lookbackMs, o.archivedBefore ?? Number.NEGATIVE_INFINITY);",
+      "replace": "  const floor = Math.max(o.now - 60 * 86400000, o.archivedBefore ?? Number.NEGATIVE_INFINITY);",
+      "occurrences": 1,
+      "expect_failing": [
+        "githubSince 取り始める時刻は、範囲（lookbackMs）と移した境界の遅い方より前に戻らない"
+      ]
+    },
+    {
+      "id": "window-ignores-setting",
+      "why": "読む範囲が、設定の recordWindowDays に関わらず 60 日のまま",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  return settings.repoConfig.recordWindowDays * DAY;",
+      "replace": "  return 60 * DAY;",
+      "occurrences": 1,
+      "expect_failing": [
+        "archive・collect・report のコマンド recordWindowDays を短くすると、その範囲より古いファイルを読まず、範囲の外の値は止める"
+      ]
+    }
+  ]
+}
