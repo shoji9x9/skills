@@ -54,6 +54,32 @@
         "locateRegionsInPage モジュールの関数 1 つだけを指すセレクタを作れなければ、特定できたことにしない",
         "locateRegionsInPage ページへ渡すソース 1 つだけを指すセレクタを作れなければ、特定できたことにしない"
       ]
+    },
+    {
+      "id": "scroll-instant",
+      "why": "探す前のスクロールを instant にせず、smooth のページではスクロールの途中の位置で探す",
+      "file": "skills/parity-suite/scripts/page/noise-masks.page.mjs",
+      "find": "          behavior: \"instant\",\n        });",
+      "replace": "        });",
+      "occurrences": 1,
+      "expect_failing": [
+        "locateRegionsInPage モジュールの関数 全画面の撮影では、ページが smooth を指定していても、スクロールし終えた位置で探して戻す",
+        "locateRegionsInPage ページへ渡すソース 全画面の撮影では、ページが smooth を指定していても、スクロールし終えた位置で探して戻す"
+      ]
+    },
+    {
+      "id": "restore-instant",
+      "why": "探した後のスクロールの復元を instant にせず、smooth のページでは元の位置に戻らない",
+      "file": "skills/parity-suite/scripts/page/noise-masks.page.mjs",
+      "find": "top: startY, behavior: \"instant\" }",
+      "replace": "top: startY }",
+      "occurrences": 1,
+      "expect_failing": [
+        "locateRegionsInPage モジュールの関数 全画面の撮影では、ページが smooth を指定していても、スクロールし終えた位置で探して戻す",
+        "locateRegionsInPage ページへ渡すソース 全画面の撮影では、ページが smooth を指定していても、スクロールし終えた位置で探して戻す",
+        "locateRegionsInPage モジュールの関数 全画面の撮影では、文書の座標で比べ、探した後にスクロールを戻す",
+        "locateRegionsInPage ページへ渡すソース 全画面の撮影では、文書の座標で比べ、探した後にスクロールを戻す"
+      ]
     }
   ]
 }

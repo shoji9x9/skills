@@ -210,9 +210,11 @@ function installDom(all: FakeElement[], stack: FakeElement[], scroll = { x: 0, y
     scrollY: scroll.y,
     innerWidth: 800,
     innerHeight: 600,
-    scrollTo(x: number, y: number) {
-      window.scrollX = x;
-      window.scrollY = y;
+    // ページの scroll-behavior: smooth を真似て、instant 以外ではすぐには位置を変えない
+    scrollTo(options: { left: number; top: number; behavior?: string }) {
+      if (options.behavior !== "instant") return;
+      window.scrollX = options.left;
+      window.scrollY = options.top;
     },
   };
   const document = {
@@ -427,6 +429,23 @@ describe.each(RUNS)("locateRegionsInPage %s", (_label, run) => {
     expect(located.selector).toBe("#late");
     expect(located.element_rect).toEqual({ x: 0, y: 1500, width: 800, height: 20 });
     expect([window.scrollX, window.scrollY]).toEqual([0, 40]);
+  });
+
+  test("全画面の撮影では、ページが smooth を指定していても、スクロールし終えた位置で探して戻す", () => {
+    const t = tree();
+    const { window, document } = installDom(Object.values(t), [t.span, t.clock, t.body, t.html], {
+      x: 0,
+      y: 40,
+    });
+    const searchedAt: number[] = [];
+    const stack = document.elementsFromPoint();
+    document.elementsFromPoint = () => {
+      searchedAt.push(window.scrollY);
+      return stack;
+    };
+    locate({ regions: [{ x: 310, y: 1503, width: 20, height: 10 }], fullPage: true });
+    expect(searchedAt).toEqual([1508 - 300]);
+    expect(window.scrollY).toBe(40);
   });
 
   test("ビューポートの撮影では、スクロールしていてもビューポートの座標で比べる", () => {

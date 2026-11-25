@@ -153,11 +153,13 @@ export function locateRegionsInPage({ regions, fullPage }) {
       const centerX = region.x + region.width / 2;
       const centerY = region.y + region.height / 2;
       if (fullPage) {
-        // 中心がビューポートに入るまでスクロールする（elementsFromPoint はビューポートの座標で探す）
-        window.scrollTo(
-          Math.max(0, centerX - window.innerWidth / 2),
-          Math.max(0, centerY - window.innerHeight / 2),
-        );
+        // 中心がビューポートに入るまでスクロールする（elementsFromPoint はビューポートの座標で探す）。
+        // ページが scroll-behavior: smooth を指定していても、スクロールし終えた位置で探すように instant で動かす
+        window.scrollTo({
+          left: Math.max(0, centerX - window.innerWidth / 2),
+          top: Math.max(0, centerY - window.innerHeight / 2),
+          behavior: "instant",
+        });
       }
       const clientX = fullPage ? centerX - window.scrollX : centerX;
       const clientY = fullPage ? centerY - window.scrollY : centerY;
@@ -178,6 +180,6 @@ export function locateRegionsInPage({ regions, fullPage }) {
       return { region, selector, basis, element_rect: imageRect(chosen) };
     });
   } finally {
-    if (fullPage) window.scrollTo(startX, startY);
+    if (fullPage) window.scrollTo({ left: startX, top: startY, behavior: "instant" });
   }
 }
