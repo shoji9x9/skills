@@ -3,6 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { writeFileAtomic } from "./atomic.mjs";
+import { readArchivedBefore, rowEndTime } from "./archive.mjs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig, resolved } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
@@ -24,7 +25,7 @@ import {
   usageDir,
 } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
-import { parseTime, toIso } from "./time.mjs";
+import { DAY, parseTime, toIso } from "./time.mjs";
 import { rememberWorktrees } from "./sources/worktrees.mjs";
 import { join, relative, sep } from "node:path";
 
@@ -33,17 +34,21 @@ import { join, relative, sep } from "node:path";
 /** @typedef {import("./sources/github.mjs").GhRunner} GhRunner */
 
 /** 前回の取得の終わりから、さかのぼって再取得する幅（投稿や artifact の反映の遅れを拾うため）。重なった分は key で除く。 */
-export const GITHUB_OVERLAP_MS = 86400000;
-
-/** 初めての取得でさかのぼる上限（ローカルのログの最初の時刻がこれより古くても、ここまでにする）。 */
-export const GITHUB_FIRST_LOOKBACK_MS = 60 * 86400000;
+export const GITHUB_OVERLAP_MS = DAY;
 
 /**
- * collect が読む記録と、書く行の範囲。ファイル名の時刻と最後の行の observed_at がどちらもこれより古いファイルは、重複を除くときに読まない。
- * 読む行数を記録の総量に依らず一定にするため。GitHub を初めて取る範囲と揃え、前回の取得の期間（coverage）が範囲に入るようにする。
- * この人が範囲の中で collect していない（久しぶりの collect か初めての collect）ときは、ログに残る分をすべて書く。
+ * collect が読む記録と、書く行の範囲（設定の recordWindowDays。デフォルトは 60 日）。
+ * ファイル名の時刻と最後の行の observed_at がどちらもこれより古いファイルは、重複を除くときに読まない。
+ * 読む行数を記録の総量に依らず一定にするため。この人が範囲の中で collect していない（久しぶりの collect か初めての collect）ときは、
+ * ログに残る分をすべて書く。
+ * GitHub を初めて取る範囲（ローカルのログの最初の時刻がこれより古くても、ここまでにする）にも同じ値を使う。
+ * GitHub の行は範囲より前に始まっていても書くので、取る範囲を読む範囲より広げると、読んでいない記録と同じ行を書き重ねる。
+ * @param {Settings} settings
+ * @returns {number}
  */
-export const RECORD_WINDOW_MS = GITHUB_FIRST_LOOKBACK_MS;
+function recordWindowMs(settings) {
+  return settings.repoConfig.recordWindowDays * DAY;
+}
 
 /** ログから作る行の種類（ログが今もあるのに作らなくなったら、打ち消す）。 */
 const RETRACTABLE_KINDS = ["usage", "run", "human-wait", "prompt"];
@@ -223,10 +228,21 @@ function loadBundledTools() {
  * GitHub から取り始める時刻。この人の取得に成功した期間の最後から GITHUB_OVERLAP_MS さかのぼる。記録が無ければ、ローカルの行の最初の時刻。
  * 他の人の取得（_github/ の coverage）は数えない。この時刻は、この人の commit と GitHub での操作（activity）を取る範囲にも使うので、
  * 他の人が最近取得していると、しばらく collect していなかった人の activity が取れなくなる。
- * @param {{ existing: Map<string, Row>; localRows: readonly Row[]; now: number; person: string }} o
+ * 移した境界（archivedBefore）があれば、それより前には戻らない。境界より前の行は collect が書かないので、取っても使わない。
+ * @param {{ existing: Map<string, Row>; localRows: readonly Row[]; now: number; person: string; lookbackMs: number; archivedBefore: number | null }} o
  * @returns {number}
  */
 export function githubSince(o) {
+  const floor = Math.max(o.now - o.lookbackMs, o.archivedBefore ?? Number.NEGATIVE_INFINITY);
+  return Math.max(githubSinceOf(o), floor);
+}
+
+/**
+ * githubSince の、範囲の下限を当てる前の時刻。
+ * @param {{ existing: Map<string, Row>; localRows: readonly Row[]; now: number; person: string }} o
+ * @returns {number}
+ */
+function githubSinceOf(o) {
   const { existing, localRows, now, person } = o;
   let lastOk = Number.NEGATIVE_INFINITY;
   for (const r of existing.values()) {
@@ -234,14 +250,13 @@ export function githubSince(o) {
     const end = parseTime(r.end);
     if (end !== null && end > lastOk) lastOk = end;
   }
-  if (Number.isFinite(lastOk))
-    return Math.max(lastOk - GITHUB_OVERLAP_MS, now - GITHUB_FIRST_LOOKBACK_MS);
+  if (Number.isFinite(lastOk)) return lastOk - GITHUB_OVERLAP_MS;
   let first = now;
   for (const r of localRows) {
     const t = parseTime(r.start);
     if (t !== null && t < first) first = t;
   }
-  return Math.max(first, now - GITHUB_FIRST_LOOKBACK_MS);
+  return first;
 }
 
 /**
@@ -349,6 +364,8 @@ export function ghLoginError(host, env) {
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  * @property {Map<string, number>} unknownKinds このバージョンが知らない種類なので読み飛ばした記録の行の数（種類ごと）
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
+ * @property {number} archivedRowsSkipped 移した境界（records/.archived-before）より前に終わったので書かなかった行の数
+ * @property {number | null} archivedBefore 移した境界の時刻（無ければ null）
  * @property {number} retractedRows 打ち消した行の数
  * @property {Map<string, number>} otherWorktreeRows 別の作業ツリーの collect が記録するので書かなかった行の数（ブランチごと）
  */
@@ -366,22 +383,15 @@ export function runCollect(o) {
   const recordsDir = join(dir, "records");
   const targets = branchTargets(repo, { recordsDir, person, now });
   const lastPath = lastCollectPath(repo.commonDir);
-  const read = readExisting({ recordsDir, keep: targets.keep, lastPath, person, now });
-  const { existing, lowerBound } = read;
-  const since = githubSince({ existing, localRows: local.rows, now, person });
-  /** @type {Row[]} */
-  const candidates = [...local.rows, ...commitRows({ repo, local, settings, since })];
-  const target = githubTargetOf(o);
-  const github =
-    target.reason === ""
-      ? fetchGitHub({ o, target, since, settings, existing, commands: local.commands })
-      : { rows: [], failures: [] };
-  candidates.push(...github.rows);
+  const windowMs = recordWindowMs(settings);
+  const read = readExisting({ recordsDir, keep: targets.keep, lastPath, person, now, windowMs });
+  const { candidates, github, target } = candidateRowsOf({ o, local, settings, read });
   const { unique, conflicts } = uniqueByKey(candidates);
-  const { rows: retractions, withheld } = retractionsOf({ read, unique, local, settings });
-  const { fresh, olderRowsSkipped } = freshRows({ unique, existing, withheld, lowerBound });
+  const retracted = retractionsOf({ read, unique, local, settings });
+  const { withheld } = retracted;
+  const { fresh, olderRowsSkipped, archivedRowsSkipped } = freshRows({ ...read, unique, withheld });
   const { rows, elsewhere } = withoutOtherWorktrees(
-    stampRows(fresh, retractions, now),
+    stampRows(fresh, retracted.rows, now),
     o.elsewhere,
   );
   const written = writeBranchRows(rows, targets);
@@ -402,9 +412,39 @@ export function runCollect(o) {
     skippedFiles: read.skipped,
     unknownKinds: read.unknownKinds,
     olderRowsSkipped,
-    retractedRows: retractions.length,
+    archivedRowsSkipped: archivedRowsSkipped + retracted.archivedSkipped,
+    archivedBefore: read.archivedBefore,
+    retractedRows: retracted.rows.length,
     otherWorktreeRows: elsewhere,
   };
+}
+
+/**
+ * 書く候補の行（ローカルのログ・人の commit・GitHub）を作る。GitHub は、取り始める時刻（githubSince）から取る。
+ * @param {{ o: CollectOptions; local: ReturnType<typeof collectLocalOf>; settings: Settings; read: ExistingRecords }} a
+ * @returns {{ candidates: Row[]; github: { rows: Row[]; failures: string[] }; target: GitHubTarget }}
+ */
+function candidateRowsOf(a) {
+  const { o, local, settings } = a;
+  const { existing, archivedBefore } = a.read;
+  const { repo, now } = o;
+  const since = githubSince({
+    existing,
+    localRows: local.rows,
+    now,
+    person: settings.person,
+    lookbackMs: recordWindowMs(settings),
+    archivedBefore,
+  });
+  /** @type {Row[]} */
+  const candidates = [...local.rows, ...commitRows({ repo, local, settings, since })];
+  const target = githubTargetOf(o);
+  const github =
+    target.reason === ""
+      ? fetchGitHub({ o, target, since, settings, existing, commands: local.commands })
+      : { rows: [], failures: [] };
+  candidates.push(...github.rows);
+  return { candidates, github, target };
 }
 
 /**
@@ -549,12 +589,17 @@ function appendTarget(o) {
 }
 
 /**
- * 記録済みの行を読み、書く行の範囲の下限を決める。
- * @param {{ recordsDir: string; keep: Set<string>; lastPath: string; person: string; now: number }} o
- * @returns {{ existing: Map<string, Row>; lowerBound: number; skipped: number; unknownKinds: Map<string, number> }}
+ * readExisting が返すもの。archivedBefore は移した境界（records/.archived-before。無ければ null）。
+ * @typedef {{ existing: Map<string, Row>; lowerBound: number; skipped: number; unknownKinds: Map<string, number>; archivedBefore: number | null }} ExistingRecords
+ */
+
+/**
+ * 記録済みの行と移した境界を読み、書く行の範囲の下限を決める。
+ * @param {{ recordsDir: string; keep: Set<string>; lastPath: string; person: string; now: number; windowMs: number }} o
+ * @returns {ExistingRecords}
  */
 function readExisting(o) {
-  const windowStart = o.now - RECORD_WINDOW_MS;
+  const windowStart = o.now - o.windowMs;
   const last = loadLastCollect(o.lastPath, o.person, o.now);
   const collectedInWindow = last !== null && last >= windowStart;
   // 範囲の中で collect していなければ（このバージョンにした後の最初の collect・新しい clone）、範囲より古い行もすべて書くので、
@@ -568,7 +613,13 @@ function readExisting(o) {
   // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
   // このマシンのログにある古い行はまだ書いていないことがあるため
   const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
-  return { existing, lowerBound, skipped: read.skipped, unknownKinds: read.unknownKinds };
+  return {
+    existing,
+    lowerBound,
+    skipped: read.skipped,
+    unknownKinds: read.unknownKinds,
+    archivedBefore: readArchivedBefore(o.recordsDir),
+  };
 }
 
 /**
@@ -704,30 +755,51 @@ function staleRows(o) {
 
 /**
  * 作らなくなった記録済みの行を挙げ、打ち消しの行と、書かない行の key を返す。
- * @param {{ read: { existing: Map<string, Row>; lowerBound: number }; unique: Map<string, Row>; local: { presentSessions: Set<string> }; settings: Settings }} o
- * @returns {{ rows: Row[]; withheld: Set<string> }}
+ * 移した境界より前に終わった行は、records/ に残っていても打ち消さない（archivedSkipped に数える）。
+ * 境界より前の記録は書き直さない取り決めで、打ち消しの行を書くと、次の archive がそれも移し、移した期間の集計が変わるため。
+ * @param {{ read: { existing: Map<string, Row>; lowerBound: number; archivedBefore: number | null }; unique: Map<string, Row>; local: { presentSessions: Set<string> }; settings: Settings }} o
+ * @returns {{ rows: Row[]; withheld: Set<string>; archivedSkipped: number }}
  */
 function retractionsOf(o) {
-  const { existing, lowerBound } = o.read;
+  const { existing, lowerBound, archivedBefore } = o.read;
   const { unique } = o;
   const { person } = o.settings;
   const aliases = o.settings.repoConfig.aliases;
   /** @param {string | undefined} p */
   const canonical = (p) => (p ? (aliases[p] ?? p) : "");
   const stale = staleRows({ existing, unique, person, canonical, local: o.local });
-  return retractableRows({ stale, existing, unique, person, lowerBound, canonical });
+  const r = retractableRows({ stale, existing, unique, person, lowerBound, canonical });
+  const rows = r.rows.filter((x) => !endsBeforeBoundary(x, archivedBefore));
+  return { rows, withheld: r.withheld, archivedSkipped: r.rows.length - rows.length };
+}
+
+/**
+ * 行が、移した境界より前に終わったか（archive が移すかを決める時刻 rowEndTime で比べる）。境界が無ければ false。
+ * @param {Row} r
+ * @param {number | null} archivedBefore
+ * @returns {boolean}
+ */
+function endsBeforeBoundary(r, archivedBefore) {
+  return archivedBefore !== null && (rowEndTime(r) ?? Number.NEGATIVE_INFINITY) < archivedBefore;
 }
 
 /**
  * 書く行（記録済みの行から変わった行のうち、書く範囲にあるもの）を選ぶ。
- * @param {{ unique: Map<string, Row>; existing: Map<string, Row>; withheld: Set<string>; lowerBound: number }} o
- * @returns {{ fresh: Row[]; olderRowsSkipped: number }}
+ * 移した境界（archivedBefore）より前に終わった行は、種類や記録済みかに関わらず書かない。移した先にあって records/ に無いので、書くと戻してしまう。
+ * 判定の時刻は、archive が移すかを決める時刻（rowEndTime）と同じにする。
+ * @param {{ unique: Map<string, Row>; existing: Map<string, Row>; withheld: Set<string>; lowerBound: number; archivedBefore: number | null }} o
+ * @returns {{ fresh: Row[]; olderRowsSkipped: number; archivedRowsSkipped: number }}
  */
 function freshRows(o) {
-  const { existing } = o;
+  const { existing, archivedBefore } = o;
   // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
   let olderRowsSkipped = 0;
+  let archivedRowsSkipped = 0;
   const fresh = changedRows([...o.unique.values()], existing).filter((r) => {
+    if (endsBeforeBoundary(r, archivedBefore)) {
+      archivedRowsSkipped += 1;
+      return false;
+    }
     if (existing.has(r.key ?? "")) return true;
     // 打ち消せない前の区切りの行と時間が重なる行は、書くと二重に数えるので書かない
     if (o.withheld.has(r.key ?? "")) return false;
@@ -738,7 +810,7 @@ function freshRows(o) {
     olderRowsSkipped += 1;
     return false;
   });
-  return { fresh, olderRowsSkipped };
+  return { fresh, olderRowsSkipped, archivedRowsSkipped };
 }
 
 /**

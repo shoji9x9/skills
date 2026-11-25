@@ -66,6 +66,14 @@
       "default": 15,
       "x-layers": ["repo"]
     },
+    "recordWindowDays": {
+      "description": "collect が重複を除くために読む記録と、書き直す行の範囲（日）。GitHub を初めて取る範囲も同じ",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 60,
+      "x-layers": ["repo"]
+    },
     "reviewTools": {
       "description": "レビューの作者の login → ツール",
       "type": "object",

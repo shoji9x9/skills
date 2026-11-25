@@ -212,6 +212,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
   "reviewPricing": { "copilot": 0.04 },
   "ci": { "external": false },
   "activityWindowMinutes": 15,
+  "recordWindowDays": 60,
   "reviewTools": { "<レビューの作者の login>": "<ツールの名前>" },
   "people": { "p-0123abcd": { "name": "表示名" } },
   "aliases": { "p-89abcdef": "p-0123abcd" },
@@ -225,6 +226,7 @@ Hook のスクリプトは、エージェントが普段書く形の `git commit
 | `reviewPricing` | リポジトリ | レビューツールごとの 1 回あたりの推定額（USD）。同梱の推定額（`assets/pricing.json` の `reviews`）より優先する。どちらにも無ければ、そのツールのレビューの費用は空欄にする |
 | `ci.external` | リポジトリ | GitHub Actions 以外の CI（check runs・commit status）も取得するか。取得は PR の head の commit ごとに呼び出すので、デフォルトでは無効 |
 | `activityWindowMinutes` | リポジトリ | 人の活動の前後で、人がいたとみなす幅（分）。デフォルトは 15 |
+| `recordWindowDays` | リポジトリ | collect が重複を除くために読む記録と、書き直す行の範囲（1〜60 の日数）。GitHub を初めて取る範囲も同じ日数にする。デフォルトは 60。扱いは `references/records.md`「重複の扱い」にある |
 | `reviewTools` | リポジトリ | レビューの作者からツールを決める対応。同梱の `assets/review-tools.json` より優先する。自分の Actions で実行するレビューの作者（workflow のトークンの持ち主）はここに足す |
 | `people` | リポジトリ | 人の ID の表示名 |
 | `aliases` | リポジトリ | 同じ人としてまとめる ID の対応（左の ID を右の ID として数える）。右の ID をさらに別名にはできない |

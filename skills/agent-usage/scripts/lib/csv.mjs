@@ -23,7 +23,8 @@ export function formulaSafe(value) {
  * 列の順を決めて行を CSV にする。行に無い列は空にする。
  * @param {readonly string[]} columns
  * @param {readonly Record<string, string | number | boolean | null | undefined>[]} rows
- * @param {{ formulaSafe?: boolean }} [opts] formulaSafe: 表計算ソフトで開く CSV（report の出力）で、数式として読まれる値を文字列にする
+ * @param {{ formulaSafe?: boolean; eol?: string }} [opts] formulaSafe: 表計算ソフトで開く CSV（report の出力）で、数式として読まれる値を文字列にする。
+ *   eol: 行の区切り（デフォルトは `\n`）。引用符の中の値の改行は変えない（書き上げた CSV の改行をまとめて置き換えると、値の中の改行も変わる）
  * @returns {string}
  */
 export function toCsv(columns, rows, opts = {}) {
@@ -39,7 +40,8 @@ export function toCsv(columns, rows, opts = {}) {
         .join(","),
     );
   }
-  return `${lines.join("\n")}\n`;
+  const eol = opts.eol ?? "\n";
+  return `${lines.join(eol)}${eol}`;
 }
 
 /** @typedef {{ records: string[][]; fields: string[]; field: string; inQuotes: boolean }} CsvState */

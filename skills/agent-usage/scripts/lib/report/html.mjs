@@ -473,7 +473,7 @@ function runCharts(d) {
       })),
       format: (n) => num(n, 1),
       unit: " 時間",
-      note: `${ACTIVE_NOTE}判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。`,
+      note: `${ACTIVE_NOTE}判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大で設定の recordWindowDays の日数（デフォルトは 60 日）前からです。`,
     }),
   ];
 }

@@ -49,6 +49,7 @@ export const PRICE_FIELDS = /** @type {const} */ ([
  * @property {Record<string, number>} reviewPricing レビューツールごとの 1 回あたりの推定額（USD）
  * @property {{ external: boolean }} ci
  * @property {number} activityWindowMinutes 人の活動の前後に「人がいた」とみなす幅（分）
+ * @property {number} recordWindowDays collect が重複を除くために読む記録と、書き直す行の範囲（日）。GitHub を初めて取る範囲も同じ
  * @property {Record<string, string>} reviewTools レビューの作者の login → ツール
  * @property {Record<string, { name: string }>} people 人の ID → 表示名
  * @property {Record<string, string>} aliases 人の ID → 同じ人としてまとめる先の ID
@@ -71,6 +72,7 @@ export function defaultRepoConfig() {
     reviewPricing: {},
     ci: { external: false },
     activityWindowMinutes: 15,
+    recordWindowDays: 60,
     reviewTools: {},
     people: {},
     aliases: {},
@@ -172,6 +174,7 @@ const REPO_KEYS = /** @type {const} */ ([
   "reviewPricing",
   "ci",
   "activityWindowMinutes",
+  "recordWindowDays",
   "reviewTools",
   "people",
   "aliases",
@@ -276,7 +279,7 @@ function readPricing(cfg, raw, where) {
 }
 
 /**
- * 1 つの値で決まる設定（ci・activityWindowMinutes・defaultDecision）を cfg に読み込む。
+ * 1 つの値で決まる設定（ci・activityWindowMinutes・recordWindowDays・defaultDecision）を cfg に読み込む。
  * @param {RepoConfig} cfg
  * @param {Record<string, unknown>} raw
  */
@@ -284,6 +287,8 @@ function readSettings(cfg, raw) {
   if (isRecord(raw.ci) && typeof raw.ci.external === "boolean") cfg.ci.external = raw.ci.external;
   if (isNonNegative(raw.activityWindowMinutes))
     cfg.activityWindowMinutes = raw.activityWindowMinutes;
+  // 範囲（1〜60 の整数）はスキーマで確かめる
+  if (typeof raw.recordWindowDays === "number") cfg.recordWindowDays = raw.recordWindowDays;
   // null は、置いていないのと同じに扱う（値を外すつもりで null を書いた設定で止めない）
   if (raw.defaultDecision === "record" || raw.defaultDecision === "decline")
     cfg.defaultDecision = raw.defaultDecision;
