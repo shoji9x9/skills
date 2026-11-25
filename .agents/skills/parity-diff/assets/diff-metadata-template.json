@@ -26,6 +26,7 @@
     "scrollbars": "<現側 capture_conditions.scrollbars（hidden / shown）と同じ扱いで新側を撮ったかの確認結果。キーごと無い旧成果物は停止している>",
     "display_axes": "<現側 capture_conditions.display_axes の基準の組（全軸の default）と各変種（variants）の値を、操作アダプタ applyDisplayAxes で新側にも当てて撮ったかの確認結果。当てられない値があれば停止している。キーごと無い旧成果物は停止している>",
     "browser": "<現側 capture_conditions.browser（launched / cdp）と、選択した新側 target の browser.cdp_url の有無が一致したかの確認結果（cdp なら接続先の環境も）。不一致なら停止している>",
+    "determinism": "<現側 capture_conditions.determinism の fixed_time・random_seed を新側にも当て、ページで読んだ時刻と seed が記録と一致したかの確認結果（determinism.mjs の verifyDeterminism。食い違えば撮らずに停止しているはず）。現側が fixed_time: null なら、時刻で変わる表示を比べていないことと fixed_time_reason を diff.md の未検証領域へ転記したこと。キーごと無い旧成果物は停止しているはず>",
     "masks": "<現側 masks のロケータを新側で解決してマスクできたかの確認結果（解決できないものは理由）>",
     "cofeature_masks": [
       {
@@ -91,7 +92,7 @@
     "measured_at_commit": "<測定時点の新側コミット SHA（replace-metadata.json の new.commit と同じ値）。人がどの commit で測ったかを追う値で、失効の判定には使わない（記録を commit しただけでも変わるため）>",
     "loop_iteration": "<測定時点の同 target の replace-metadata.json の loop.iterations（数値）>",
     "fingerprint": {
-      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / full_page / states / masks / animations / scrollbars / display_axes（axes の name・values・default・not_applicable と variants の label・viewport・values）/ browser（cdp なら接続先の同一性も含める: 解決した PARITY_NEW_CDP_URL の sha256 と、CDP Browser.getVersion の product・userAgent。URL そのものは書かない。同一性を取れないなら再利用せず測り直す）/ browser_identity（launched・cdp とも。雛形が書き出した new/<target>/browser-identity.baseline.json の browser_name・product・user_agent・channel・headless・browser_os・runner_os・scrollbar_px。今回の記録が無い・読めない・前回の指紋に無いなら再利用せず測り直す）/ popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
+      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / full_page / states / masks / animations / scrollbars / display_axes（axes の name・values・default・not_applicable と variants の label・viewport・values）/ determinism（fixed_time・random_seed）/ browser（cdp なら接続先の同一性も含める: 解決した PARITY_NEW_CDP_URL の sha256 と、CDP Browser.getVersion の product・userAgent。URL そのものは書かない。同一性を取れないなら再利用せず測り直す）/ browser_identity（launched・cdp とも。雛形が書き出した new/<target>/browser-identity.baseline.json の browser_name・product・user_agent・channel・headless・browser_os・runner_os・scrollbar_px。今回の記録が無い・読めない・前回の指紋に無いなら再利用せず測り直す）/ popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
       "differ": "<differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare} と traits.tool を正規化した文字列>",
       "dataset_version": "<測定時点の dataset_version（数値）。phase B との整合を免除した target では null>",
       "settle_wait": "<1 回目・2 回目とも操作アダプタの静止待ち（撮る対象の矩形が 2 回続けて同じ値になるまで待つ）を通して測ったなら true（真偽値で書く）。キーが無い・true でない前回記録は再利用しない>",

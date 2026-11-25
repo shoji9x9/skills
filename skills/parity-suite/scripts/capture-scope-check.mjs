@@ -38,6 +38,7 @@
 // 終了コード: 0 ＝ 条件を満たす、1 ＝ 抜け・不整合が残る（採取へ戻す）、2 ＝ 使い方の誤り・型崩れ。
 
 import { resolve } from "node:path";
+import { readDeterminism } from "./determinism.mjs";
 import { isArray } from "./lib/is-array.mjs";
 import { cliIo, usageFailer, writeCheckResult } from "./lib/check-cli.mjs";
 import { parseFlags } from "./lib/flags.mjs";
@@ -54,9 +55,10 @@ import {
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
+ * 6: 時刻と乱数の扱い（capture_conditions.determinism）を検査する。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /** `metadata.json` の `mode` の語彙（原本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -1299,6 +1301,37 @@ function checkAxesCrossed(st, pair) {
 }
 
 /**
+ * 撮る前に固定した時刻と乱数（`capture_conditions.determinism`）を検査する。
+ * 形の判定は、採取のスペックと parity-diff の新側の雛形が使う determinism.mjs の readDeterminism に任せ、ここで書き直さない。
+ * 書き直すと、ここを通った記録で新側の採取が止まる、という食い違いが起きる。
+ * 記録が無い成果物（手順の改訂 9 より前に閉じた機能）も落とす。新側を同じ扱いで撮れないからである。
+ * @param {Record<string, unknown>} conditions
+ * @returns {{code:string, message:string}[]}
+ */
+export function checkDeterminism(conditions) {
+  if (!Object.hasOwn(conditions, "determinism")) {
+    return [
+      {
+        code: "determinism-missing",
+        message:
+          "capture_conditions.determinism が無い（時刻を固定したか〈fixed_time〉と乱数を seed 付きにしたか〈random_seed〉を書く。固定せずに撮った既存の成果物は、fixed_time: null と理由・random_seed: null を書く）",
+      },
+    ];
+  }
+  try {
+    readDeterminism(conditions);
+    return [];
+  } catch (error) {
+    return [
+      {
+        code: "determinism-invalid",
+        message: `capture_conditions.determinism の形が違う（${errorMessage(error)}。新側の採取はこの記録で止まる）`,
+      },
+    ];
+  }
+}
+
+/**
  * 採取環境と利用者環境の一致（`capture_conditions.viewer_environment`）を検査する。
  *
  * 通すのは `一致: <確かめ方>` と `乖離: <内容と gaps.md の該当箇所>` の 2 形だけ。
@@ -1937,7 +1970,7 @@ function judgedScopeResult(findings, holes, counts) {
 }
 
 /**
- * 撮影条件のうち、範囲の実測より前に読む宣言（撮るはずの組・表示の軸・利用者環境・ブラウザ・はみ出し）を検査する。
+ * 撮影条件のうち、範囲の実測より前に読む宣言（撮るはずの組・表示の軸・利用者環境・時刻と乱数・ブラウザ・はみ出し）を検査する。
  * @param {Record<string, unknown>} conditions
  * @returns {{ declaredKeys: string[], findings: {code:string, message:string}[] }}
  */
@@ -1949,6 +1982,7 @@ function checkConditions(conditions) {
   findings.push(...declared.findings);
   findings.push(...displayAxes.findings);
   findings.push(...checkViewerEnvironment(conditions));
+  findings.push(...checkDeterminism(conditions));
   findings.push(...checkBrowser(conditions));
   findings.push(...checkOverflow(conditions));
   return { declaredKeys: declared.keys, findings };

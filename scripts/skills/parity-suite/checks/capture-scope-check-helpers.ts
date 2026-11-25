@@ -191,6 +191,7 @@ type MetadataOverride = {
   mode?: unknown;
   displayAxes?: unknown;
   viewerEnvironment?: unknown;
+  determinism?: unknown;
   browser?: unknown;
   browserIdentity?: unknown;
   traits?: unknown;
@@ -231,6 +232,10 @@ export function metadataOf(override: MetadataOverride = {}) {
         "viewerEnvironment",
         "一致: 利用者環境のブラウザへ接続し CSS.getPlatformFontsForNode で描いた書体を読んだ",
       ),
+      determinism: pick(override, "determinism", {
+        fixed_time: "2026-01-02T03:04:05Z",
+        random_seed: null,
+      }),
       browser: pick(override, "browser", "cdp"),
       browser_identity: pick(override, "browserIdentity", {
         product: "140.0.3485.54",

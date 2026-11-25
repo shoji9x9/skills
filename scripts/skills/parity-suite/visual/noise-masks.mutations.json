@@ -1,0 +1,54 @@
+{
+  "$comment": [
+    "noise-masks.test.ts のうち、領域を覆う要素を選ぶ判定と、特定できないときに特定できたことにしない判定の検出能力を示す変異の一覧（Issue #1106）。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で scripts/mutation/check-mutation-proof.ts が判定する。"
+  ],
+  "test_file": "scripts/skills/parity-suite/visual/noise-masks.test.ts",
+  "mutations": [
+    {
+      "id": "covers",
+      "why": "要素が領域を丸ごと覆うかを確かめず、どの要素も覆うものとして扱う",
+      "file": "skills/parity-suite/scripts/page/noise-masks.page.mjs",
+      "find": "    outer.x <= inner.x + TOLERANCE &&\n",
+      "replace": "    true ||\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "locateRegionsInPage 領域を丸ごと覆わない要素は飛ばして、覆う祖先を選ぶ",
+        "locateRegionsInPage 切り取る祖先が領域を覆わなければ、覆う要素のままにする"
+      ]
+    },
+    {
+      "id": "document-box",
+      "why": "html と body を、領域を覆う要素として選ぶ",
+      "file": "skills/parity-suite/scripts/page/noise-masks.page.mjs",
+      "find": "stack.find((el) => !isDocumentBox(el) && covers(",
+      "replace": "stack.find((el) => covers(",
+      "occurrences": 1,
+      "expect_failing": [
+        "locateRegionsInPage html と body しか覆わない領域は、座標と理由だけを返す"
+      ]
+    },
+    {
+      "id": "clipping",
+      "why": "overflow で切り取る祖先を選ばず、動く中身を選ぶ",
+      "file": "skills/parity-suite/scripts/page/noise-masks.page.mjs",
+      "find": "if (clips && covers(imageRect(current), region)) return current;",
+      "replace": "if (false) return current;",
+      "occurrences": 1,
+      "expect_failing": [
+        "locateRegionsInPage overflow で切り取る祖先が領域を覆えば、動く中身ではなく祖先を選ぶ"
+      ]
+    },
+    {
+      "id": "unique-selector",
+      "why": "1 つだけを指さないセレクタを、特定できたものとして返す",
+      "file": "skills/parity-suite/scripts/page/noise-masks.page.mjs",
+      "find": "return found.length === 1 && found[0] === el;",
+      "replace": "return found.length > 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "locateRegionsInPage 1 つだけを指すセレクタを作れなければ、特定できたことにしない"
+      ]
+    }
+  ]
+}

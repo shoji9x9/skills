@@ -730,6 +730,37 @@ test("scrollbars の欠落・語彙外は落とす（新側を同じ扱いで撮
   expect(codesOf(metadataOf({ scrollbars: null }))).toContain("scrollbars-unknown");
 });
 
+test("determinism をキーごと持たない成果物は落とす（新側を同じ扱いで撮れない）", () => {
+  const { determinism: _dropped, ...conditions } = metadataOf().capture_conditions;
+  expect(codesOf({ ...metadataOf(), capture_conditions: conditions })).toContain(
+    "determinism-missing",
+  );
+});
+
+test.each([
+  ["determinism が null", null],
+  ["random_seed のキーが無い", { fixed_time: "2026-01-02T03:04:05Z" }],
+  [
+    "固定しない理由がテンプレートのまま",
+    { fixed_time: null, fixed_time_reason: "<固定しない理由>", random_seed: null },
+  ],
+  ["時刻にタイムゾーンが無い", { fixed_time: "2026-01-02T03:04:05", random_seed: null }],
+])("%s なら determinism-invalid で落とす（新側の採取と同じ判定）", (_label, determinism) => {
+  expect(codesOf(metadataOf({ determinism }))).toContain("determinism-invalid");
+});
+
+test.each([
+  ["時刻を固定し seed を使わない", { fixed_time: "2026-01-02T03:04:05Z", random_seed: null }],
+  [
+    "時刻を固定せず理由を書き、seed を使う",
+    { fixed_time: null, fixed_time_reason: "時刻を表示しない画面", random_seed: 7 },
+  ],
+])("%s 記録は determinism の指摘を出さない", (_label, determinism) => {
+  expect(
+    codesOf(metadataOf({ determinism })).filter((code) => code.startsWith("determinism")),
+  ).toEqual([]);
+});
+
 test("overflow をキーごと持たない成果物は落とす（省略を免除にしない）", () => {
   const { overflow: _dropped, ...conditions } = metadataOf().capture_conditions;
   expect(codesOf({ ...metadataOf(), capture_conditions: conditions })).toContain(

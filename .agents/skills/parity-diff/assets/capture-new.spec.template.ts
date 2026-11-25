@@ -7,6 +7,7 @@
  *
  * 満たすべき条件は次のとおりである（parity-diff の references/capture-new.md が求める）。
  *   1. 現側と同じ条件で撮る。条件は手で書き写さず、metadata.json の capture_conditions から読む
+ *      （固定した時刻と乱数の seed も、capture_conditions.determinism の値をそのまま使う）
  *   2. 現側ベースラインと対称のレイアウトで書き出す（page × state × viewport の対応が取れる形）
  *   3. 同一条件で 2 回撮り、新側の自己ノイズを測れるようにする（2 回目は別ディレクトリへ）。
  *      2 回目は測定後に parity-diff が削除する一時作業物であり、成果物として残さない
@@ -51,6 +52,12 @@ import { test } from "@playwright/test";
 // TODO: プロジェクトの現側スペックが使っている呼び出し元をそのまま使う（現側と対称に書く）。
 //       パスは metadata.json の suite.locator_map / suite.interactions / suite.tools から読み、推測しない。
 import { captureTraits } from "../../lib/tools/vendor/trait-capture.mjs";
+// 時刻と乱数の固定（parity-suite が vendor/ へコピーした determinism.mjs。現側の採取と同じコピーを使う）
+import {
+  applyDeterminism,
+  readDeterminism,
+  verifyDeterminism,
+} from "../../lib/tools/vendor/determinism.mjs";
 import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>";
 // 新側のロケータ例外（new/<target>/replace-metadata.json の suite.locator_map_new が指すファイル）。
 // 例外ゼロなら parity-replace はこのファイルを作らないので、その場合はこの import ごと外す。
@@ -207,6 +214,11 @@ if (scrollbars !== "hidden" && scrollbars !== "shown") {
 if (scrollbars === "shown") {
   test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 }
+
+// 時刻と乱数は、現側が記録した値（capture_conditions.determinism）で固定する。新側を撮る日の時刻にしない。
+// 記録が無い・形が違うときは、ここで例外になり、どの組も撮らない（現側と同じ扱いで撮れたかを確かめられない）。
+// 形と、記録の無い既存の成果物の扱いは parity-suite の references/baseline.md「時刻と乱数を固定する」で定義する
+const determinism = readDeterminism(metadata.capture_conditions);
 
 // 撮影に使ったブラウザの同一性。launched でも、ランナー・OS の移動、Playwright の更新によるバージョンの変化、
 // channel / headless の変更で描画環境は変わる。parity-diff はこれを自己ノイズの指紋へ入れ、前回と違えば測り直す。
@@ -403,7 +415,10 @@ for (const viewport of shots) {
           mkdirSync(outDir, { recursive: true });
 
           await verifyCdpBrowser(page);
+          // 時刻と乱数はページを開く前に当て、開いた後に記録と同じ値をページで読めることを確かめる（食い違えば撮らずに止まる）
+          await applyDeterminism(page, determinism);
           await page.goto(pageDef.path);
+          await verifyDeterminism(page, determinism);
           // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
           if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });
           // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）。

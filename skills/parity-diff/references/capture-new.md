@@ -15,7 +15,9 @@
   - `new` から除外されていないと、採取専用の環境変数を持たない `parity-replace` の green の検証が、テストを集める時点で失敗する（往復ループが進まなくなる）。
   - 記録が無いときと、除外が設定されていないときは、撮影せずに止まって `parity-suite` へ設定を戻す（対になる規則である現側専用のスペックの除外の原本は、`parity-suite` の `references/locator-mapping.md`）
 - 撮影は、`suite.new_only` に記録した採取専用のプロジェクト（デフォルトは `new-capture`）で実行する（`--project new` では実行されない）。プロジェクトの名前が記録に無ければ、撮影せずに止まり、`parity-suite` へ戻す
-- 雛形が読む撮影の条件は、`metadata.json.capture_conditions` の `viewports`・`states`・`pages`・`masks`・`full_page`・`scrollbars`・`display_axes`・`browser` である。
+- 雛形が読む撮影の条件は、`metadata.json.capture_conditions` の `viewports`・`states`・`pages`・`masks`・`full_page`・`scrollbars`・`display_axes`・`browser`・`determinism` である。
+  `determinism` は、`parity-suite` が `vendor/` へコピーした `determinism.mjs`（隣の `page/determinism.page.mjs` を import する）で読んで当てる。
+  コピーが無ければ import で止まるので、`parity-suite` へ戻す
   `pages[].name` が `noise_baseline[].page` と同じ語彙であることを確かめる。
   語彙がずれると、`PARITY_NOISE_PAIRS` で使い回す組を絞り込んでも 1 組も一致せず、自己ノイズの測定が何も測らずに終わる。
   `masks[].name` は、ロケータのマッピングで解決できる論理名であることを確かめる
@@ -52,7 +54,7 @@
 環境の差を差分として報告しないために、撮影の前に条件が一致するかを確かめる。不一致を見つけたら、差分を報告せずに止まる。
 
 - `metadata.json.capture_conditions` の次の項目を、新側で再現できるかを確かめる。
-  `environment`・`viewports`・`full_page`・`scrollbars`・`display_axes`・`browser`・`animations: "disabled"`・`masks`・`states`
+  `environment`・`viewports`・`full_page`・`scrollbars`・`display_axes`・`browser`・`determinism`・`animations: "disabled"`・`masks`・`states`
 - ビューポートの寸法、アニメーションを止めること、マスクを当てることが現行と一致していることを、撮影の前に確かめる
 
 ### `capture_conditions_verified` は項目ごとに記録する
@@ -67,6 +69,7 @@
 | `scrollbars` | 現側の `scrollbars`（`hidden`・`shown`）と同じ扱いで新側を撮ったか。雛形は、`shown` のときは `--hide-scrollbars` を外して起動し、撮影に使うページに `overflow: scroll` の箱を置いてバーの幅を測る。`shown` なのに 0 のとき、`hidden` なのに 0 でないときは止まる（`cdp` では起動の引数が反映されないため）。ヘッドありの起動ではスクロールバーが場所を取るので、`hidden` の撮影には使わない。現側が `hidden`（デフォルトは `shown`。`scrollbars_reason` が付く）なら、スクロールバーが場所を取る差〈要素のはみ出し・横のバーの有無・バーの見た目〉を比べていないことを、理由とともに `diff.md` の未検証領域へ転記する。キーごと無い旧成果物は止まり、`parity-suite` へ戻す（原本は `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」） |
 | `display_axes` | 現側の `display_axes` の基準の組（すべての軸の `default`）と、各変種（`variants`）の値を、操作アダプタの `applyDisplayAxes`（`metadata.json.suite.interactions`）で新側にも当てて撮ったか。変種は `viewports` と同じく外側のループで回す。書き出し先は変種の `label` で、窓の寸法は変種の `viewport` が指す窓のものを使う。当てられない値があれば止まる。キーごと無い旧成果物は止まり、`parity-suite` へ戻す（原本は `parity-suite` の `references/baseline.md`「表示を切り替える軸（掛け合わせずに撮る）」） |
 | `browser` | 現側の `browser`（`launched`・`cdp`）と、選んだ新側の target の `browser.cdp_url` の有無が一致したか。`cdp` なら、`PARITY_NEW_CDP_URL` に解決して共通のフィクスチャで接続する。そして、接続したブラウザの `browser.version()` と `navigator.userAgent` と、描画するブラウザの側の OS〈`browser_os`〉が、現側の `browser_identity` と一致することも確かめる。`browser_os` は `parity-suite` の `references/locator-mapping.md` と同じ読み方と正規化で読み、キーの集合ごと一致することを確かめる。reduced UA は OS のバージョンを短くするので、バージョンと UA だけでは別の機械を見分けられない。現側に `browser_os` が無い旧成果物〈手順の改訂 5 より前〉は止まり、`parity-suite` で撮り直す。片側だけを利用者の環境で撮ると、環境の差がそのまま差分に出るので、一致しなければ止まる。キーごと無い旧成果物は止まり、`parity-suite` へ戻す（設定の原本は `parity-suite` の `references/locator-mapping.md`「利用者環境のブラウザへ接続する」） |
+| `determinism` | 現側の `determinism` の `fixed_time` と `random_seed` を新側にも当てて撮ったか。雛形は、ページを開く前に `applyDeterminism` で当て、開いた後に `verifyDeterminism` でページの時刻と seed を読み、記録と食い違えば撮らずに止まる（`fixed_time: null` なのにページの時刻が進まないときも止まる）。キーごと無い旧成果物は、`readDeterminism` が例外にするので撮らずに止まり、`parity-suite` へ戻す。現側が `fixed_time: null` なら、時刻で変わる表示を比べていないことを、`fixed_time_reason` とともに `diff.md` の未検証領域へ転記する。seed を揃えても、現行と新側で乱数を呼ぶ順序と回数が違えば値は揃わず、差分として報告される（原本は `parity-suite` の `references/baseline.md`「時刻と乱数を固定する」） |
 | `masks` | 現側の `masks` のロケータを新側でも解決して、マスクできたか（解決できないマスクは、値に理由を残す） |
 | `states` | 現側の `states` の各状態へ、操作アダプタ（`metadata.json.suite.interactions`。下の「論理名の解決」）で新側でも遷移できたか（遷移できない状態があれば止まる） |
 | `popup_inventory` | 現側の `popup_inventory` の整合が取れたかと、`diff.md` の未検証領域へ転記した `captured: null` の要素。整合の条件は、下の箇条書きの「現側 `capture_conditions.popup_inventory` を読む」にある。単一の文字列の `opened_by` は、旧形式として 1 要素の配列と同じに読む。キーごと無い旧成果物は止まる。ユーザーが承認した例外で続けたときだけ、`"absent: 承認済みの例外。ノイズ吸収なしで続行"` を記録する（整合が取れなければ止まる） |
@@ -269,7 +272,7 @@ PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> PARITY_NEW_TARG
 |---|---|---|
 | `--remeasure-noise` を指定した | 全組 | 実行時のフラグ |
 | 前の回の測定の記録（`noise_measurement`）が無い、不正な値である、`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
-| 撮影の条件が変わった（`capture_conditions` の `viewports`・`full_page`・`scrollbars`・`display_axes`・`browser`・`states`・`masks`・`animations`・`popup_inventory`）。`browser: cdp` では、接続先が同じであること〈解決した `PARITY_NEW_CDP_URL` の sha256 と、CDP の `Browser.getVersion` の `product`・`userAgent`〉も含める。同じであることを確かめられなければ測り直す | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影の条件が変わった（`capture_conditions` の `viewports`・`full_page`・`scrollbars`・`display_axes`・`browser`・`determinism`・`states`・`masks`・`animations`・`popup_inventory`）。`browser: cdp` では、接続先が同じであること〈解決した `PARITY_NEW_CDP_URL` の sha256 と、CDP の `Browser.getVersion` の `product`・`userAgent`〉も含める。同じであることを確かめられなければ測り直す | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 撮影に使ったブラウザが同じでなくなった（`launched`・`cdp` のどちらも）。比べるのは、ブラウザの名前・バージョン〈`browser.version()`〉・撮影に使うページで読んだ `navigator.userAgent`・`channel`・`headless`・描画するブラウザの側の OS〈`browser_os`〉である。`browser_os` は現側と同じ読み方と正規化で読む〈`use` を当てない別のコンテキストの安全なページで読んだ `navigator.userAgentData` の `platform`・`platformVersion`・`architecture`〉。`cdp` ではランナーと別の機械なので、Node の `os` で代えない。ランナーや OS の移動、Playwright の更新によるバージョンの変化、`channel` や `headless` の変更が当たる | 全組 | 今回の 1 回目の `new/<target>/browser-identity.baseline.json` と、`fingerprint.capture_conditions.browser_identity` の不一致。今回の記録が無い・読めない・前の回の fingerprint に無いときは、使い回さない（同じであることを確かめられない状態を、一致として扱わない） |
 | 差分ツールの種類やしきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}`・`traits.tool`） | 全組 | 同じく `fingerprint.differ` の不一致 |
 | 前の回の測定に、静止を待つ処理を通した記録が無い（`fingerprint.settle_wait` が無いか、`true` でない） | 全組 | 同じく `fingerprint.settle_wait`（静止を待つ処理を入れる前に測った値は、2 つの値のどちらかになる採取を「ノイズ 0」として持ち越すことがある） |

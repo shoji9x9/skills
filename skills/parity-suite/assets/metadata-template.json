@@ -182,6 +182,12 @@
     "scrollbars": "<撮影時にスクロールバーが場所を取ったか。shown（既定。場所を取る。current と new-capture プロジェクトの launchOptions.ignoreDefaultArgs で --hide-scrollbars を外した起動・ヘッドあり起動）| hidden（場所を取らない。Playwright のヘッドレス Chromium の既定は --hide-scrollbars で hidden。スクロール領域のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・バーの見た目の差が 3 つの比較方法のどれにも記録されないので、scrollbars_reason が要る）。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ場所を取ると、見える幅・高さが厚みの分ずれて全面差分になる）>",
     "scrollbars_reason": "<scrollbars が hidden のときだけ、スクロールバーを隠して撮る理由（同じ内容を gaps.md に残す）。無い・プレースホルダのままは capture-scope-check.mjs が落とす。shown ではキーごと消す>",
     "scrollbar_environment": "<scrollbars が shown のとき、どの OS・ブラウザのどの種類（クラシック / オーバーレイ）のスクロールバーで撮ったか（例: Linux の headless Chromium 140〈クラシック・15px〉）。バーの描き方は OS とブラウザで変わるので、撮ったバーの画素・厚みを利用者環境の見え方の根拠にしない（種類が違えば viewer_environment を乖離にする）。hidden ではキーごと消す>",
+    "determinism": {
+      "_note": "撮る前に固定した時刻と乱数（feature モードではキーごと省かない）。採取のスペックは同梱の scripts/determinism.mjs（プロジェクト側コピー）の readDeterminism で読み、applyDeterminism を page.goto の前に、verifyDeterminism を撮る前に呼ぶ。parity-diff の新側の採取は同じ値で撮り、このキーが無い・形が違う・ページで読んだ値が食い違うときは撮らずに止まる。原本は parity-suite の references/baseline.md「時刻と乱数を固定する」。",
+      "fixed_time": "<固定する時刻。タイムゾーンを付けた ISO 8601（例: 2026-01-02T03:04:05Z）。現側と新側で同じ値を使う。固定しないなら null>",
+      "fixed_time_reason": "<fixed_time が null のときだけ、固定しない理由。固定するならキーごと消す>",
+      "random_seed": "<乱数の seed（0〜4294967295 の整数）。Math.random・crypto.getRandomValues・crypto.randomUUID を seed 付きにする。しないなら null。現行と新側で乱数を呼ぶ順序と回数が違えば、同じ seed でも値は揃わない>"
+    },
     "pages": [
       {
         "name": "<ページ名。noise_baseline[].page と同じ語彙を使う（parity-diff が組の再測定範囲を突き合わせるため）>",
@@ -383,7 +389,26 @@
       "pixel_diff": 0,
       "pixel_diff_strict": 0,
       "pixel_diff_strict_only": 0,
-      "trait_diffs": 0
+      "trait_diffs": 0,
+      "mask_candidates": {
+        "_note": "2 回撮りで差が出た領域を覆う要素（マスクの候補）。2 回目を撮った直後に同梱の scripts/noise-masks.mjs（プロジェクト側コピー）の suggestNoiseMasks が書いた mask-candidates.json から、status・candidates・unlocated・omitted_regions を転記する。候補は報告するもので、恒久マスクには自動で入れない。原本は parity-suite の references/baseline.md「揺れた要素からマスクの候補を出す」。",
+        "status": "<ok | size-mismatch（1 回目と 2 回目の寸法が違い、比べられなかった）>",
+        "candidates": [
+          {
+            "selector": "<選んだ要素を 1 つだけ指す CSS セレクタ>",
+            "basis": "<clipping-ancestor（overflow で切り取る祖先）| covering（領域を覆う要素）>",
+            "element_rect": { "x": 0, "y": 0, "width": 0, "height": 0 },
+            "regions": [{ "x": 0, "y": 0, "width": 0, "height": 0 }]
+          }
+        ],
+        "unlocated": [
+          {
+            "region": { "x": 0, "y": 0, "width": 0, "height": 0 },
+            "reason": "<要素を特定できなかった理由。特定できたことにしない>"
+          }
+        ],
+        "omitted_regions": 0
+      }
     }
   ],
   "runtime_errors": {

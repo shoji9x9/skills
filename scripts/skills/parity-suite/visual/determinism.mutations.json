@@ -1,0 +1,73 @@
+{
+  "$comment": [
+    "determinism.test.ts のうち、時刻と乱数の記録を読む判定と、ページで読んだ値が記録と食い違うときに止める判定の検出能力を示す変異の一覧（Issue #1106）。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で scripts/mutation/check-mutation-proof.ts が判定する。"
+  ],
+  "test_file": "scripts/skills/parity-suite/visual/determinism.test.ts",
+  "mutations": [
+    {
+      "id": "placeholder-reason",
+      "why": "固定しない理由がテンプレートのままや TODO でも受け付ける",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "|| isPlaceholder(reason.trim())",
+      "replace": "|| false",
+      "occurrences": 1,
+      "expect_failing": [
+        "readDeterminism 固定しない理由がテンプレートのまま なら例外で止まる",
+        "readDeterminism 固定しない理由が TODO なら例外で止まる",
+        "readDeterminism 固定しない理由が 未確認 なら例外で止まる"
+      ]
+    },
+    {
+      "id": "timezone-optional",
+      "why": "タイムゾーンの無い時刻を受け付ける（撮る環境のタイムゾーンで解釈が変わる）",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "(Z|[+-]\\d{2}:\\d{2})$/;",
+      "replace": "(Z|[+-]\\d{2}:\\d{2})?$/;",
+      "occurrences": 1,
+      "expect_failing": ["readDeterminism 時刻にタイムゾーンが無い なら例外で止まる"]
+    },
+    {
+      "id": "clock-value",
+      "why": "ページの時刻が記録と違う値に固定されていても通す",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "(seen.now !== determinism.fixedTimeMs || seen.later !== seen.now)",
+      "replace": "(seen.later !== seen.now)",
+      "occurrences": 1,
+      "expect_failing": ["verifyDeterminism 別の時刻に固定されている なら例外で止まる"]
+    },
+    {
+      "id": "clock-frozen",
+      "why": "記録の時刻から始まって進む時計（固定されていない）を通す",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "(seen.now !== determinism.fixedTimeMs || seen.later !== seen.now)",
+      "replace": "(seen.now !== determinism.fixedTimeMs)",
+      "occurrences": 1,
+      "expect_failing": ["verifyDeterminism 時刻は合うが進む なら例外で止まる"]
+    },
+    {
+      "id": "unfixed-frozen",
+      "why": "固定しない記録なのに、ページの時刻が固定されていても通す",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "if (determinism.fixedTimeMs === null && seen.later === seen.now) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "verifyDeterminism 固定しない記録なのに時刻が固定されている なら例外で止まる"
+      ]
+    },
+    {
+      "id": "seed",
+      "why": "ページの seed が記録と違っても通す",
+      "file": "skills/parity-suite/scripts/determinism.mjs",
+      "find": "if (seen.seed !== determinism.randomSeed) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "verifyDeterminism seed が当たっていない なら例外で止まる",
+        "verifyDeterminism 別の seed が当たっている なら例外で止まる",
+        "verifyDeterminism seed 付きにしない記録なのに seed が当たっている なら例外で止まる"
+      ]
+    }
+  ]
+}

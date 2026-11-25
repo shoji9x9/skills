@@ -90,6 +90,8 @@
 - 撮影範囲（全画面かビューポートの中か）も `capture_conditions.full_page` に残す。記録しないと新側が決め打ちで撮り、画像のサイズの違いが全面の差分として出る。
 - スクロールバーが場所を取ったかも `capture_conditions.scrollbars` に残す。片側だけ場所を取ると、見える幅と高さが厚みのぶんずれる。
   **デフォルトは `shown`**（`--hide-scrollbars` を外して撮る）で、`hidden` で撮るなら理由を `scrollbars_reason` に書く。詳細は下の「スクロールバーが場所を取る窓のはみ出し」にある。
+- 時刻を固定したか（固定した時刻）と、乱数を seed 付きにしたか（seed）を `capture_conditions.determinism` に残す。
+  記録が無いと、`parity-diff` は新側を撮らずに止まる。詳細は下の「時刻と乱数を固定する」にある。
 - 表示を切り替える軸（ロケール・配色テーマなど）の値と、撮影に使ったブラウザも残す。
   デフォルトの 1 つの値だけで撮った差や、採取環境でだけ成り立つ一致は、3 つの比較方法のどれにも記録されない
   （下の「表示を切り替える軸（掛け合わせずに撮る）」「採取環境と利用者環境の乖離」）。
@@ -170,6 +172,43 @@ writeFileSync(join(outDir, "mask-rects.json"), `${JSON.stringify(maskRects, null
 ```
 
 `parity-diff` がこの記録をどう読むか（矩形の縁の丸め方を含む）は、`parity-diff` の `references/detect.md`「マスクを当てた矩形の記録（`mask-rects.json`）」で定義する。
+
+### 時刻と乱数を固定する
+
+ページが読む時刻（`Date`）と乱数（`Math.random`・`crypto.getRandomValues`・`crypto.randomUUID`）は、撮るたびに変わる。
+「〜分前」の表示、日付で決まる表示、乱数で決まる並びや ID は、固定しないと 2 回撮るだけで差分になり、マスクで隠すしかない。
+同梱の [`../scripts/determinism.mjs`](../scripts/determinism.mjs) で、撮る前に時刻と乱数を固定する。
+trait-capture.mjs と同じく、プロジェクトの `vendor/` へコピーして使う。ページで実行する [`../scripts/page/determinism.page.mjs`](../scripts/page/determinism.page.mjs) も、同じバージョンから `vendor/page/` へコピーする。
+`parity-diff` の新側の採取の雛形も、同じコピーを import する。
+
+記録の形は次のとおりである（テンプレートは `assets/metadata-template.json` の `capture_conditions.determinism`）。
+
+| キー | 値 |
+| --- | --- |
+| `fixed_time` | 固定する時刻。タイムゾーンを付けた ISO 8601（例: `2026-01-02T03:04:05Z`）。固定しないなら `null` |
+| `fixed_time_reason` | `fixed_time` が `null` のときだけ、固定しない理由。空とテンプレートの `<…>` のままは受け付けない |
+| `random_seed` | 乱数の seed（0〜4294967295 の整数）。seed 付きにしないなら `null` |
+
+- 採取のスペックは、`readDeterminism(metadata.capture_conditions)` で記録を読み、ページを開く前に `applyDeterminism(page, 条件)` を、開いた後で撮る前に `verifyDeterminism(page, 条件)` を呼ぶ。
+  記録が無い・形が違う・ページで読んだ時刻や seed が記録と食い違うときは、例外で止まる。撮った後に気付いても、どちらの条件で撮ったかが分からない。
+- 記録の形は、手順 8 の `capture-scope-check.mjs` も同じ `readDeterminism` で確かめる。
+  キーが無ければ `determinism-missing`、形が違えば `determinism-invalid` で失敗にするので、書き忘れたまま機能を閉じられない。
+- 時刻は Playwright の `page.clock.setFixedTime` で固定する（出典: <https://playwright.dev/docs/api/class-clock#clock-set-fixed-time>）。
+  `Date.now()` と `new Date()` は固定した時刻を返し、タイマー（`setTimeout`・`requestAnimationFrame`）は進む。
+  タイマーを止めて 1 フレームとして撮る方法（`clock.pauseAt`）は使わない。ノイズを測る 2 回撮りで止めると、揺れを 0 と記録して隠すからである。
+- 固定する時刻は、現側と新側で同じ値にする。新側は後の日に撮るので、撮る日の時刻にはしない。記録した値を、`parity-diff` がそのまま使う。
+  ページの scripts が時刻でトークンや期限を確かめるなら、固定した時刻が期限の外に出ないかを確かめる。サーバーの時刻は固定されないので、ページとサーバーの時刻の差で表示が変わることもある。
+  画面が時刻で決まる部分を持たず、固定すると動かなくなるなら、`fixed_time: null` にして理由を書く。
+- 乱数は、`page.addInitScript` でページの scripts より先に seed 付きの関数に差し替える（出典: <https://playwright.dev/docs/api/class-page#page-add-init-script>）。
+  seed 付きにすると、同じ側を 2 回撮ったときの乱数は揃う。
+  現行と新側は実装が違うので、乱数を呼ぶ順序と回数が違えば、同じ seed でも違う値になる。揃わなければ、`parity-diff` の差分として報告される。
+  乱数で決まる表示を現新で揃えたいときだけ seed 付きにし、揃わない表示はマスクで扱う（下の「揺れた要素からマスクの候補を出す」）。
+  Web Worker と Service Worker の中の乱数と、サーバーが決める値は固定されない。
+- `locale` と `timezoneId` は固定の対象にしない。表示を切り替える軸として数える（下の「表示を切り替える軸（掛け合わせずに撮る）」）。
+- `determinism` を持たない既存の `metadata.json` は、時刻も乱数も固定せずに撮った成果物である。
+  撮り直して固定するか、固定せずに撮った事実（`fixed_time: null` と理由、`random_seed: null`）を記録するかを決める。
+  決めたことは、手順・観点の変更の台帳 `.replace/procedure-changes.md` に記録する（手順の改訂 9。台帳の原本は `replace-strategy` の `references/procedure-changes.md`）。
+  事実を記録するだけなら、撮り直さなくてよい。記録しないまま `parity-diff` に渡すと、新側を撮らずに止まる。
 
 ### ページの path の解決規則
 
@@ -1049,6 +1088,35 @@ if (capturing) {
   - 同じ状態名を `captured` に持つ `visual_state_coverage.rows` の行も、`captured: null` と `reason` に切り替える。
     切り替えないと、`coverage-expand.mjs --metadata` が「`states` に無い状態名」として失敗にする。切り替えれば、「撮れない状態」として理由が残る。
     `states` に残すと、`parity-diff` の事前の確認が `noise_baseline` の欠けで止まり、新側の採取もその状態の `applyState` で例外になる。
+
+### 揺れた要素からマスクの候補を出す
+
+2 回撮りで差が出ても、差の量しか記録しないと、どの要素が揺れたかが分からない。マスクを当てる場所を、人が差分の画像から探すことになる。
+2 回目を撮った直後に、開いたままのページで、同梱の [`../scripts/noise-masks.mjs`](../scripts/noise-masks.mjs) の `suggestNoiseMasks` を呼ぶ。
+trait-capture.mjs と同じく、プロジェクトの `vendor/` へコピーして使い、[`../scripts/page/noise-masks.page.mjs`](../scripts/page/noise-masks.page.mjs) も同じバージョンから `vendor/page/` へコピーする。
+PNG のデコードに `pngjs` を使う（無ければ、入れてよいかを利用者に確かめる）。
+
+```ts
+// 2 回目（noise-pass2/）の撮影と、同じ組の他の採取を済ませた後に呼ぶ。全画面の撮影では領域を探すためにスクロールするので、最後に置く
+const suggestion = await suggestNoiseMasks(page, {
+  baseline: join(baselineDir, "screenshot.png"),
+  pass2: join(outDir, "screenshot.png"),
+  fullPage,
+});
+writeFileSync(join(outDir, "mask-candidates.json"), `${JSON.stringify(suggestion, null, 2)}\n`);
+```
+
+- 差の画素を近いものどうし（8 CSS px の升目が隣り合うもの）で領域にまとめ、領域ごとに、領域を丸ごと覆う要素をページで探す。
+  その要素か祖先に overflow で切り取る要素（`overflow` が `visible` 以外）があり、それも領域を覆うなら、いちばん近いものを選ぶ。
+  切り取る枠の中で動く中身（カルーセルの帯など）にマスクを当てると、塗る範囲が枠の外まで広がるからである。
+- 選んだ要素を 1 つだけ指す CSS セレクタ（`id`、`data-testid` などのテスト用の属性、親からの位置の順に試す）を、候補として `candidates` に入れる。同じセレクタに当たった領域は 1 つの候補にまとめる。
+- 要素を特定できない領域（`html` と `body` しか覆わない、疑似要素で描いた、セレクタが 1 つに決まらない）は、座標と理由だけを `unlocated` に入れる。特定できたことにしない。
+- 領域が 50 を超えたら、超えた分は件数だけを `omitted_regions` に残す。1 回目と 2 回目の寸法が違えば `status: "size-mismatch"` で、候補を出さない。
+- 基準値を `metadata.json.noise_baseline` に書くときに、同じ組の `mask-candidates.json` の `status`・`candidates`・`unlocated`・`omitted_regions` を、その行の `mask_candidates` に転記する。
+  差が出なかった組では、`candidates` と `unlocated` が空になる。転記した後は、`noise-pass2/` と一緒に消す（下の「2 回目の採取物は基準値を記録したら削除する」）。
+- 候補と特定できなかった領域を、利用者に報告する。候補はそのまま恒久マスクにしない。
+  時刻と乱数で揺れたなら固定で（上の「時刻と乱数を固定する」）、出現の途中で撮ったなら待ちで（上の「撮る対象が動かなくなるまで待つ」）直せないかを先に確かめる。
+  マスクにするなら、論理名をロケータマッピングに足し、方針（[`auth.md`](auth.md)）に沿って `capture_conditions.masks` に書く。
 
 ### 2 回目の採取物は基準値を記録したら削除する
 
