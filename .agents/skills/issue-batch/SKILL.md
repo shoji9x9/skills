@@ -135,6 +135,7 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 ## 最終報告
 
 実行の順に並べた表で、Issue・入力の順・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由・飛ばした理由・対象から外した理由を示す。
+Issue の status を In progress にしなかった Issue は、その理由も表に書く（`references/orchestration.md`「issue-start への handoff」の 2）。
 local review の欄には、手元でレビューしていない範囲（`unreviewed_range`）があれば、その範囲も書く。`has_merge` が真の範囲には、取り込んだ base の変更（他の PR の変更）も範囲に入っていることを書き添える。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
 `SKIPPED` と `EXCLUDED` の Issue も表に載せる。`EXCLUDED` の対象から外した理由には、当たった兆候と利用者の選択か、外した依存先の番号を書く。

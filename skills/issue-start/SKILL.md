@@ -106,7 +106,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
      - remote にもある場合: `gh issue develop --list <番号> --repo <owner>/<repo>` で、紐付けを実際に確かめる。
        PR が既にあると、紐付けは PR へ移り、この一覧は空になる（実測）。
        そのため、空だったときは `gh pr list --head <branch>` も見てから判断する。PR があれば紐付け済みで、無ければ上と同じ回復を考える
-     - 紐付けを確かめられたら、branch に入る。共有ツリーなら checkout する
+     - 紐付けを確かめられたら、branch に入る。共有ツリーなら checkout する。入った後に、Issue の status を In progress にする（step 7 の最後の項）
      - worktree で作業する場合は、branch は既にあるので、`gh issue develop` で作り直さない。
        local の ref が無ければ、`git fetch origin '+refs/heads/<branch>:refs/remotes/origin/<branch>'` と
        `git branch <branch> FETCH_HEAD` で作ってから、`git-worktree enter <branch>` と同じ取り決めで入る。
@@ -150,6 +150,8 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
      フォークして動くスキル・バックグラウンドの Bash が、呼び出し元の作業ツリーで動く。
      入った後の Bash は、`git-worktree` の `references/isolation.md`「隔離中の Bash は 1 コマンドずつ素の形で書く」に従い、最初からその形で書く。
      heredoc・複合コマンド（`;`・`&&`・`for`・パイプ）・コマンド置換を含む処理は、ファイルを書くツールでスクリプトにして絶対パスで実行し、git の操作は単独の呼び出しにする
+   - ブランチを作った後に、Issue の status を In progress にする（step 6 で既存のブランチに入った後も同じ）。
+     手順と結果の扱いは [`references/issue-status.md`](references/issue-status.md) で定義する。参照先を読めないときは、設定せずに続けて、そのことを利用者に伝える
 8. **Issue に書かれた影響範囲をそのまま信じず、今の状態に対して確かめ直す**（計画と実装に進む前。すべてのモードで行う）
    - Issue に書かれた対象（ファイル・パス・モジュール）だけを出発点にしない。今のコードから影響範囲を独立に導き直して、突き合わせる。
      書かれたパスは、既に名前が変わったり、移動・削除されたりしていることがある
@@ -172,7 +174,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
      - 拡大（書かれた範囲の外に影響する、書かれたパスが無い）: 影響範囲を決め直し、Issue の更新や分割を相談する
    - ずれが作業の範囲や実装の方針を変えるほど大きいなら、実装に進まずに利用者に確認する（「追加確認が必要な条件」）
 9. 選んだモードに応じて、後の処理に進む（各モードの挙動は「使い方」にある）。
-   **`--branch-only` はここで終わる。** ブランチの名前、checkout したかどうか、step 8 の現状の確認の結果（ずれがあればその分類）を報告して返る。
+   **`--branch-only` はここで終わる。** ブランチの名前、checkout したかどうか、Issue の status を In progress にしたかどうか、step 8 の現状の確認の結果（ずれがあればその分類）を報告して返る。
    調査・実装・commit・push・PR のどれも行わない。
    **`--acceptance` は、step 1〜3（リポジトリの一致の確認と Issue の取得）の後、step 4〜8 を飛ばして step 10 だけを行う。**
    検査の結果（終了コード・`closable`・`findings`・`warnings`）を報告して返る
