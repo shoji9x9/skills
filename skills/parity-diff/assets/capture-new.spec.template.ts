@@ -415,10 +415,9 @@ for (const viewport of shots) {
           mkdirSync(outDir, { recursive: true });
 
           await verifyCdpBrowser(page);
-          // 時刻と乱数はページを開く前に当て、開いた後に記録と同じ値をページで読めることを確かめる（食い違えば撮らずに止まる）
+          // 時刻と乱数はページを開く前に当てる
           await applyDeterminism(page, determinism);
           await page.goto(pageDef.path);
-          await verifyDeterminism(page, determinism);
           // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
           if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });
           // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）。
@@ -426,6 +425,8 @@ for (const viewport of shots) {
           // （parity-suite の references/baseline.md「撮る対象が動かなくなるまで待つ」で定義する）。
           // 出現直後に撮ると 1 画素の上下で結果が 2 値に転び、自己ノイズの 2 回撮りでは検出できない
           await applyState(page, state);
+          // 撮る直前に時刻と seed を確かめる（表示の軸と状態の操作でも乱数の関数が置き換わりうる。食い違えば撮らずに止まる）
+          await verifyDeterminism(page, determinism);
 
           await captureArtifacts(page, outDir);
         });

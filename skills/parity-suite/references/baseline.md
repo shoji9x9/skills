@@ -189,7 +189,8 @@ trait-capture.mjs と同じく、プロジェクトの `vendor/` へコピーし
 | `fixed_time_reason` | `fixed_time` が `null` のときだけ、固定しない理由。空とテンプレートの `<…>` のままは受け付けない |
 | `random_seed` | 乱数の seed（0〜4294967295 の整数）。seed 付きにしないなら `null` |
 
-- 採取のスペックは、`readDeterminism(metadata.capture_conditions)` で記録を読み、ページを開く前に `applyDeterminism(page, 条件)` を、開いた後で撮る前に `verifyDeterminism(page, 条件)` を呼ぶ。
+- 採取のスペックは、`readDeterminism(metadata.capture_conditions)` で記録を読み、ページを開く前に `applyDeterminism(page, 条件)` を呼ぶ。
+  表示の軸と状態を当てた後、撮る直前に `verifyDeterminism(page, 条件)` を呼ぶ。それらの操作で動いた scripts が乱数の関数を置き換えることもあるからである。
   記録が無い・形が違う・ページで読んだ時刻や seed が記録と食い違うときは、例外で止まる。撮った後に気付いても、どちらの条件で撮ったかが分からない。
 - 記録の形は、手順 8 の `capture-scope-check.mjs` も同じ `readDeterminism` で確かめる。
   キーが無ければ `determinism-missing`、形が違えば `determinism-invalid` で失敗にするので、書き忘れたまま機能を閉じられない。

@@ -1,14 +1,18 @@
 // 撮影の前に時刻と乱数を固定する処理（parity-suite 同梱の determinism.mjs）のテスト（Issue #1106）。
 // 期待値は parity-suite の references/baseline.md「時刻と乱数を固定する」の記録の形と、食い違えば撮らずに止まる取り決めから決める。
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import { createContext, runInContext } from "node:vm";
 import {
   applyDeterminism,
   readDeterminism,
   verifyDeterminism,
 } from "../../../../skills/parity-suite/scripts/determinism.mjs";
-import { installSeededRandom } from "../../../../skills/parity-suite/scripts/page/determinism.page.mjs";
+import {
+  installSeededRandom,
+  readPageDeterminism,
+} from "../../../../skills/parity-suite/scripts/page/determinism.page.mjs";
+import { runFromSource } from "./page-source.ts";
 
 const FIXED = "2026-01-02T03:04:05Z";
 const FIXED_MS = Date.parse(FIXED);
@@ -40,6 +44,13 @@ describe("readDeterminism", () => {
     expect(
       readDeterminism({ determinism: { fixed_time: FIXED, random_seed: 4294967295 } }).randomSeed,
     ).toBe(4294967295);
+  });
+
+  test("0〜99 年の時刻も、1900 年を足さずにそのまま読む", () => {
+    expect(
+      readDeterminism({ determinism: { fixed_time: "0099-01-02T03:04:05Z", random_seed: null } })
+        .fixedTimeMs,
+    ).toBe(Date.parse("0099-01-02T03:04:05Z"));
   });
 
   test("タイムゾーンのオフセットとミリ秒を付けた時刻を読む", () => {
@@ -316,5 +327,66 @@ describe("verifyDeterminism", () => {
     },
   ])("$label なら例外で止まる", async ({ seen, determinism, message }) => {
     await expect(verifyDeterminism(pageReading(seen), determinism)).rejects.toThrow(message);
+  });
+});
+
+describe("readPageDeterminism", () => {
+  const MARKERS = ["__parityRandomSeed", "__parityRandomApis"];
+  afterEach(() => {
+    for (const name of MARKERS) Reflect.deleteProperty(globalThis, name);
+  });
+
+  /** ページへ渡すのと同じく、ソースだけを評価し直して呼ぶ（本体の外の名前を参照すると失敗する）。 */
+  const readFromSource = async () => {
+    const result: unknown = await runFromSource(readPageDeterminism, []);
+    return result;
+  };
+
+  test("差し替えていないページでは、seed の印が無く、差し替えた関数のままでもない", async () => {
+    const seen = await readFromSource();
+    expect(seen).toMatchObject({ seed: null, intact: false });
+  });
+
+  test("印と、今の Math.random と crypto の関数を指す記録があれば、seed を返し intact にする", async () => {
+    Object.assign(globalThis, {
+      __parityRandomSeed: 5,
+      __parityRandomApis: {
+        random: Math.random,
+        getRandomValues: Reflect.get(crypto, "getRandomValues"),
+        randomUUID: Reflect.get(crypto, "randomUUID"),
+      },
+    });
+    expect(await readPageDeterminism()).toMatchObject({ seed: 5, intact: true });
+  });
+
+  test("記録した関数と今の Math.random が違えば intact にしない", async () => {
+    Object.assign(globalThis, {
+      __parityRandomSeed: 5,
+      __parityRandomApis: {
+        random: () => 0.5,
+        getRandomValues: Reflect.get(crypto, "getRandomValues"),
+        randomUUID: Reflect.get(crypto, "randomUUID"),
+      },
+    });
+    expect(await readPageDeterminism()).toMatchObject({ seed: 5, intact: false });
+  });
+
+  test("20ms 待つ前と後の時刻を返す（固定していない時計では進む）", async () => {
+    const seen = await readPageDeterminism();
+    expect(seen.later).toBeGreaterThan(seen.now);
+  });
+
+  test("verifyDeterminism は readPageDeterminism を page.evaluate へ渡す", async () => {
+    const passed: unknown[] = [];
+    await verifyDeterminism(
+      {
+        evaluate: async (fn: unknown) => {
+          passed.push(fn);
+          return { now: 1000, later: 1020, seed: null, intact: false };
+        },
+      },
+      { fixedTimeMs: null, randomSeed: null },
+    );
+    expect(passed).toEqual([readPageDeterminism]);
   });
 });

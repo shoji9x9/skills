@@ -76,3 +76,29 @@ export function installSeededRandom(seed) {
   Object.defineProperty(globalThis, "__parityRandomSeed", { value: seed, configurable: true });
   Object.defineProperty(globalThis, "__parityRandomApis", { value: installed, configurable: true });
 }
+
+/**
+ * ページの時刻と乱数の状態を読む（verifyDeterminism が page.evaluate へ渡す関数の本体）。
+ * 最初の時刻・20ms 待った後の時刻・seed の印・差し替えた乱数の関数のままか（intact）を返す。
+ * page.evaluate は関数のソースだけを送るので、本体の外の名前を参照しない。
+ * @returns {Promise<{ now: number, later: number, seed: unknown, intact: boolean }>}
+ */
+export async function readPageDeterminism() {
+  /** @type {unknown} */
+  const marker = Reflect.get(globalThis, "__parityRandomSeed");
+  /** @type {unknown} */
+  const apis = Reflect.get(globalThis, "__parityRandomApis");
+  // 差し替えた後に、ページの scripts が乱数の関数を別の関数に置き換えていないか
+  const cryptoObject = globalThis.crypto;
+  const intact =
+    typeof apis === "object" &&
+    apis !== null &&
+    Math.random === Reflect.get(apis, "random") &&
+    (cryptoObject === undefined ||
+      cryptoObject.getRandomValues === Reflect.get(apis, "getRandomValues")) &&
+    (cryptoObject === undefined || cryptoObject.randomUUID === Reflect.get(apis, "randomUUID"));
+  const first = Date.now();
+  // 固定した時刻でもタイマーは進むので、待った後に読んだ値が同じなら時刻は固定されている
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  return { now: first, later: Date.now(), seed: marker === undefined ? null : marker, intact };
+}

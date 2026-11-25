@@ -23,7 +23,11 @@
 //
 // Playwright はピア前提であり import しない（Page は引数で受け取る）。TypeScript 構文は使わない（型は JSDoc）。
 
-import { PAGE_VERSION, installSeededRandom } from "./page/determinism.page.mjs";
+import {
+  PAGE_VERSION,
+  installSeededRandom,
+  readPageDeterminism,
+} from "./page/determinism.page.mjs";
 
 /**
  * ツールのバージョン（原本）。読み取りの規則・当て方・確かめ方を変えたら上げる。
@@ -77,16 +81,11 @@ function parseFixedTime(value) {
     offsetMinute = "0",
   ] = match;
   const fields = [year, month, day, hour, minute, second].map(Number);
-  const local = Date.UTC(
-    fields[0],
-    fields[1] - 1,
-    fields[2],
-    fields[3],
-    fields[4],
-    fields[5],
-    Number(fraction.padEnd(3, "0")),
-  );
-  const back = new Date(local);
+  // Date.UTC は 0〜99 年に 1900 を足すので、setUTCFullYear で年をそのまま当てる
+  const back = new Date(0);
+  back.setUTCFullYear(fields[0], fields[1] - 1, fields[2]);
+  back.setUTCHours(fields[3], fields[4], fields[5], Number(fraction.padEnd(3, "0")));
+  const local = back.getTime();
   const same = [
     back.getUTCFullYear(),
     back.getUTCMonth() + 1,
@@ -227,7 +226,7 @@ export async function applyDeterminism(page, determinism) {
  */
 
 /**
- * ページで読んだ時刻と seed が、記録した条件と同じかを確かめる。ページを開いた後、撮る前に呼ぶ。
+ * ページで読んだ時刻と seed が、記録した条件と同じかを確かめる。表示の軸と状態を当てた後、撮る直前に呼ぶ。
  * 食い違えば例外にする（撮らずに止まる）。当て忘れ・当てた値の誤り・別の処理による上書きを見つける。
  * 時刻を固定しない条件（fixedTimeMs が null）では、間を置いて 2 回読んだ時刻が進むこと（固定されていないこと）を確かめる。
  * seed を使う条件では、撮る前も乱数の関数が差し替えた関数のままかを確かめる。seed を使わない条件では、差し替えの印が無いことを確かめる。
@@ -235,25 +234,7 @@ export async function applyDeterminism(page, determinism) {
  * @param {Determinism} determinism - readDeterminism の戻り値
  */
 export async function verifyDeterminism(page, determinism) {
-  const seen = await page.evaluate(async () => {
-    /** @type {unknown} */
-    const marker = Reflect.get(globalThis, "__parityRandomSeed");
-    /** @type {unknown} */
-    const apis = Reflect.get(globalThis, "__parityRandomApis");
-    // 差し替えた後に、ページの scripts が乱数の関数を別の関数に置き換えていないか
-    const cryptoObject = globalThis.crypto;
-    const intact =
-      typeof apis === "object" &&
-      apis !== null &&
-      Math.random === Reflect.get(apis, "random") &&
-      (cryptoObject === undefined ||
-        cryptoObject.getRandomValues === Reflect.get(apis, "getRandomValues")) &&
-      (cryptoObject === undefined || cryptoObject.randomUUID === Reflect.get(apis, "randomUUID"));
-    const first = Date.now();
-    // 固定した時刻でもタイマーは進むので、待った後に読んだ値が同じなら時刻は固定されている
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    return { now: first, later: Date.now(), seed: marker === undefined ? null : marker, intact };
-  });
+  const seen = await page.evaluate(readPageDeterminism);
   if (
     determinism.fixedTimeMs !== null &&
     (seen.now !== determinism.fixedTimeMs || seen.later !== seen.now)

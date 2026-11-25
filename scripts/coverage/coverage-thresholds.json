@@ -90,7 +90,7 @@
     },
     {
       "path": "skills/parity-suite/scripts/page/determinism.page.mjs",
-      "reason": "ページで実行するコードで、determinism.mjs が page.addInitScript でブラウザへ送って実行する。本体は大域の Math と crypto を書き換えるので、テストのプロセスで直接呼ばず、determinism.test.ts が vm の別の大域でソースを評価して確かめる。このファイルとしては読み込まれず、カバレッジに数えられない"
+      "reason": "ページで実行するコードで、determinism.mjs が page.addInitScript でブラウザへ送って実行する。installSeededRandom は大域の Math と crypto を書き換えるので、テストのプロセスで直接呼ばず、determinism.test.ts が vm の別の大域でソースを評価して確かめる。そのため、このファイルの行の大半がカバレッジに数えられない（readPageDeterminism は同じテストが直接呼ぶ）"
     },
     {
       "path": "skills/replace-strategy/scripts/page/asset-probe.page.mjs",
