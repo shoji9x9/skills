@@ -15,24 +15,30 @@ API の形は、GraphQL のスキーマ（`__type` の問い合わせ）と、Is
 ## 手順
 
 ```bash
-# 1. Issue の ID・設定できるか・In progress の ID・今の status・status の一覧に続きがあるかを取得する
-#    空の値は "-" にする（タブの区切りが続くと read が欄を詰めるため）
+# 1. In progress の status の ID を、status の一覧を全ページ読んで名前で探す
 #    owner と repo は -f で渡す。-F は数字だけの名前を整数に変えるので、String! の変数で失敗する
-row=$(gh api graphql \
-  -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){planningStatuses(first:50){nodes{id name} pageInfo{hasNextPage}} issue(number:$number){id viewerCanSetStatus status{name}}}}' \
-  -f owner='<owner>' -f repo='<repo>' -F number='<番号>' \
-  --jq '.data.repository as $r | [($r.issue.id // "-"), ($r.issue.viewerCanSetStatus | tostring), (first(($r.planningStatuses.nodes // [])[] | select(.name == "In progress") | .id) // "-"), ($r.issue.status.name // "-"), ($r.planningStatuses.pageInfo.hasNextPage // false)] | @tsv' \
+target_id=$(gh api graphql --paginate \
+  -f query='query($owner:String!,$repo:String!,$endCursor:String){repository(owner:$owner,name:$repo){planningStatuses(first:100,after:$endCursor){nodes{id name} pageInfo{hasNextPage endCursor}}}}' \
+  -f owner='<owner>' -f repo='<repo>' \
+  --jq '.data.repository.planningStatuses.nodes[] | select(.name == "In progress") | .id' \
   </dev/null) || { echo "status を設定しなかった: status の API を使えない（planningStatuses が無い GHES・通信の失敗など）" >&2; exit 1; }
-IFS=$'\t' read -r issue_id can_set target_id current has_next <<<"$row"
+target_id=${target_id%%$'\n'*}
 
-# 2. 設定できないリポジトリと、In progress の status が無いリポジトリでは設定しない
-#    status の一覧は 50 件で打ち切る。続きがあって In progress が見つからないときは、次のページを取得せずに設定しない
-if [ "$can_set" != true ] || [ "$target_id" = - ]; then
-  echo "status を設定しなかった: viewerCanSetStatus=$can_set・In progress の ID=$target_id・一覧の続き=$has_next" >&2
+# 2. Issue の ID・設定できるか・今の status を取得する
+#    空の値は "-" にする（タブの区切りが続くと read が欄を詰めるため）
+row=$(gh api graphql \
+  -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){issue(number:$number){id viewerCanSetStatus status{name}}}}' \
+  -f owner='<owner>' -f repo='<repo>' -F number='<番号>' \
+  --jq '.data.repository.issue as $i | [($i.id // "-"), ($i.viewerCanSetStatus | tostring), ($i.status.name // "-")] | @tsv' \
+  </dev/null) || { echo "status を設定しなかった: Issue の status を取得できない" >&2; exit 1; }
+IFS=$'\t' read -r issue_id can_set current <<<"$row"
+if [ "$can_set" != true ] || [ -z "$target_id" ]; then
+  echo "status を設定しなかった: このリポジトリでは status を使えない（viewerCanSetStatus=$can_set・In progress の status が無い）" >&2
   exit 1
 fi
 
 # 3. 今の status で分ける。In progress なら何もしない。In review・Done などから戻さない
+#    API に条件付きの更新が無いので、2 の取得と 4 の設定の間に別の処理が status を進めると、4 がそれを戻す
 case "$current" in
   'In progress') echo "status は既に In progress"; exit 0 ;;
   - | Backlog | Todo) ;;
@@ -56,6 +62,10 @@ worktree に入った後は、この手順をファイルを書くツールで�
 手順はコマンド置換・`||`・`case` を含むので、`git-worktree` の `references/isolation.md`「隔離中の Bash は 1 コマンドずつ素の形で書く」に当たる。
 
 GitHub Enterprise Server では、`gh api` に `--hostname <ホスト名>` を付ける。付けないと github.com に問い合わせるので、1 の取得が失敗する。
+
+2 で今の status を読んでから 4 で設定するまでの間（API の呼び出し 1 回分）に、別の処理が status を In review や Done に進めると、4 がそれを In progress に戻す。
+`setIssueStatus` には今の status を条件にして更新する引数が無いので、この間を手順で無くすことはできない。
+この手順はブランチを用意した直後に実行し、同じ作業が PR を作るのはその後なので、この作業の PR の紐付けで GitHub が status を変えることは、この間には起きない。
 
 | 終了コード | 観測 | 扱い |
 | --- | --- | --- |
