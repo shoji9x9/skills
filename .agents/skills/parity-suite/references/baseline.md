@@ -1112,7 +1112,10 @@ writeFileSync(join(outDir, "mask-candidates.json"), `${JSON.stringify(suggestion
   その要素か祖先に overflow で切り取る要素（`overflow` が `visible` 以外）があり、それも領域を覆うなら、いちばん近いものを選ぶ。
   切り取る枠の中で動く中身（カルーセルの帯など）にマスクを当てると、塗る範囲が枠の外まで広がるからである。
 - 選んだ要素を 1 つだけ指す CSS セレクタ（`id`、`data-testid` などのテスト用の属性、親からの位置の順に試す）を、候補として `candidates` に入れる。同じセレクタに当たった領域は 1 つの候補にまとめる。
-- 要素を特定できない領域（`html` と `body` しか覆わない、疑似要素で描いた、セレクタが 1 つに決まらない）は、座標と理由だけを `unlocated` に入れる。特定できたことにしない。
+- 要素を特定できない領域（`html` と `body` しか覆わない、セレクタが 1 つに決まらない）は、座標と理由だけを `unlocated` に入れる。特定できたことにしない。
+- 疑似要素（`::before`・`::after`）が描いた差は、`elementsFromPoint` が疑似要素を返さないので、疑似要素を持つ要素の候補になる。
+  その要素の矩形が領域を丸ごと覆うときだけ選ぶので、その要素にマスクを当てれば、疑似要素の画素も隠れる。
+  `html` か `body` の疑似要素は、上の箇条のとおり `unlocated` になる。
 - 領域が 50 を超えたら、超えた分は件数だけを `omitted_regions` に残す。1 回目と 2 回目の寸法が違えば `status: "size-mismatch"` で、候補を出さない。
 - 基準値を `metadata.json.noise_baseline` に書くときに、同じ組の `mask-candidates.json` の `status`・`candidates`・`unlocated`・`omitted_regions` を、その行の `mask_candidates` に転記する。
   差が出なかった組では、`candidates` と `unlocated` が空になる。転記した後は、`noise-pass2/` と一緒に消す（下の「2 回目の採取物は基準値を記録したら削除する」）。
