@@ -371,6 +371,20 @@ describe("readPageDeterminism", () => {
     expect(await readPageDeterminism()).toMatchObject({ seed: 5, intact: false });
   });
 
+  test("待つ間に乱数の関数が変わっても見つける（待った後に比べる）", async () => {
+    const apis = {
+      random: Math.random,
+      getRandomValues: Reflect.get(crypto, "getRandomValues"),
+      randomUUID: Reflect.get(crypto, "randomUUID"),
+    };
+    Object.assign(globalThis, { __parityRandomSeed: 5, __parityRandomApis: apis });
+    // 大域の Math.random を置き換える代わりに、記録の側を待つ間に変える（比べた結果は同じになる）
+    setTimeout(() => {
+      apis.random = () => 0;
+    }, 5);
+    expect(await readPageDeterminism()).toMatchObject({ seed: 5, intact: false });
+  });
+
   test("20ms 待つ前と後の時刻を返す（固定していない時計では進む）", async () => {
     const seen = await readPageDeterminism();
     expect(seen.later).toBeGreaterThan(seen.now);

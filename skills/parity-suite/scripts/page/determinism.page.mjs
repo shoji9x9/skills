@@ -88,7 +88,10 @@ export async function readPageDeterminism() {
   const marker = Reflect.get(globalThis, "__parityRandomSeed");
   /** @type {unknown} */
   const apis = Reflect.get(globalThis, "__parityRandomApis");
-  // 差し替えた後に、ページの scripts が乱数の関数を別の関数に置き換えていないか
+  const first = Date.now();
+  // 固定した時刻でもタイマーは進むので、待った後に読んだ値が同じなら時刻は固定されている
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  // 待った後に、ページの scripts が乱数の関数を別の関数に置き換えていないか（待つ前と待つ間の置き換えを見つける）
   const cryptoObject = globalThis.crypto;
   const intact =
     typeof apis === "object" &&
@@ -97,8 +100,5 @@ export async function readPageDeterminism() {
     (cryptoObject === undefined ||
       cryptoObject.getRandomValues === Reflect.get(apis, "getRandomValues")) &&
     (cryptoObject === undefined || cryptoObject.randomUUID === Reflect.get(apis, "randomUUID"));
-  const first = Date.now();
-  // 固定した時刻でもタイマーは進むので、待った後に読んだ値が同じなら時刻は固定されている
-  await new Promise((resolve) => setTimeout(resolve, 20));
   return { now: first, later: Date.now(), seed: marker === undefined ? null : marker, intact };
 }
