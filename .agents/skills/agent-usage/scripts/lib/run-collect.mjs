@@ -387,10 +387,11 @@ export function runCollect(o) {
   const read = readExisting({ recordsDir, keep: targets.keep, lastPath, person, now, windowMs });
   const { candidates, github, target } = candidateRowsOf({ o, local, settings, read });
   const { unique, conflicts } = uniqueByKey(candidates);
-  const { rows: retractions, withheld } = retractionsOf({ read, unique, local, settings });
+  const retracted = retractionsOf({ read, unique, local, settings });
+  const { withheld } = retracted;
   const { fresh, olderRowsSkipped, archivedRowsSkipped } = freshRows({ ...read, unique, withheld });
   const { rows, elsewhere } = withoutOtherWorktrees(
-    stampRows(fresh, retractions, now),
+    stampRows(fresh, retracted.rows, now),
     o.elsewhere,
   );
   const written = writeBranchRows(rows, targets);
@@ -411,9 +412,9 @@ export function runCollect(o) {
     skippedFiles: read.skipped,
     unknownKinds: read.unknownKinds,
     olderRowsSkipped,
-    archivedRowsSkipped,
+    archivedRowsSkipped: archivedRowsSkipped + retracted.archivedSkipped,
     archivedBefore: read.archivedBefore,
-    retractedRows: retractions.length,
+    retractedRows: retracted.rows.length,
     otherWorktreeRows: elsewhere,
   };
 }
@@ -754,18 +755,32 @@ function staleRows(o) {
 
 /**
  * 作らなくなった記録済みの行を挙げ、打ち消しの行と、書かない行の key を返す。
- * @param {{ read: { existing: Map<string, Row>; lowerBound: number }; unique: Map<string, Row>; local: { presentSessions: Set<string> }; settings: Settings }} o
- * @returns {{ rows: Row[]; withheld: Set<string> }}
+ * 移した境界より前に終わった行は、records/ に残っていても打ち消さない（archivedSkipped に数える）。
+ * 境界より前の記録は書き直さない取り決めで、打ち消しの行を書くと、次の archive がそれも移し、移した期間の集計が変わるため。
+ * @param {{ read: { existing: Map<string, Row>; lowerBound: number; archivedBefore: number | null }; unique: Map<string, Row>; local: { presentSessions: Set<string> }; settings: Settings }} o
+ * @returns {{ rows: Row[]; withheld: Set<string>; archivedSkipped: number }}
  */
 function retractionsOf(o) {
-  const { existing, lowerBound } = o.read;
+  const { existing, lowerBound, archivedBefore } = o.read;
   const { unique } = o;
   const { person } = o.settings;
   const aliases = o.settings.repoConfig.aliases;
   /** @param {string | undefined} p */
   const canonical = (p) => (p ? (aliases[p] ?? p) : "");
   const stale = staleRows({ existing, unique, person, canonical, local: o.local });
-  return retractableRows({ stale, existing, unique, person, lowerBound, canonical });
+  const r = retractableRows({ stale, existing, unique, person, lowerBound, canonical });
+  const rows = r.rows.filter((x) => !endsBeforeBoundary(x, archivedBefore));
+  return { rows, withheld: r.withheld, archivedSkipped: r.rows.length - rows.length };
+}
+
+/**
+ * 行が、移した境界より前に終わったか（archive が移すかを決める時刻 rowEndTime で比べる）。境界が無ければ false。
+ * @param {Row} r
+ * @param {number | null} archivedBefore
+ * @returns {boolean}
+ */
+function endsBeforeBoundary(r, archivedBefore) {
+  return archivedBefore !== null && (rowEndTime(r) ?? Number.NEGATIVE_INFINITY) < archivedBefore;
 }
 
 /**
@@ -781,7 +796,7 @@ function freshRows(o) {
   let olderRowsSkipped = 0;
   let archivedRowsSkipped = 0;
   const fresh = changedRows([...o.unique.values()], existing).filter((r) => {
-    if (archivedBefore !== null && (rowEndTime(r) ?? Number.NEGATIVE_INFINITY) < archivedBefore) {
+    if (endsBeforeBoundary(r, archivedBefore)) {
       archivedRowsSkipped += 1;
       return false;
     }

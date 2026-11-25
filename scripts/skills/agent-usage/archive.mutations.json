@@ -7,13 +7,14 @@
   "mutations": [
     {
       "id": "collect-ignores-boundary",
-      "why": "collect が、移した境界より前に終わった行も書く（移した行を records/ に戻す）",
+      "why": "collect が、移した境界より前に終わった行も書き、打ち消す（移した行を records/ に戻す）",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (archivedBefore !== null && (rowEndTime(r) ?? Number.NEGATIVE_INFINITY) < archivedBefore) {",
-      "replace": "    if (false) {",
+      "find": "  return archivedBefore !== null && (rowEndTime(r) ?? Number.NEGATIVE_INFINITY) < archivedBefore;",
+      "replace": "  return false;",
       "occurrences": 1,
       "expect_failing": [
-        "archive・collect・report のコマンド archive で移した行を、新しい clone の collect は書き直さず、report は --archive を渡すと同じ集計を出す"
+        "archive・collect・report のコマンド archive で移した行を、新しい clone の collect は書き直さず、report は --archive を渡すと同じ集計を出す",
+        "archive・collect・report のコマンド 境界より前の行が records/ に残っていても、collect はその行を打ち消さない（境界が無ければ打ち消す）"
       ]
     },
     {
@@ -103,6 +104,17 @@
       "occurrences": 1,
       "expect_failing": [
         "runArchive シンボリックリンクを通して records/ と重なる --out も、実体のパスで比べて止める"
+      ]
+    },
+    {
+      "id": "retraction-ignores-boundary",
+      "why": "境界より前に終わった行の打ち消しの行を書く（次の archive がそれも移し、移した期間の集計が変わる）",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const rows = r.rows.filter((x) => !endsBeforeBoundary(x, archivedBefore));",
+      "replace": "  const rows = r.rows;",
+      "occurrences": 1,
+      "expect_failing": [
+        "archive・collect・report のコマンド 境界より前の行が records/ に残っていても、collect はその行を打ち消さない（境界が無ければ打ち消す）"
       ]
     }
   ]

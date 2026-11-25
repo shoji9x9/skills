@@ -436,6 +436,32 @@ describe.concurrent("archive・collect・report のコマンド", () => {
     expect(both.usage).toBe(baseline.usage);
   });
 
+  test("境界より前の行が records/ に残っていても、collect はその行を打ち消さない（境界が無ければ打ち消す）", async () => {
+    const s = await collectedOnBranch();
+    const [name] = readdirSync(s.branches);
+    const file = join(s.branches, name ?? "");
+    const rows = parseCsv(readFileSync(file, "utf8"));
+    const prompt = rows.find((r) => r.kind === "prompt");
+    expect(prompt, "collect が指示の行を書いていない").toBeDefined();
+    // 同じセッションの、ログからはもう作らない古い指示の行（archive が途中で止まって残った行にあたる）
+    const old = "2026-09-01T00:00:00.000Z";
+    const stale = { ...prompt, key: `prompt:claude-code:s1:${old}`, start: old, end: old };
+    writeFileSync(file, toCsv(COLUMNS, [...rows, stale]));
+    const retractedKeys = () =>
+      parseCsv(readFileSync(file, "utf8"))
+        .filter((r) => r.retracted === "1")
+        .map((r) => r.key);
+    writeFileSync(join(s.records, ".archived-before"), "2026-09-15T00:00:00.000Z\n");
+    const kept = await s.cli("collect");
+    expect(kept.status, kept.stderr).toBe(0);
+    expect(retractedKeys()).toEqual([]);
+    expect(kept.stdout).toMatch(/より前に終わったので書かなかった行: 1/);
+    // 境界が無ければ、同じ行を打ち消す（上の状態が打ち消しの分岐に届いていることの確認）
+    rmSync(join(s.records, ".archived-before"));
+    expect((await s.cli("collect")).status).toBe(0);
+    expect(retractedKeys()).toEqual([stale.key]);
+  });
+
   test("archive と report --archive の引数の誤りと、読めない境界を止める", async () => {
     const s = await archivedSetup();
     expect((await s.cliWith(s.later, "archive", "--out", s.archiveDir)).status).toBe(2);
