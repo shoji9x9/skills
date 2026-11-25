@@ -152,6 +152,11 @@ gh api --method POST \
    `review_tool` が `claude-code-action` のときだけレビューを受けたいリポジトリで使う。切った回の run は `skipped` で終わり、`check` はそれを状態の判定に数えない（出力の `runs` には含む）。
 4. `workflow_dispatch` は、ワークフローがデフォルトブランチに入るまで起動できない（GitHub の仕様）。雛形をコピーした PR が merge されるまでは、`pull_request` の自動のレビューだけが動く。`CLAUDE_REVIEW_AUTO` で自動のレビューを切っていれば、その間はレビューされない。
 
+ワークフローが `GITHUB_TOKEN` で作った PR（依存を更新するワークフローの PR など）は、作成者も run の actor も `github-actions[bot]` になる。
+GitHub は、この PR の `pull_request` の run を、書き込み権限を持つ人が PR の画面で承認するまで動かさない（GitHub の仕様）。
+承認した run は、CI と同じようにレビューも動く。雛形は `claude-code-action` の `allowed_bots` に `github-actions[bot]` だけを指定しているからである。
+承認しない run は、PR の画面に承認待ちとして残り、レビューされない。Dependabot の PR は、この bot の PR とは別に扱い、レビューの対象から除く（`dependabot[bot]` は `allowed_bots` に足さない）。
+
 使用量は、secret の token の持ち主の Claude のプランの上限から使う。同じ token を使うほかのワークフローや手元のセッションと、同じ上限を共有する。
 fork と Dependabot の PR を除く条件、エージェントに与えるツールの制限、資格情報を投稿しない検査などの危険と対策は、雛形の各段のコメントに書いてある。導入する前に利用者と読む。
 

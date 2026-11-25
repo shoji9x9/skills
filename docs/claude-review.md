@@ -149,6 +149,7 @@ effort がエージェントの振る舞いに反映されたことは、run の
 
 | 危険 | 対策 |
 | --- | --- |
+| bot が作った PR や bot が起動した run で、エージェントを動かす | `allowed_bots` には `github-actions[bot]` だけを書き、`'*'` にしない。理由は雛形の `allowed_bots` のコメントにある |
 | fork の PR のコードを、secret のある job で読ませる | `pull_request` は fork の PR を除く。`workflow_dispatch` は HEAD のリポジトリを API で確かめてから checkout する |
 | 古い HEAD をレビューして、新しい HEAD のレビューとして扱う | `workflow_dispatch` は入力の SHA と PR の今の HEAD が違えば止める。目印には、レビューした SHA を書く |
 | PR の本文・コメント・差分に仕込まれた指示に、エージェントが従う | エージェントのツールを、作業ツリーの中を読むこと（`Read`・`Grep`・`Glob`）だけに限る。書くツール・Bash・Web・サブエージェントを与えない。リポジトリの設定（`.claude/settings.json` の Hook と `.mcp.json`）を読ませない |
@@ -158,8 +159,9 @@ effort がエージェントの振る舞いに反映されたことは、run の
 | PR が `.claude-review-input/` にファイルを置き、エージェントの入力をすり替える | 入力を書く前に、そのディレクトリを消す |
 | 実行記録から情報が出る | 実行記録の全体は残さず、使用量の数値だけを artifact に残す |
 
-`claude-code-action` は、agent モードでは、`github_token` を `.git/config` の remote の URL に書き込む。
+`claude-code-action` は、agent モードでは、git に `github_token` を使わせる設定を `.git/config` に書き込む。
 書き込むのは、action の `src/github/operations/git-config.ts` の `replaceCheckoutCredentials` である。
+書き込む形は `allowed_bots` の有無で変わる（雛形の「Run Claude Code」の段のコメント）。どちらの形でも、次の拒否の規則で読ませない。
 checkout の `persist-credentials: false` は、この書き込みを防がない。そのため、エージェントの許可の規則（`Read(./**)`）に加えて、`Read(./.git/**)` を拒否の規則に入れる。
 この拒否の規則は、Read に加えて Grep と Glob にも当たる。Grep と Glob の形の拒否の規則（`Grep(./.git/**)` など）は当たらない。
 手元の Claude Code 2.1.325 の `claude -p` で、この拒否の規則があると Read・Grep・Glob のどれでも `.git/config` の中を読めないことを確かめた。拒否の規則が無いと、Read でも Grep でも読めた。

@@ -890,7 +890,7 @@ describe("Collect review inputs", () => {
   });
 });
 
-// action は agent モードで github_token を作業ツリーの git の設定（remote の URL）に書き込む。
+// action は agent モードで、github_token を使わせる設定を作業ツリーの git の設定に書き込む。
 // 作業ツリーの中を許可する規則だけでは、その設定も読める。拒否の規則 Read(./.git/**) が Read・Grep・Glob の 3 つに当たることは、
 // 手元の claude -p で確かめた（docs/claude-review.md「危険と対策」）。ここでは、宣言から拒否の規則が消えていないことを確かめる。
 describe("Run Claude Code の claude_args", () => {
@@ -900,6 +900,14 @@ describe("Run Claude Code の claude_args", () => {
     expect(args).toContain('--tools "Read,Grep,Glob"');
     expect(args).toContain("--permission-mode default");
     expect(args).toMatch(/--disallowed-tools "[^"]*Read\(\.\/\.git\/\*\*\)[^"]*"/);
+  });
+});
+
+// action は許した bot のリポジトリの権限を確かめないので、'*' や他の bot を足すと、外部の App が作った PR や起動した run でも
+// エージェントが動く。許すのは、このリポジトリのワークフローだけが actor にできる github-actions[bot] だけである（Issue #1143）。
+describe("Run Claude Code の allowed_bots", () => {
+  test("github-actions[bot] だけを許す", () => {
+    expect(step("Run Claude Code").with?.allowed_bots).toBe("github-actions[bot]");
   });
 });
 
@@ -1095,6 +1103,42 @@ describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
   test("検出されることの確認: 変数を contains にそのまま渡す式は、未設定（null）で job を飛ばす", () => {
     const naive = `github.event_name == 'workflow_dispatch' || (!contains(fromJSON('["off","false","no","0"]'), vars.CLAUDE_REVIEW_AUTO))`;
     expect(isTruthy(evalGha(naive, prCtx(null)))).toBe(false);
+  });
+
+  // 承認した github-actions[bot] の PR は job を実行し（allowed_bots で action も断らない）、Dependabot の PR は除く（Issue #1143）。
+  test.each<{ label: string; author: string; actor: string; runs: boolean }>([
+    {
+      label: "github-actions[bot] が作り、承認した run",
+      author: "github-actions[bot]",
+      actor: "github-actions[bot]",
+      runs: true,
+    },
+    {
+      label: "github-actions[bot] の PR を人が更新した run",
+      author: "github-actions[bot]",
+      actor: "someone",
+      runs: true,
+    },
+    { label: "Dependabot の PR", author: "dependabot[bot]", actor: "dependabot[bot]", runs: false },
+    {
+      label: "Dependabot の PR を人が更新した run",
+      author: "dependabot[bot]",
+      actor: "someone",
+      runs: false,
+    },
+    {
+      label: "人の PR を Dependabot が更新した run",
+      author: "someone",
+      actor: "dependabot[bot]",
+      runs: false,
+    },
+  ])("pull_request で $label のときに job を実行するかを固定する", ({ author, actor, runs }) => {
+    const ctx = {
+      ...prCtx(null),
+      "github.event.pull_request.user.login": author,
+      "github.actor": actor,
+    };
+    expect(isTruthy(evalGha(cond, ctx))).toBe(runs);
   });
 
   test("段の中（一時停止の段）では、CLAUDE_REVIEW_AUTO を読まない", () => {
