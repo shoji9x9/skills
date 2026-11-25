@@ -9,8 +9,9 @@ GitHub は、PR を紐付けると Issue の status を変える（draft の PR 
 `gh` には status を設定するコマンドが無いので、GraphQL の `setIssueStatus` を `gh api graphql` で呼ぶ。
 status の ID はリポジトリごとに違うので、`repository.planningStatuses` から名前（`In progress`）で取得する。
 分類（`category.key`）では In progress と In review がどちらも `started` になり区別できないので、名前で選ぶ。
-API の形は、GraphQL のスキーマ（`__type` の問い合わせ）と、Issue の status を実際に設定した結果で確かめた。
-`setIssueStatus` の説明に public preview と書かれているので、API の形が変わることがある。
+API の形は、GitHub が公開する GraphQL のスキーマ（<https://docs.github.com/public/fpt/schema.docs.graphql> の `setIssueStatus` と `planningStatuses`）と、Issue の status を実際に設定した結果で確かめた。
+`planningStatuses` は、status を使えないリポジトリと利用者には null を返す。
+スキーマの説明に preview と書かれているので、API の形が変わることがある。
 
 ## 手順
 
@@ -20,7 +21,7 @@ API の形は、GraphQL のスキーマ（`__type` の問い合わせ）と、Is
 target_id=$(gh api graphql --paginate \
   -f query='query($owner:String!,$repo:String!,$endCursor:String){repository(owner:$owner,name:$repo){planningStatuses(first:100,after:$endCursor){nodes{id name} pageInfo{hasNextPage endCursor}}}}' \
   -f owner='<owner>' -f repo='<repo>' \
-  --jq '.data.repository.planningStatuses.nodes[] | select(.name == "In progress") | .id' \
+  --jq '(.data.repository.planningStatuses.nodes // [])[] | select(.name == "In progress") | .id' \
   </dev/null) || { echo "status を設定しなかった: status の API を使えない（planningStatuses が無い GHES・通信の失敗など）" >&2; exit 1; }
 target_id=${target_id%%$'\n'*}
 
