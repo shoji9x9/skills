@@ -2,6 +2,7 @@
 // シグネチャは利用者のプロジェクトごとに生成されて変わるので、型を固定しない（import したものは any になる）。
 // `*` を含む名前は、相対の import（`../../lib/interactions` など）にも一致する。
 declare module "*/lib/tools/vendor/trait-capture.mjs";
+declare module "*/lib/tools/vendor/determinism.mjs";
 declare module "*/lib/locator-map/<slug>";
 declare module "*/lib/locator-map/<slug>.new";
 declare module "*/lib/interactions";

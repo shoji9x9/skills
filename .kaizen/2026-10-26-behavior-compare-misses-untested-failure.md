@@ -3,7 +3,7 @@ date: 2026-10-26
 type: doc
 priority: medium
 confidence: high
-status: pending
+status: forgotten
 ---
 
 # 振る舞いの比較の入力を、テストの入力だけから作らない

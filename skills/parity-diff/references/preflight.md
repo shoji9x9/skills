@@ -177,7 +177,7 @@ target を解決する前に、設定の `style_policy` を読む（`skill-confi
 
 | モード | 追加で求めるもの | 欠けたときの差し戻し先 |
 |---|---|---|
-| feature | `metadata.json` に `capture_conditions.popup_inventory` のキーがあること（無い旧成果物は、静止を待つ処理を入れる前の採取である。承認済みの例外の扱いは [`capture-new.md`](capture-new.md)「条件一致の先行検証」）。`noise_baseline[]` が対象の page・state・viewport の数だけあること。`artifacts_storage.baseline_pointer` の実体（`baseline/`）があること。下の「差分ツールのバージョンの一致確認」 | `parity-suite`（ノイズの基準値の測定は、現行のアプリを動かす `parity-suite` の仕事である） |
+| feature | `metadata.json` に `capture_conditions.popup_inventory` のキーがあること（無い旧成果物は、静止を待つ処理を入れる前の採取である。承認済みの例外の扱いは [`capture-new.md`](capture-new.md)「条件一致の先行検証」）。`capture_conditions.determinism` のキーがあること（無い旧成果物は、時刻と乱数をどう扱って撮ったかが記録されていない。新側を同じ扱いで撮れないので止まる）。`noise_baseline[]` が対象の page・state・viewport の数だけあること。`artifacts_storage.baseline_pointer` の実体（`baseline/`）があること。下の「差分ツールのバージョンの一致確認」 | `parity-suite`（ノイズの基準値の測定は、現行のアプリを動かす `parity-suite` の仕事である） |
 | api-resource | 現行の応答の record（`metadata.json.suite.specs` のスイートと録画）が実体としてある。比べるのは、同梱の `json-normalize-diff.mjs` などだけ | `parity-suite` |
 | batch | 現行のバッチの出力のベースライン（DB の状態と生成ファイル）が実体としてある | `parity-suite` |
 

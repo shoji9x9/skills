@@ -378,6 +378,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 現行アプリを操作するついでに 3 点セットを採り、2 回撮ってノイズの基準値を出す。2 回目の採取物は、基準値を記録したら削除する。
 
+- 撮る前に、時刻を固定するかと乱数を seed 付きにするかを決めて `capture_conditions.determinism` に書き、1 回目と 2 回目の両方で同じ値を当てる。
+  2 回撮りで差が出た組は、差の領域を覆う要素をマスクの候補として `noise_baseline[].mask_candidates` に書き、利用者に報告する
+  （[`references/baseline.md`](references/baseline.md)「時刻と乱数を固定する」「揺れた要素からマスクの候補を出す」）
+
 - 続けて、寸法の決まり方を測る。`traits.elements` のすべての論理名を、撮影したビューポートを含み、幅と高さを別々に動かした 4 つ以上の窓で読む。
   `dimension/` の測定のスペックを `PARITY_DIMENSION_CAPTURE=1` を付けて `current` で実行し、`dimension-samples.json` を書く。
   手順 7 の強度チェックなど、他の実行ではこの変数を渡さず、上書きさせない。当てはめは手順 8 で行う
@@ -552,10 +556,11 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - 決定論的なツールの原本は、このスキルに同梱する。
   [`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs) / 要素単位の撮影を使う場合は [`scripts/element-shot.mjs`](scripts/element-shot.mjs) /
   応答ヘッダーを録画する場合は [`scripts/header-normalize.mjs`](scripts/header-normalize.mjs) である。
+  feature モードでは、撮る前に時刻と乱数を固定する [`scripts/determinism.mjs`](scripts/determinism.mjs) と、2 回撮りで揺れた要素からマスクの候補を出す [`scripts/noise-masks.mjs`](scripts/noise-masks.mjs) も使う（[`references/baseline.md`](references/baseline.md)「時刻と乱数を固定する」「揺れた要素からマスクの候補を出す」）。
   実行するときは、プロジェクトの側の `<parity_suite_dir>/parity/lib/tools/vendor/`（デフォルト）にコピーして使い、コピー先のディレクトリを `metadata.json` の `suite.tools` に記録する。
   ファイルのパスで書くと、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする（理由は [`references/baseline.md`](references/baseline.md)）。
-  trait-capture.mjs と element-shot.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の `trait-capture.page.mjs`・`element-shot.page.mjs` から import する。
-  そのため、この 2 つをコピーするときは、対になる page ファイルも同じバージョンから、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
+  trait-capture.mjs・element-shot.mjs・determinism.mjs・noise-masks.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の同じ名前の `*.page.mjs` から import する。
+  そのため、これらをコピーするときは、対になる page ファイルも同じバージョンから、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
   コピーは修正しない取り決めなので、プロジェクトが自作したツールとパスで分けられる、コピー専用のサブディレクトリに置く（置き方は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - 網羅プロファイルと、[`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs)・[`scripts/pixel-strict-count.mjs`](scripts/pixel-strict-count.mjs) は、コピーしない。
   スキルの中のスクリプトをそのまま実行する（`gh skill update` の自動更新を反映させるため）。
