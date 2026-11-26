@@ -142,11 +142,12 @@ build_applied_dates() {
 		return 0
 	fi
 	# --no-renames: 移動（archive）を削除と追加として読み、最初の commit を移動ではなく適用の commit にする。
+	# -G の正規表現は、kaizen_frontmatter_values と同じく、コロンの後の空白の数を問わない（`status:  applied` も当てる）。
 	# -G は frontmatter と本文を区別せず、追加と削除の行のどちらにも当たる（本文のコードフェンスに `status: applied` の例を足した commit も当たる）。
 	# そのため、古い順に並べた候補の commit ごとに、その commit でのノートの frontmatter の status が applied かを確かめ、
 	# 最初に確かめられた commit の日付だけを残す。ノートを消した側の候補は、その commit にファイルが無いので読めずに飛ばす。
 	if ! log=$(git -c core.quotepath=off log --reverse --no-renames --date=short --format='%x01%H %ad' \
-		-G '^status: applied[[:space:]]*$' --name-only -- .kaizen 2>/dev/null); then
+		-G '^status:[[:space:]]*applied[[:space:]]*$' --name-only -- .kaizen 2>/dev/null); then
 		dates_unavailable="git log が失敗したので、適用した日を求めない"
 		return 0
 	fi

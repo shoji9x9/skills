@@ -313,6 +313,17 @@ describe("適用した日", () => {
     }
   });
 
+  test("コロンの後に空白を 2 つ書いた status でも、適用した日を求める", () => {
+    const dir = makeProject({ "a.md": note().replace("status: applied", "status:  applied") });
+    try {
+      gitInit(dir);
+      commitAll(dir, "2026-09-10");
+      expect(rowOf(listRows(dir), ".kaizen/a.md").applied_date).toBe("2026-09-10");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("git の外では日付を unknown にし、理由を出す", () => {
     const dir = makeProject({ "a.md": note() });
     try {
