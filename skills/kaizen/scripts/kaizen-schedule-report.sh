@@ -356,25 +356,80 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local count _rank _sort_key idx shown escaped=0 path_cell summary_cell
+	local count head budget
 	# 解決した値は使わない。採った層を出すと、環境変数を受け取らない step のログに
 	# 実際と違う値が残るので、設定を読めるかだけを確かめる。
 	load_config_or_exit
 	build_pending_index
 	count=${#pending_files[@]}
+	# 未適用の学びの節を先に組み立て、その長さから、候補の節に使える残りの文字数を決める。
+	head=$(pending_section "${count}")
+	rm -f "${pending_index}"
+	printf '%s\n' "${head}"
+	budget=$((ISSUE_BODY_MAX_CHARS - AGENT_REPORT_RESERVED_CHARS - ${#head}))
+	[ "${budget}" -le "${MAX_EFFECTIVENESS_CHARS}" ] || budget=${MAX_EFFECTIVENESS_CHARS}
+	effectiveness_section "${budget}"
+}
 
-	echo "\`.kaizen/\` に未適用（\`status: pending\`）の学びが **${count} 件** あります。"
+# 未適用の学びの節（件数・案内・表）を出す。$1 は件数。
+pending_section() {
+	echo "\`.kaizen/\` に未適用（\`status: pending\`）の学びが **$1 件** あります。"
 	echo
 	echo "適用するには、このリポジトリを開いたセッションで \`/kaizen apply\` を実行してください。"
 	echo "適用せずに終わりにしてよい学びは、閾値（\`forget_after_days\` / \`forget_max_priority\`）に"
 	echo "達した時点で自動的に \`status: forgotten\` になります。"
 	echo
-
-	if [ "${count}" -eq 0 ]; then
-		rm -f "${pending_index}"
-		return 0
+	if [ "$1" -gt 0 ]; then
+		pending_table
 	fi
+}
 
+# 適用した学びの効果を測り直す候補の節を出す（references/housekeeping.md「適用した学びの効果の測り直し」）。
+# 測れなかったときも、節を省かずに測れなかったことを書く。省くと「候補が無い」と読まれるからである。
+# 節は $1 文字で、行の境界で切る。$1 は Issue の本文の上限（ISSUE_BODY_MAX_CHARS）から 2 つの長さを引いた残りで、MAX_EFFECTIVENESS_CHARS を超えない。
+# 引くのは、同梱のワークフローが足すエージェントのレポートの分（AGENT_REPORT_RESERVED_CHARS）と、実際に出した未適用の学びの節の長さである。
+# 未適用の学びの表はパスの長さを切らないので、固定の上限では本文の上限を守れない。
+# 長さは、UTF-8 のロケールの bash と gawk では文字数、それ以外ではバイト数で数える。バイト数は文字数以上なので、どちらでも上限を超えない。
+readonly ISSUE_BODY_MAX_CHARS=65536
+# ワークフローの MAX_REPORT_CHARS（30,000 文字）と、その前後の説明（見出し・エージェントの名前・run の URL・省略の注記）の分。
+readonly AGENT_REPORT_RESERVED_CHARS=31000
+readonly MAX_EFFECTIVENESS_CHARS=15000
+effectiveness_section() {
+	local budget=$1 script out
+	script="$(dirname "${BASH_SOURCE[0]}")/kaizen-effectiveness.sh"
+	echo
+	if [ ! -r "${script}" ]; then
+		warn "kaizen-effectiveness.sh を読めないので、適用した学びの効果を測らない: ${script}"
+		effectiveness_unmeasured "\`kaizen-effectiveness.sh\` を読めない。kaizen を再インストールしてください"
+	elif ! out=$(bash "${script}" candidates); then
+		warn "kaizen-effectiveness.sh が失敗したので、適用した学びの効果を載せない"
+		effectiveness_unmeasured "\`kaizen-effectiveness.sh candidates\` が失敗した。理由は実行のログにあります"
+	else
+		# 省いたことの注記の分（200 文字）を残して切る。残りが注記の分にも足りなければ、見出しと注記だけを出す。
+		printf '%s\n' "${out}" | awk -v max="$((budget - 200))" '
+			{ n += length($0) + 1 }
+			NR == 1 && max <= 0 { print; omitted = 1; exit }
+			n > max { omitted = 1; exit }
+			{ print }
+			END {
+				if (omitted) {
+					print ""
+					print "> 本文の文字数の上限を超えないよう、以降を省きました。`kaizen-effectiveness.sh candidates` で確かめてください。"
+				}
+			}
+		'
+	fi
+}
+
+effectiveness_unmeasured() {
+	echo "## 効果を測り直す規約の候補"
+	echo
+	echo "> 測れませんでした（$1）。"
+}
+
+# 未適用の学びの表を出す。
+pending_table() {
+	local count=${#pending_files[@]} _rank _sort_key idx shown escaped=0 path_cell summary_cell
 	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
 	echo "| --- | --- | --- | --- | --- |"
 	shown=0
@@ -396,7 +451,6 @@ cmd_issue() {
 			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" "${summary_cell}"
 		shown=$((shown + 1))
 	done <"${pending_index}"
-	rm -f "${pending_index}"
 	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、表からコピーしたパスでノートを開けない。
 	if [ "${escaped}" = 1 ]; then
 		echo

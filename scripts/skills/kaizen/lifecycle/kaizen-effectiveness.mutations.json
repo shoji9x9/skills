@@ -1,0 +1,75 @@
+{
+  "$comment": [
+    "kaizen-effectiveness.test.ts が、適用した学びの効果の測り直し（Issue #1125）の判定の誤りを検出できることを示す変異の一覧。",
+    "各変異は、置換が当たったことと、expect_failing のテストだけが落ちたことの両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/kaizen/lifecycle/kaizen-effectiveness.test.ts",
+  "mutations": [
+    {
+      "id": "EFFECTIVENESS-SHALLOW-CLONE-DATED",
+      "why": "浅い clone でも適用した日を求める（残った 1 つの commit の日付をすべての学びに付け、誤った日付が警告なしに週次の Issue に載る）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "\tif [ \"${shallow}\" != false ]; then",
+      "replace": "\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "適用した日 浅い clone では、残った commit の日付を付けずに unknown にする"
+      ]
+    },
+    {
+      "id": "EFFECTIVENESS-LATEST-COMMIT-DATE",
+      "why": "古い順に並べずに最初の行を採る（archive へ移した日を適用した日として出す。日付の形は正しいので気付けない）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "git -c core.quotepath=off log --reverse --no-renames",
+      "replace": "git -c core.quotepath=off log --no-renames",
+      "occurrences": 1,
+      "expect_failing": [
+        "適用した日 status: applied の行が最初に入った commit の日付を使い、archive への移動では変えない"
+      ]
+    },
+    {
+      "id": "EFFECTIVENESS-BODY-EXAMPLE-DATED",
+      "why": "git log -G が当てた commit の frontmatter の status を確かめない（本文のコードフェンスに `status: applied` の例を足した日を適用した日として出す。日付の形は正しいので気付けない）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "status=$(kaizen_frontmatter_values <(git show \"${sha}:${path}\" 2>/dev/null) status)",
+      "replace": "status=applied",
+      "occurrences": 1,
+      "expect_failing": [
+        "適用した日 本文の `status: applied` の例を足した commit は、適用した日にしない"
+      ]
+    },
+    {
+      "id": "EFFECTIVENESS-FENCE-COUNTED",
+      "why": "コードフェンスの中の箇条を手順として数える（学びのフォーマットの例を載せた提案が、手順を細かく書いた規約の候補に誤って入る）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "\tawk \"${KAIZEN_AWK_SKIP_FENCES}\"'",
+      "replace": "\tawk '",
+      "occurrences": 1,
+      "expect_failing": [
+        "適用した学びの一覧（list） ## 提案 の形: フェンスの中の箇条",
+        "適用した学びの一覧（list） ## 提案 の形: 長いフェンスの中の短い閉じ",
+        "適用した学びの一覧（list） ## 提案 の形: 字下げしたフェンスの中の箇条"
+      ]
+    },
+    {
+      "id": "EFFECTIVENESS-OTHER-SECTION-COUNTED",
+      "why": "## 提案 で始まる別の見出しの節も提案として数える（前方一致にすると `## 提案の補足` の箇条で候補に入る）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "in_section = (line == \"## 提案\")",
+      "replace": "in_section = (index(line, \"## 提案\") == 1)",
+      "occurrences": 1,
+      "expect_failing": ["適用した学びの一覧（list） ## 提案 の外の箇条は数えない"]
+    },
+    {
+      "id": "EFFECTIVENESS-SYMLINK-NOTE-READ",
+      "why": "symlink のノートを読む（リポジトリの外のファイルの内容とパスが、警告なしに週次の Issue に出る）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "\t\tif ! kaizen_path_is_safe \"${f}\"; then",
+      "replace": "\t\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "呼び出し方と機能を減らした実行 symlink のノートと、symlink の .kaizen の先は読まない"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
-argument-hint: '[extract|apply|forget|archive|delete|setup] [--current | --all] [--record-pending]'
-description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。適用されないまま古くなり再発もしていない学びは抽出時に自動で忘却し、セッション開始時の注入を軽く保つ。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」「古い学びを忘れて」などで発動。
+argument-hint: '[extract|apply|forget|effectiveness|archive|delete|setup] [--current | --all] [--record-pending]'
+description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。適用されないまま古くなり再発もしていない学びは抽出時に自動で忘却し、セッション開始時の注入を軽く保つ。適用した学びの再発を数え、効果の無い規約の候補も挙げる。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」「古い学びを忘れて」「規約の効果を測り直して」「効果の無い規約を探して」などで発動。
 license: MIT
 name: kaizen
 ---
@@ -16,6 +16,7 @@ name: kaizen
                                       最重要候補を最大 1 件、承認確認なしで pending 記録（オーケストレーション専用）
 /kaizen apply                           pending の学びを成果物（ルール / doc / hook 等）へ適用
 /kaizen forget [--list | --auto | 対象ファイル...]  適用されないまま古くなった pending を忘れる（status: forgotten。3 つは排他）
+/kaizen effectiveness                   適用した学びの再発を数え、消すか書き換えるかの候補を挙げる（何も変更しない）
 /kaizen archive [対象フラグ]             .kaizen を整理 = アーカイブ（既定・非破壊。.kaizen/archive/ へ移動）
 /kaizen delete  [対象フラグ]             .kaizen を整理 = 物理削除（破壊的・明示時のみ）
 
@@ -31,6 +32,7 @@ name: kaizen
   - 「振り返って」「kaizen」は抽出
   - 「学びを適用して」は apply
   - 「忘れて」「古い学びを整理して」は forget
+  - 「規約の効果を測り直して」「効果の無い規約を探して」は effectiveness
   - 「整理して」「アーカイブして」「クリーンアップして」は archive
   - 「削除して」「消して」は delete
   - 「セットアップして」「hooks を設定して」は setup
@@ -66,7 +68,7 @@ name: kaizen
 
 ### Step 1: 操作の特定
 
-「使い方」のコマンドまたは自然文から、抽出・適用・忘却・整理（アーカイブ・削除）・セットアップのどれかを判定する。判定できないときは利用者に確認する。
+「使い方」のコマンドまたは自然文から、抽出・適用・忘却・効果の測り直し・整理（アーカイブ・削除）・セットアップのどれかを判定する。判定できないときは利用者に確認する。
 整理の対象フラグ（`--applied` 等）が省略されたときは、対象を利用者に確認する。
 このスキルの確認と承認は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。確認のツールを使えないエージェントでは、選択肢や判断の材料を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。
 
@@ -76,7 +78,7 @@ name: kaizen
 
 - 学び抽出 → `references/extract.md`
 - 学び適用 → `references/apply.md`
-- 忘却・整理（アーカイブ・削除）→ `references/housekeeping.md`
+- 忘却・効果の測り直し・整理（アーカイブ・削除）→ `references/housekeeping.md`
 - セットアップ → `references/setup.md`
 
 コンポーネントファイルは、SKILL.md と同じディレクトリの `references/` の下にある。インストール先に応じて、次の場所を順に試す。
