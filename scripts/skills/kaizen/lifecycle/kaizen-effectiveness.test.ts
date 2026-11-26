@@ -445,6 +445,20 @@ describe("候補の表（candidates）", () => {
 });
 
 describe("呼び出し方と機能を減らした実行", () => {
+  test("適用した学びが 0 件でも、適用した学びに無い名前を指す再発の記録を数える", () => {
+    const dir = makeProject({
+      "r.md": note({ status: "pending", appliedTo: "[]", recurrenceOf: "[missing.md]" }),
+    });
+    try {
+      const { status, stdout, stderr } = run(dir, ["candidates"]);
+      expect(status).toBe(0);
+      expect(stdout).toContain("適用した学びに無いファイル名 1 件");
+      expect(stderr).toContain("missing.md");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("学びが 0 件でも、list と candidates は exit 0 で終わる", () => {
     const dir = makeProject({});
     try {
@@ -545,26 +559,54 @@ describe("週次の報告（kaizen-schedule-report.sh issue）", () => {
     }
   });
 
+  // 偽の集計（1 行 100 文字・改行を含めて 101 文字の行を 200 行出す）と、本物の週次の報告を置いたディレクトリを作る。
+  function partialWithLongCandidates(dir: string): string {
+    const partial = join(dir, "partial");
+    mkdirSync(partial);
+    for (const f of ["kaizen-schedule-report.sh", "kaizen-hook-common.sh"]) {
+      copyFileSync(join(scriptDir, f), join(partial, f));
+    }
+    const fake = [
+      'echo "## 効果を測り直す規約の候補"',
+      'awk \'BEGIN { for (i = 1; i <= 200; i++) printf "| %03d %s|\\n", i, sprintf("%93s", "") }\'',
+    ].join("\n");
+    writeFileSync(join(partial, "kaizen-effectiveness.sh"), `${fake}\n`);
+    return join(partial, "kaizen-schedule-report.sh");
+  }
+
   test("候補の節を 15,000 文字で行の境界で切り、省いたことを書く", () => {
     const dir = makeProject({ "a.md": note() });
     try {
-      const partial = join(dir, "partial");
-      mkdirSync(partial);
-      for (const f of ["kaizen-schedule-report.sh", "kaizen-hook-common.sh"]) {
-        copyFileSync(join(scriptDir, f), join(partial, f));
-      }
-      // 1 行 100 文字（改行を含めて 101 文字）の行を 200 行出す偽の集計。上限の 15,000 文字は 149 行目で超える。
-      const fake = [
-        'echo "## 効果を測り直す規約の候補"',
-        'awk \'BEGIN { for (i = 1; i <= 200; i++) printf "| %03d %s|\\n", i, sprintf("%93s", "") }\'',
-      ].join("\n");
-      writeFileSync(join(partial, "kaizen-effectiveness.sh"), `${fake}\n`);
-      const { status, stdout } = run(dir, ["issue"], join(partial, "kaizen-schedule-report.sh"));
+      const { status, stdout } = run(dir, ["issue"], partialWithLongCandidates(dir));
       expect(status).toBe(0);
       const section = stdout.slice(stdout.indexOf("## 効果を測り直す規約の候補"));
       expect(section).toContain("以降を省きました");
-      expect(section.length).toBeLessThanOrEqual(15_000 + 200);
+      expect(section.length).toBeLessThanOrEqual(15_000);
       expect(section).not.toContain("| 200 ");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // 未適用の学びの表はパスを切らないので、長いパスの学びが 60 件あると表だけで 17,500 文字を超える。
+  // 候補の節は、本文の上限からエージェントのレポートの分（31,000 文字）と表の長さを引いた残りで切る。
+  test("未適用の学びの表が長いときは、候補の節を本文の残りの文字数で切る", () => {
+    const notes: Record<string, string> = {};
+    for (let i = 0; i < 60; i++) {
+      notes[`${String(i).padStart(2, "0")}-${"x".repeat(200)}.md`] = note({
+        status: "pending",
+        appliedTo: "[]",
+        proposal: "あ".repeat(200),
+      });
+    }
+    const dir = makeProject(notes);
+    try {
+      const { status, stdout } = run(dir, ["issue"], partialWithLongCandidates(dir));
+      expect(status).toBe(0);
+      const head = stdout.slice(0, stdout.indexOf("## 効果を測り直す規約の候補"));
+      expect(head.length).toBeGreaterThan(17_500);
+      expect(stdout).toContain("以降を省きました");
+      expect(stdout.length).toBeLessThanOrEqual(65_536 - 31_000);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

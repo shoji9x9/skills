@@ -247,14 +247,23 @@ collect_notes() {
 # 適用した学びの添字ごとに、適用した日・再発の件数・再発の記録の一覧（すべて・先頭の MAX_RECURRENCE_NOTES 件）を対応づける。
 # 結果は row_date・row_count・row_rec_all・row_rec_short に入れる。一覧が無ければ `-` にする（タブは IFS の空白なので、空の列を詰めないため）。
 # 適用した学びに当たらない再発の記録は、数えずに件数（unmatched_recurrences）を残す（ファイル名の誤り・適用していない学びを指した記録）。
+# 適用した学びを `<添字> <TAB> <ファイル名>` の行で出す。0 件なら何も出さない（空の配列を展開しない）。
+applied_index() {
+	local i
+	[ "${#applied_names[@]}" -gt 0 ] || return 0
+	for i in "${!applied_names[@]}"; do
+		printf '%s\t%s\n' "${i}" "${applied_names[i]}"
+	done
+}
+
 row_date=()
 row_count=()
 row_rec_all=()
 row_rec_short=()
 unmatched_recurrences=0
 join_measures() {
-	local i kind a b c d
-	[ "${#applied_names[@]}" -gt 0 ] || return 0
+	local kind a b c d
+	# 適用した学びが 0 件でも、再発の記録を読んで、適用した学びに無い名前を指す記録の件数を出す。
 	while IFS=$'\t' read -r kind a b c d; do
 		case "${kind}" in
 		row)
@@ -288,7 +297,7 @@ join_measures() {
 			}
 			for (t in count) if (!(t in known)) printf "unmatched\t%s\t%d\n", t, count[t]
 		}
-	' <(printf '%s' "${applied_dates}") <(printf '%s' "${recurrence_lines}") <(for i in "${!applied_names[@]}"; do printf '%s\t%s\n' "${i}" "${applied_names[i]}"; done))
+	' <(printf '%s' "${applied_dates}") <(printf '%s' "${recurrence_lines}") <(applied_index))
 }
 
 # 文字数で切る。bash のパラメータ展開は UTF-8 のロケールでは文字単位、それ以外ではバイト単位なので、
