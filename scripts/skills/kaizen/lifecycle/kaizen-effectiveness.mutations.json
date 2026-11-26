@@ -59,6 +59,17 @@
       "replace": "in_section = (index(line, \"## 提案\") == 1)",
       "occurrences": 1,
       "expect_failing": ["適用した学びの一覧（list） ## 提案 の外の箇条は数えない"]
+    },
+    {
+      "id": "EFFECTIVENESS-SYMLINK-NOTE-READ",
+      "why": "symlink のノートを読む（リポジトリの外のファイルの内容とパスが、警告なしに週次の Issue に出る）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "\t\tif ! kaizen_path_is_safe \"${f}\"; then",
+      "replace": "\t\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "呼び出し方と機能を減らした実行 symlink のノートと、symlink の .kaizen の先は読まない"
+      ]
     }
   ]
 }

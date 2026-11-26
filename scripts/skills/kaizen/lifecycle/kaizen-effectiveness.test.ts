@@ -1,6 +1,14 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -456,6 +464,25 @@ describe("呼び出し方と機能を減らした実行", () => {
       expect(stderr).toContain("missing.md");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("symlink のノートと、symlink の .kaizen の先は読まない", () => {
+    const outside = makeProject({ "outside.md": note() });
+    const dir = makeProject({ "inside.md": note() });
+    const linked = makeTempDir("kaizen-effectiveness-linked-");
+    try {
+      symlinkSync(join(outside, ".kaizen", "outside.md"), join(dir, ".kaizen", "link.md"));
+      expect(listRows(dir).map((r) => r.note)).toStrictEqual([".kaizen/inside.md"]);
+      const { stdout, stderr } = run(dir, ["candidates"]);
+      expect(stderr).toContain(".kaizen/link.md は symlink");
+      expect(stdout).toContain("symlink なので読まなかったノートか `.kaizen` があります（1 件）");
+
+      symlinkSync(join(outside, ".kaizen"), join(linked, ".kaizen"));
+      expect(listRows(linked)).toStrictEqual([]);
+      expect(run(linked, ["list"]).stderr).toContain(".kaizen が symlink なので、学びを読まない");
+    } finally {
+      for (const d of [outside, dir, linked]) rmSync(d, { recursive: true, force: true });
     }
   });
 

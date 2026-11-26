@@ -28,7 +28,7 @@
     "scripts/skills/kaizen/hook-common/kaizen-config.mutations.json": 1,
     "scripts/skills/kaizen/hook-common/kaizen-degraded-warning.mutations.json": 1.5,
     "scripts/skills/kaizen/hooks/kaizen-context-inject.mutations.json": 7.4,
-    "scripts/skills/kaizen/lifecycle/kaizen-effectiveness.mutations.json": 3.3,
+    "scripts/skills/kaizen/lifecycle/kaizen-effectiveness.mutations.json": 5.6,
     "scripts/skills/kaizen/lifecycle/kaizen-forget.mutations.json": 3.6,
     "scripts/skills/kaizen/extract/kaizen-candidate-scan.mutations.json": 1.8,
     "scripts/skills/kaizen/extract/kaizen-extract-done.mutations.json": 7.5,

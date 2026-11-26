@@ -192,11 +192,24 @@ applied_names=()
 applied_tos=()
 recurrence_lines=""
 malformed_recurrences=0
+unsafe_notes=0
 collect_notes() {
 	local f status recurrence_of date_value name body item entry applied_list=$'\n'
 	local -a items
+	# `.kaizen` やノートが symlink なら、その先のファイルを学びとして読まない（kaizen-context-inject.sh と同じ扱い）。
+	# 名前はリポジトリの中身で決まるので commit された symlink でありえ、リポジトリの外のファイルの内容とパスが週次の Issue に出る。
+	if ! kaizen_path_is_safe .kaizen; then
+		warn ".kaizen が symlink なので、学びを読まない"
+		unsafe_notes=1
+		return 0
+	fi
 	for f in .kaizen/*.md .kaizen/archive/*.md; do
 		[ -e "${f}" ] || continue
+		if ! kaizen_path_is_safe "${f}"; then
+			warn "${f} は symlink か symlink の下にあるので、学びとして読まない"
+			unsafe_notes=$((unsafe_notes + 1))
+			continue
+		fi
 		{
 			IFS= read -r status
 			IFS= read -r recurrence_of
@@ -407,6 +420,10 @@ cmd_candidates() {
 	if [ "${unmatched_recurrences}" -gt 0 ] || [ "${malformed_recurrences}" -gt 0 ]; then
 		echo
 		echo "> 数えなかった再発の記録があります（適用した学びに無いファイル名 ${unmatched_recurrences} 件・読めない書き方 ${malformed_recurrences} 件）。"
+	fi
+	if [ "${unsafe_notes}" -gt 0 ]; then
+		echo
+		echo "> symlink なので読まなかったノートか \`.kaizen\` があります（${unsafe_notes} 件）。対象は実行のログ（stderr）に出します。"
 	fi
 	[ "${#candidates[@]}" -gt 0 ] || return 0
 	echo
