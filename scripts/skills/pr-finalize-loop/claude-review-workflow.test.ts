@@ -313,6 +313,13 @@ describe("Post review", () => {
     );
   const marker = (findings: number, open: number) =>
     `<!-- claude-review sha=${SHA} findings=${findings} open=${open} effort=high run=345 -->`;
+  /** 行へのコメントとして送った本文（1 行に 1 件の JSON）を読む。 */
+  const readInline = (dir: string) =>
+    read(dir, "inline.log")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l): unknown => JSON.parse(l));
 
   test("指摘 0 件でも、目印を 1 行目に置いた総評を投稿する", () => {
     const res = post({ summary: "問題なし", findings: [] });
@@ -333,11 +340,7 @@ describe("Post review", () => {
       ],
     });
     expect(res.status, res.stderr + res.stdout).toBe(0);
-    const inline = read(res.dir, "inline.log")
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((l): unknown => JSON.parse(l));
+    const inline = readInline(res.dir);
     expect(inline).toEqual([
       { body: "行の指摘", commit_id: SHA, path: "a.ts", line: 3, side: "RIGHT" },
       {
@@ -354,6 +357,31 @@ describe("Post review", () => {
     expect(comment.split("\n")[0]).toBe(marker(3, 1));
     expect(comment).toContain("全体の指摘");
     expect(outputs(res.dir)).toMatchObject({ findings: "3", inline: "2", open: "1" });
+  });
+
+  test("path と line の片方しか無い指摘も段を失敗させず、両方ある指摘だけを行に付け、ほかは位置を添えて総評に書く", () => {
+    const res = post({
+      summary: "s",
+      findings: [
+        { path: "a.ts", line: 3, body: "両方" },
+        { path: "config.yml", body: "ファイル全体" },
+        { line: 7, body: "行だけ" },
+        { start_line: 2, body: "開始行だけ" },
+        { body: "位置なし" },
+      ],
+    });
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    const inline = readInline(res.dir);
+    expect(inline).toEqual([
+      { body: "両方", commit_id: SHA, path: "a.ts", line: 3, side: "RIGHT" },
+    ]);
+    const comment = read(res.dir, "comment.md");
+    expect(comment.split("\n")[0]).toBe(marker(5, 4));
+    expect(comment).toContain("1. `config.yml` ファイル全体");
+    expect(comment).toContain("2. （行 7、ファイルの指定なし） 行だけ");
+    expect(comment).toContain("3. 開始行だけ");
+    expect(comment).toContain("4. 位置なし");
+    expect(outputs(res.dir)).toMatchObject({ findings: "5", inline: "1", open: "4" });
   });
 
   test("API が拒否した行の指摘は、総評に移して open に数える", () => {
@@ -395,7 +423,7 @@ describe("Post review", () => {
   test.each([
     ["findings が無い", { summary: "s" }],
     ["body が空の指摘", { summary: "s", findings: [{ body: "" }] }],
-    ["path だけで line が無い指摘", { summary: "s", findings: [{ path: "a.ts", body: "x" }] }],
+    ["body が文字列でない指摘", { summary: "s", findings: [{ path: "a.ts", line: 1, body: 1 }] }],
   ])("%s なら、何も投稿せずに失敗する", (_label, result) => {
     const res = post(result);
     expect(res.status).toBe(1);

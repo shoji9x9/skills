@@ -412,7 +412,8 @@ jobs:
             ${{ steps.opts.outputs.model_args }}
 
       # 指摘を投稿し、最後に目印を 1 行目に置いた総評のコメントを書く。エージェントが成功したときだけ実行する。
-      # 行に付けられなかった指摘（差分に無い行など、API が拒否したもの）は、総評の「行に付けない指摘」に移す。
+      # path と line がそろう指摘だけを行に付け、そろわない指摘と API が拒否した指摘（差分に無い行など）は、総評の「行に付けない指摘」に書く。
+      # そろわない指摘は --json-schema が許す形なので、検査で段を失敗させない。
       # 目印: <!-- claude-review sha=<40 桁の SHA> findings=<指摘の件数> open=<総評に書いた指摘の件数> effort=<effort> run=<run の ID> -->
       # open は、行に付けずに総評に書いた指摘の件数である。行の指摘はスレッドの解決で追えるが、総評の指摘は追えないので分けて数える。
       # 結果に資格情報（token の値と、token の形の文字列）があれば、何も投稿せずに失敗させる。
@@ -446,8 +447,7 @@ jobs:
           jq "$LAST_RESULT | .structured_output" \
             "$EXECUTION_FILE" >"$result" || fail "実行記録を読めない"
           jq -e '(.summary | type == "string") and (.findings | type == "array")
-            and all(.findings[]; (.body | type == "string" and length > 0)
-              and ((has("path") and has("line")) or ((has("path") or has("line") or has("start_line")) | not)))' \
+            and all(.findings[]; .body | type == "string" and length > 0)' \
             "$result" >/dev/null || fail "エージェントの結果の形が不正（structured output が無いか、取り決めと違う）"
 
           # grep の終了コードは、0 が見つかった、1 が無い、それ以外が読めない。すべて 1 のときだけ投稿する。
@@ -473,7 +473,9 @@ jobs:
             exit 0
           fi
           general="$RUNNER_TEMP/general.jsonl"
-          jq -c '.findings[] | select(has("path") | not)' "$result" >"$general"
+          # 行に付けるかの条件を 1 か所で決め、行に付ける指摘と総評に書く指摘を同じ条件で分ける。
+          inlinable='def inlinable: has("path") and has("line");'
+          jq -c "$inlinable"' .findings[] | select(inlinable | not)' "$result" >"$general"
           inline=0
           while IFS= read -r finding; do
             payload="$RUNNER_TEMP/inline-payload.json"
@@ -486,7 +488,7 @@ jobs:
               echo "::warning title=Claude review::行に付けられなかった指摘を総評に移す（$(jq -r '"\(.path):\(.line)"' <<<"$finding")）"
               printf '%s\n' "$finding" >>"$general"
             fi
-          done < <(jq -c '.findings[] | select(has("path"))' "$result")
+          done < <(jq -c "$inlinable"' .findings[] | select(inlinable)' "$result")
           open="$(grep -c . "$general" || true)"
 
           full="$RUNNER_TEMP/review-comment-full.md"
@@ -503,7 +505,11 @@ jobs:
               echo
               echo "### 行に付けない指摘"
               echo
-              jq -r -s 'to_entries[] | "\(.key + 1). \(if .value.path then "`\(.value.path):\(.value.line)` " else "" end)\(.value.body)\n"' "$general" |
+              jq -r -s "$inlinable"' def loc: if inlinable then "`\(.path):\(.line)` "
+                  elif has("path") then "`\(.path)` "
+                  elif has("line") then "（行 \(.line)、ファイルの指定なし） "
+                  else "" end;
+                to_entries[] | "\(.key + 1). \(.value | loc)\(.value.body)\n"' "$general" |
                 sed 's/<!--/\&lt;!--/g'
             fi
           } >"$full"
