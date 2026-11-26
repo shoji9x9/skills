@@ -75,11 +75,40 @@ table_cell() {
 	printf '%s' "${s//|/\\|}"
 }
 
-# `## 提案` の節の、番号付きの手順の行数と箇条書きの行数を `<手順> <箇条>` で出す。
+# 1 件の学びの、`## 提案` の節の番号付きの手順の行数・箇条書きの行数と、適用先（`applied-to`）を、タブで区切って出す。
 # 節は見出しの行の完全一致（後ろの空白は許す）で始め、次の `## ` の見出しで閉じる。
 # コードフェンスの中の行は、共通ライブラリの KAIZEN_AWK_SKIP_FENCES で読み飛ばす（判断待ちの判定と同じ読み方）。
-proposal_shape() {
+# applied-to は、references/extract.md が認める 3 つの形（1 行の flow 配列・折り返した flow 配列・ブロックシーケンス）を読み、
+# 1 行の flow 配列の形で出す。共通ライブラリの kaizen_frontmatter_values はキーと同じ行の値だけを読むので、
+# 折り返した形とブロックシーケンスでは適用先が空になる。継続行は、字下げした行と桁 0 の `- ` の行で、桁 0 のほかの行（コメントを除く）で終わる。
+note_shape() {
 	awk "${KAIZEN_AWK_SKIP_FENCES}"'
+		NR == 1 && /^---[ \t]*$/ { fm = 1; next }
+		fm == 1 && /^---[ \t]*$/ { fm = 2; next }
+		fm == 1 {
+			if (!seen_at && $0 ~ /^applied-to:/) {
+				at = $0
+				sub(/^applied-to:[ \t]*/, "", at)
+				sub(/[ \t]+$/, "", at)
+				seen_at = 1; in_at = 1
+				next
+			}
+			if (in_at && $0 ~ /^[ \t]*-[ \t]+[^ \t]/) {
+				item = $0
+				sub(/^[ \t]*-[ \t]+/, "", item)
+				sub(/[ \t]+$/, "", item)
+				items = items (items == "" ? "" : ", ") item
+				next
+			}
+			if (in_at && $0 ~ /^[ \t]+[^ \t#]/) {
+				cont = $0
+				gsub(/^[ \t]+|[ \t]+$/, "", cont)
+				at = at ((at ~ /,$/) ? " " : "") cont
+				next
+			}
+			if ($0 !~ /^#/) in_at = 0
+			next
+		}
 		/^## / {
 			line = $0
 			sub(/[ \t]+$/, "", line)
@@ -88,7 +117,11 @@ proposal_shape() {
 		}
 		in_section && /^[ \t]*[0-9]+[.)][ \t]/ { steps++ }
 		in_section && /^[ \t]*[-*+][ \t]/ { bullets++ }
-		END { printf "%d %d\n", steps, bullets }
+		END {
+			if (items != "") at = "[" items "]"
+			sub(/,[ \t]*\]$/, "]", at)
+			printf "%d\t%d\t%s\n", steps, bullets, at
+		}
 	' "$1"
 }
 
@@ -144,17 +177,16 @@ declare -A rec_count=() rec_notes=() rec_short=()
 unmatched_recurrences=0
 malformed_recurrences=0
 collect_notes() {
-	local f status applied_to recurrence_of date_value name body item entry target
+	local f status recurrence_of date_value name body item entry target
 	local -a items
 	local -A seen_names=()
 	for f in .kaizen/*.md .kaizen/archive/*.md; do
 		[ -e "${f}" ] || continue
 		{
 			IFS= read -r status
-			IFS= read -r applied_to
 			IFS= read -r recurrence_of
 			IFS= read -r date_value
-		} <<<"$(kaizen_frontmatter_values "${f}" status applied-to recurrence-of date)" || true
+		} <<<"$(kaizen_frontmatter_values "${f}" status recurrence-of date)" || true
 		name=${f##*/}
 		if [ "${status}" = applied ]; then
 			if [ -n "${seen_names["${name}"]:-}" ]; then
@@ -163,7 +195,6 @@ collect_notes() {
 			seen_names["${name}"]=${f}
 			applied_paths+=("${f}")
 			applied_names+=("${name}")
-			applied_tos+=("${applied_to}")
 		fi
 		# 値が空でも、欄があれば（`recurrence-of:` の後に block 形式の配列を書いた記録など）、読めない書き方として件数を残す。
 		if [ -z "${recurrence_of}" ]; then
@@ -233,12 +264,13 @@ row_steps=()
 row_bullets=()
 row_kinds=()
 measure() {
-	local i count steps bullets kinds
+	local i count steps bullets applied kinds
 	build_applied_dates
 	collect_notes
 	for i in "${!applied_paths[@]}"; do
 		count=${rec_count["${applied_names[i]}"]:-0}
-		read -r steps bullets <<<"$(proposal_shape "${applied_paths[i]}")"
+		IFS=$'\t' read -r steps bullets applied <<<"$(note_shape "${applied_paths[i]}")"
+		applied_tos[i]=${applied}
 		kinds=""
 		[ "${count}" -lt "${RECURRING_MIN}" ] || kinds="recurring"
 		if [ "${steps}" -ge "${PROCEDURAL_STEPS_MIN}" ] || [ "${bullets}" -ge "${PROCEDURAL_BULLETS_MIN}" ]; then

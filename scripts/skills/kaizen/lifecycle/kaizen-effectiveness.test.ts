@@ -232,6 +232,33 @@ describe("適用した学びの一覧（list）", () => {
     }
   });
 
+  test.each([
+    ["1 行の flow 配列", "[AGENTS.md, docs/x.md]"],
+    ["折り返した flow 配列", "\n  [\n    AGENTS.md,\n    docs/x.md,\n  ]"],
+    ["字下げしたブロックシーケンス", "\n  - AGENTS.md\n  - docs/x.md"],
+    ["桁 0 のブロックシーケンス", "\n- AGENTS.md\n- docs/x.md"],
+  ])("applied-to の形: %s を 1 行の flow 配列として出す", (_label, appliedTo) => {
+    const dir = makeProject({ "a.md": note({ appliedTo }) });
+    try {
+      expect(rowOf(listRows(dir), ".kaizen/a.md").applied_to).toBe("[AGENTS.md, docs/x.md]");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("applied-to の継続行は、次のキーで終わる", () => {
+    const dir = makeProject({
+      "a.md": note({ appliedTo: "\n  - AGENTS.md\n# コメント\n  - docs/x.md" }),
+    });
+    try {
+      const row = rowOf(listRows(dir), ".kaizen/a.md");
+      // 次のキー（recurrence-of を書かないノートでは session:）の値を適用先に含めない。
+      expect(row.applied_to).toBe("[AGENTS.md, docs/x.md]");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("## 提案 の外の箇条は数えない", () => {
     const bullets = "- a\n- b\n- c\n- d\n- e";
     const dir = makeProject({
