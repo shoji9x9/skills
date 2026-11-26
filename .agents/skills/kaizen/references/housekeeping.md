@@ -99,7 +99,7 @@ KEDB 照合が `status=forgotten` のノートを返したら、その事象は�
 
 | 項目 | 求め方 |
 | --- | --- |
-| 適用した日 | git の履歴で、そのノートに `status: applied` の行が最初に入った commit の日付。frontmatter に欄は無い。履歴が浅い clone・git の外・まだ commit していない適用では `unknown` にする |
+| 適用した日 | git の履歴で、そのノートの frontmatter の `status` が最初に `applied` になった commit の日付。本文に `status: applied` の例を書いた commit は数えない。frontmatter に欄は無い。履歴が浅い clone・git の外・まだ commit していない適用では `unknown` にする |
 | 再発の件数 | 他のノートの `recurrence-of` に、そのノートのファイル名が書かれた件数（`references/extract.md`「KEDB 照合」）。書いたノートの status は問わない |
 | 手順の細かさ | `## 提案` の節の、番号付きの手順の行数と箇条書きの行数。コードフェンスの中は数えない |
 

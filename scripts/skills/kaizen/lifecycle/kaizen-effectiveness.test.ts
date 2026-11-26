@@ -297,6 +297,22 @@ describe("適用した日", () => {
     }
   });
 
+  test("本文の `status: applied` の例を足した commit は、適用した日にしない", () => {
+    const example = "```text\n---\nstatus: applied\n---\n```";
+    const dir = makeProject({
+      "a.md": note({ status: "pending", appliedTo: "[]", body: `## 例\n\n${example}\n` }),
+    });
+    try {
+      gitInit(dir);
+      commitAll(dir, "2026-09-01");
+      writeFileSync(join(dir, ".kaizen", "a.md"), note({ body: `## 例\n\n${example}\n` }));
+      commitAll(dir, "2026-09-10");
+      expect(rowOf(listRows(dir), ".kaizen/a.md").applied_date).toBe("2026-09-10");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("git の外では日付を unknown にし、理由を出す", () => {
     const dir = makeProject({ "a.md": note() });
     try {
@@ -359,16 +375,16 @@ describe("候補の表（candidates）", () => {
     }
   });
 
-  test("再発の記録は 5 件まで載せ、残りは件数だけを書く", () => {
+  test("再発の記録は 3 件まで載せ、残りは件数だけを書く", () => {
     const notes: Record<string, string> = { "target.md": note() };
-    for (let i = 1; i <= 6; i++)
+    for (let i = 1; i <= 4; i++)
       notes[`r${i}.md`] = note({ status: "pending", recurrenceOf: "[target.md]" });
     const dir = makeProject(notes);
     try {
       const { stdout } = run(dir, ["candidates"]);
-      expect(stdout).toContain(".kaizen/r5.md（2026-10-01）、ほか 1 件");
-      expect(stdout).not.toContain(".kaizen/r6.md");
-      expect(rowOf(listRows(dir), ".kaizen/target.md").recurrence_notes).toContain(".kaizen/r6.md");
+      expect(stdout).toContain(".kaizen/r3.md（2026-10-01）、ほか 1 件");
+      expect(stdout).not.toContain(".kaizen/r4.md");
+      expect(rowOf(listRows(dir), ".kaizen/target.md").recurrence_notes).toContain(".kaizen/r4.md");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -385,14 +401,14 @@ describe("候補の表（candidates）", () => {
     }
   });
 
-  test("表は 30 行までにし、残りの件数を出す", () => {
+  test("表は 15 行までにし、残りの件数を出す", () => {
     const notes: Record<string, string> = {};
-    for (let i = 0; i < 31; i++)
+    for (let i = 0; i < 16; i++)
       notes[`n${String(i).padStart(2, "0")}.md`] = note({ proposal: "1. a\n2. b\n3. c" });
     const dir = makeProject(notes);
     try {
       const { stdout } = run(dir, ["candidates"]);
-      expect(stdout.split("\n").filter((l) => l.startsWith("| `.kaizen/")).length).toBe(30);
+      expect(stdout.split("\n").filter((l) => l.startsWith("| `.kaizen/")).length).toBe(15);
       expect(stdout).toContain("残り 1 件");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -475,6 +491,31 @@ describe("週次の報告（kaizen-schedule-report.sh issue）", () => {
       expect(stdout).toContain("## 効果を測り直す規約の候補");
       expect(stdout).toContain("測れませんでした");
       expect(stderr).toContain("kaizen-effectiveness.sh を読めない");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("候補の節を 15,000 文字で行の境界で切り、省いたことを書く", () => {
+    const dir = makeProject({ "a.md": note() });
+    try {
+      const partial = join(dir, "partial");
+      mkdirSync(partial);
+      for (const f of ["kaizen-schedule-report.sh", "kaizen-hook-common.sh"]) {
+        copyFileSync(join(scriptDir, f), join(partial, f));
+      }
+      // 1 行 100 文字（改行を含めて 101 文字）の行を 200 行出す偽の集計。上限の 15,000 文字は 149 行目で超える。
+      const fake = [
+        'echo "## 効果を測り直す規約の候補"',
+        'awk \'BEGIN { for (i = 1; i <= 200; i++) printf "| %03d %s|\\n", i, sprintf("%93s", "") }\'',
+      ].join("\n");
+      writeFileSync(join(partial, "kaizen-effectiveness.sh"), `${fake}\n`);
+      const { status, stdout } = run(dir, ["issue"], join(partial, "kaizen-schedule-report.sh"));
+      expect(status).toBe(0);
+      const section = stdout.slice(stdout.indexOf("## 効果を測り直す規約の候補"));
+      expect(section).toContain("以降を省きました");
+      expect(section.length).toBeLessThanOrEqual(15_000 + 200);
+      expect(section).not.toContain("| 200 ");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

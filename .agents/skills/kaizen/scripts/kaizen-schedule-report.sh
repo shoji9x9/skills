@@ -379,6 +379,10 @@ cmd_issue() {
 
 # 適用した学びの効果を測り直す候補の節を出す（references/housekeeping.md「適用した学びの効果の測り直し」）。
 # 測れなかったときも、節を省かずに測れなかったことを書く。省くと「候補が無い」と読まれるからである。
+# 節は MAX_EFFECTIVENESS_CHARS 文字で、行の境界で切る。Issue の本文の上限（65,536 文字）を、未適用の学びの表（最大 60 行）と、
+# 同梱のワークフローが足すエージェントのレポート（MAX_REPORT_CHARS の 30,000 文字）と合わせて超えないためである。
+# awk の length は、UTF-8 のロケールの gawk では文字数、mawk などではバイト数を数える。バイト数は文字数以上なので、どちらでも上限を超えない。
+readonly MAX_EFFECTIVENESS_CHARS=15000
 effectiveness_section() {
 	local script out
 	script="$(dirname "${BASH_SOURCE[0]}")/kaizen-effectiveness.sh"
@@ -390,7 +394,15 @@ effectiveness_section() {
 		warn "kaizen-effectiveness.sh が失敗したので、適用した学びの効果を載せない"
 		effectiveness_unmeasured "\`kaizen-effectiveness.sh candidates\` が失敗した。理由は実行のログにあります"
 	else
-		printf '%s\n' "${out}"
+		printf '%s\n' "${out}" | awk -v max="${MAX_EFFECTIVENESS_CHARS}" '
+			{ n += length($0) + 1 }
+			n > max {
+				print ""
+				print "> 本文の文字数の上限を超えないよう、以降を省きました。`kaizen-effectiveness.sh candidates` で確かめてください。"
+				exit
+			}
+			{ print }
+		'
 	fi
 }
 

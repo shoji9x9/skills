@@ -9,7 +9,7 @@
 #
 # 判定に使う材料は次のとおりである。
 #   - 適用した学び: `.kaizen/*.md` と `.kaizen/archive/*.md` のうち、frontmatter が `status: applied` のノート。
-#   - 適用した日: git の履歴で、そのノートに `status: applied` の行が最初に入った commit の日付（author date）。
+#   - 適用した日: git の履歴で、そのノートの frontmatter の status が最初に applied になった commit の日付（author date）。
 #     frontmatter に適用した日の欄は無いので、履歴から求める。履歴が浅い clone・git の外・まだ commit していない適用では、
 #     日付を `unknown` と出す（浅い clone では、残った 1 つの commit の日付をすべての学びに付けてしまうので、求めない）。
 #   - 再発: 他のノートの frontmatter の `recurrence-of` に、そのノートのファイル名が書かれた件数。
@@ -26,11 +26,12 @@ set -euo pipefail
 readonly RECURRING_MIN=1
 readonly PROCEDURAL_STEPS_MIN=3
 readonly PROCEDURAL_BULLETS_MIN=5
-# Issue の本文は 65,536 文字が上限なので、候補の表の行数を決めておく（未適用の学びの表と合わせて上限を超えないため）。
+# Issue の本文は 65,536 文字が上限なので、候補の表の行数を決めておく（未適用の学びの表とエージェントのレポートと合わせて上限を超えないため）。
 # 1 行の長さも決めておく。再発の記録は MAX_RECURRENCE_NOTES 件まで載せ、適用先は MAX_APPLIED_TO_CHARS 文字で切る。
-# 1 行はおよそ パス 80 + 理由 130 + 再発の記録 90 × 5 + 適用先 200 で 860 文字、30 行で 25,800 文字になる。
-readonly MAX_CANDIDATE_ROWS=30
-readonly MAX_RECURRENCE_NOTES=5
+# 1 行はおよそ パス 80 + 理由 130 + 再発の記録 90 × 3 + 適用先 200 で 680 文字、15 行で 10,200 文字になる。
+# 本文に入れるときは、kaizen-schedule-report.sh が節の全体を文字数でも切る（パスが長い学びで、この見積もりを超えても上限を守るため）。
+readonly MAX_CANDIDATE_ROWS=15
+readonly MAX_RECURRENCE_NOTES=3
 readonly MAX_APPLIED_TO_CHARS=200
 
 warn() { echo "kaizen-effectiveness: $*" >&2; }
@@ -141,20 +142,26 @@ build_applied_dates() {
 		return 0
 	fi
 	# --no-renames: 移動（archive）を削除と追加として読み、最初の commit を移動ではなく適用の commit にする。
-	# -G は追加と削除の行のどちらにも当たるので、古い順に並べて最初の日付だけを残す。
-	if ! log=$(git -c core.quotepath=off log --reverse --no-renames --date=short --format='%x01%ad' \
+	# -G は frontmatter と本文を区別せず、追加と削除の行のどちらにも当たる（本文のコードフェンスに `status: applied` の例を足した commit も当たる）。
+	# そのため、古い順に並べた候補の commit ごとに、その commit でのノートの frontmatter の status が applied かを確かめ、
+	# 最初に確かめられた commit の日付だけを残す。ノートを消した側の候補は、その commit にファイルが無いので読めずに飛ばす。
+	if ! log=$(git -c core.quotepath=off log --reverse --no-renames --date=short --format='%x01%H %ad' \
 		-G '^status: applied[[:space:]]*$' --name-only -- .kaizen 2>/dev/null); then
 		dates_unavailable="git log が失敗したので、適用した日を求めない"
 		return 0
 	fi
-	while IFS=$'\t' read -r name date; do
-		if [ -n "${name}" ] && [ -z "${applied_date_by_name["${name}"]:-}" ]; then
+	local sha path status
+	while IFS=$'\t' read -r name date sha path; do
+		[ -n "${name}" ] || continue
+		[ -z "${applied_date_by_name["${name}"]:-}" ] || continue
+		status=$(kaizen_frontmatter_values <(git show "${sha}:${path}" 2>/dev/null) status)
+		if [ "${status}" = applied ]; then
 			applied_date_by_name["${name}"]=${date}
 		fi
 	done < <(printf '%s\n' "${log}" | awk '
-		/^\001/ { date = substr($0, 2); next }
+		/^\001/ { split(substr($0, 2), head, " "); sha = head[1]; date = head[2]; next }
 		NF == 0 { next }
-		{ n = split($0, part, "/"); print part[n] "\t" date }
+		{ n = split($0, part, "/"); print part[n] "\t" date "\t" sha "\t" $0 }
 	')
 }
 

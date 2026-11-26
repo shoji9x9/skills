@@ -28,6 +28,17 @@
       ]
     },
     {
+      "id": "EFFECTIVENESS-BODY-EXAMPLE-DATED",
+      "why": "git log -G が当てた commit の frontmatter の status を確かめない（本文のコードフェンスに `status: applied` の例を足した日を適用した日として出す。日付の形は正しいので気付けない）",
+      "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
+      "find": "status=$(kaizen_frontmatter_values <(git show \"${sha}:${path}\" 2>/dev/null) status)",
+      "replace": "status=applied",
+      "occurrences": 1,
+      "expect_failing": [
+        "適用した日 本文の `status: applied` の例を足した commit は、適用した日にしない"
+      ]
+    },
+    {
       "id": "EFFECTIVENESS-FENCE-COUNTED",
       "why": "コードフェンスの中の箇条を手順として数える（学びのフォーマットの例を載せた提案が、手順を細かく書いた規約の候補に誤って入る）",
       "file": "skills/kaizen/scripts/kaizen-effectiveness.sh",
