@@ -71,9 +71,12 @@ one_line() {
 
 # Markdown の表のセルに入れる値。1 行に収め、列の区切りとして読まれる `|` を `\|` と書く。
 table_cell() {
-	local s
-	s=$(one_line "$1")
-	printf '%s' "${s//|/\\|}"
+	pipe_cell "$(one_line "$1")"
+}
+
+# one_line で 1 行に収めた値を、表のセルに入れる（`|` だけを書き分ける）。one_line を 2 回当てると `\` が重なるので分ける。
+pipe_cell() {
+	printf '%s' "${1//|/\\|}"
 }
 
 # 1 件の学びの、`## 提案` の節の番号付きの手順の行数・箇条書きの行数と、適用先（`applied-to`）を、タブで区切って出す。
@@ -126,12 +129,17 @@ note_shape() {
 	' "$1"
 }
 
-# 適用した日の索引（ファイル名 → 最初に `status: applied` の行が入った commit の日付）を作る。
+# Bash 3.2（macOS の標準の bash）でも動くよう、連想配列（declare -A）と mapfile を使わない。
+# ファイル名をキーにした対応づけは、集めた行を awk に渡して 1 回で行い（join_measures）、bash は添字の配列だけを持つ。
+# set -u の Bash 4.4 より前は、空の配列の "${a[@]}" を未定義の変数として止めるので、配列を展開する前に件数を確かめる。
+
+# 適用した日の索引を作る。applied_dates の各行は `<ファイル名> <TAB> <YYYY-MM-DD>` で、
+# ファイル名ごとに、frontmatter の status が最初に applied になった commit の日付だけを残す。
 # 求められないとき（git の外・浅い clone・git log の失敗）は空のままにし、理由を dates_unavailable に入れる。
 dates_unavailable=""
-declare -A applied_date_by_name=()
+applied_dates=""
 build_applied_dates() {
-	local shallow log name date
+	local shallow log name date sha path status dated=$'\n'
 	if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 		dates_unavailable="git の作業ツリーの外なので、適用した日を求めない"
 		return 0
@@ -151,13 +159,15 @@ build_applied_dates() {
 		dates_unavailable="git log が失敗したので、適用した日を求めない"
 		return 0
 	fi
-	local sha path status
 	while IFS=$'\t' read -r name date sha path; do
 		[ -n "${name}" ] || continue
-		[ -z "${applied_date_by_name["${name}"]:-}" ] || continue
+		case "${dated}" in
+		*$'\n'"${name}"$'\n'*) continue ;;
+		esac
 		status=$(kaizen_frontmatter_values <(git show "${sha}:${path}" 2>/dev/null) status)
 		if [ "${status}" = applied ]; then
-			applied_date_by_name["${name}"]=${date}
+			applied_dates+="${name}"$'\t'"${date}"$'\n'
+			dated+="${name}"$'\n'
 		fi
 	done < <(printf '%s\n' "${log}" | awk '
 		/^\001/ { split(substr($0, 2), head, " "); sha = head[1]; date = head[2]; next }
@@ -176,18 +186,15 @@ has_recurrence_key() {
 }
 
 # 適用した学びと、再発の記録を集める。
-# 再発は、再発したノートのファイル名ごとに、件数（rec_count）・記録したノートの一覧（rec_notes）・
-# 先頭の MAX_RECURRENCE_NOTES 件だけの一覧（rec_short）を持つ。一覧の要素は「<パス>（<date>）」で、「、」でつなぐ。
+# recurrence_lines の各行は `<再発したノートのファイル名> <TAB> <記録したノートのパス>（<date>）` である。
 applied_paths=()
 applied_names=()
 applied_tos=()
-declare -A rec_count=() rec_notes=() rec_short=()
-unmatched_recurrences=0
+recurrence_lines=""
 malformed_recurrences=0
 collect_notes() {
-	local f status recurrence_of date_value name body item entry target
+	local f status recurrence_of date_value name body item entry applied_list=$'\n'
 	local -a items
-	local -A seen_names=()
 	for f in .kaizen/*.md .kaizen/archive/*.md; do
 		[ -e "${f}" ] || continue
 		{
@@ -197,10 +204,10 @@ collect_notes() {
 		} <<<"$(kaizen_frontmatter_values "${f}" status recurrence-of date)" || true
 		name=${f##*/}
 		if [ "${status}" = applied ]; then
-			if [ -n "${seen_names["${name}"]:-}" ]; then
-				warn "同じファイル名の適用した学びが 2 つある（再発はどちらにも数える）: ${seen_names["${name}"]} と ${f}"
-			fi
-			seen_names["${name}"]=${f}
+			case "${applied_list}" in
+			*$'\n'"${name}"$'\n'*) warn "同じファイル名の適用した学びが 2 つある（再発はどちらにも数える）: ${f}" ;;
+			esac
+			applied_list+="${name}"$'\n'
 			applied_paths+=("${f}")
 			applied_names+=("${name}")
 		fi
@@ -220,8 +227,10 @@ collect_notes() {
 		esac
 		body=${recurrence_of#\[}
 		body=${body%\]}
-		entry="${f}（${date_value:-unknown}）"
+		entry="$(one_line "${f}")（$(one_line "${date_value:-unknown}")）"
+		items=()
 		IFS=',' read -r -a items <<<"${body}"
+		[ "${#items[@]}" -gt 0 ] || continue
 		for item in "${items[@]}"; do
 			item=${item#"${item%%[![:space:]]*}"}
 			item=${item%"${item##*[![:space:]]}"}
@@ -230,20 +239,56 @@ collect_notes() {
 			\"*\" | \'*\') item=${item:1:${#item}-2} ;;
 			esac
 			[ -n "${item}" ] || continue
-			rec_count["${item}"]=$((${rec_count["${item}"]:-0} + 1))
-			rec_notes["${item}"]+="${rec_notes["${item}"]:+、}${entry}"
-			if [ "${rec_count["${item}"]}" -le "${MAX_RECURRENCE_NOTES}" ]; then
-				rec_short["${item}"]+="${rec_short["${item}"]:+、}${entry}"
-			fi
+			recurrence_lines+="$(one_line "${item}")"$'\t'"${entry}"$'\n'
 		done
 	done
-	# 適用した学びに当たらない再発の記録は、数えずに件数を残す（ファイル名の誤り・適用していない学びを指した記録）。
-	for target in "${!rec_count[@]}"; do
-		if [ -z "${seen_names["${target}"]:-}" ]; then
-			warn "recurrence-of が、適用した学びに無いファイル名を指すので数えない: ${target}"
-			unmatched_recurrences=$((unmatched_recurrences + rec_count["${target}"]))
-		fi
-	done
+}
+
+# 適用した学びの添字ごとに、適用した日・再発の件数・再発の記録の一覧（すべて・先頭の MAX_RECURRENCE_NOTES 件）を対応づける。
+# 結果は row_date・row_count・row_rec_all・row_rec_short に入れる。一覧が無ければ `-` にする（タブは IFS の空白なので、空の列を詰めないため）。
+# 適用した学びに当たらない再発の記録は、数えずに件数（unmatched_recurrences）を残す（ファイル名の誤り・適用していない学びを指した記録）。
+row_date=()
+row_count=()
+row_rec_all=()
+row_rec_short=()
+unmatched_recurrences=0
+join_measures() {
+	local i kind a b c d
+	[ "${#applied_names[@]}" -gt 0 ] || return 0
+	while IFS=$'\t' read -r kind a b c d; do
+		case "${kind}" in
+		row)
+			row_date[a]=${b}
+			row_count[a]=${c}
+			row_rec_all[a]=${d%%$'\x01'*}
+			row_rec_short[a]=${d#*$'\x01'}
+			;;
+		unmatched)
+			warn "recurrence-of が、適用した学びに無いファイル名を指すので数えない: ${a}"
+			unmatched_recurrences=$((unmatched_recurrences + b))
+			;;
+		esac
+	done < <(awk -F '\t' -v max="${MAX_RECURRENCE_NOTES}" '
+		FILENAME == ARGV[1] { if (!($1 in date)) date[$1] = $2; next }
+		FILENAME == ARGV[2] {
+			if ($1 == "") next
+			count[$1]++
+			all[$1] = all[$1] (all[$1] == "" ? "" : "、") $2
+			if (count[$1] <= max) short[$1] = short[$1] (short[$1] == "" ? "" : "、") $2
+			next
+		}
+		{ order[++n] = $1; name_of[n] = $2; known[$2] = 1 }
+		END {
+			for (k = 1; k <= n; k++) {
+				name = name_of[k]
+				d = (name in date) ? date[name] : "unknown"
+				al = (all[name] == "") ? "-" : all[name]
+				sh = (short[name] == "") ? "-" : short[name]
+				printf "row\t%s\t%s\t%d\t%s\001%s\n", order[k], d, count[name] + 0, al, sh
+			}
+			for (t in count) if (!(t in known)) printf "unmatched\t%s\t%d\n", t, count[t]
+		}
+	' <(printf '%s' "${applied_dates}") <(printf '%s' "${recurrence_lines}") <(for i in "${!applied_names[@]}"; do printf '%s\t%s\n' "${i}" "${applied_names[i]}"; done))
 }
 
 # 文字数で切る。bash のパラメータ展開は UTF-8 のロケールでは文字単位、それ以外ではバイト単位なので、
@@ -264,19 +309,21 @@ truncate_chars() {
 	printf '%s' "${s}"
 }
 
-# 学びごとの集計の結果。添字は applied_paths と同じである。
+# 学びごとの集計の結果。添字は applied_paths と同じである（row_date などは join_measures が入れる）。
 # row_kinds は候補の理由を `,` でつないだ語（recurring・procedural）で、当たらなければ `-` にする。
-row_date=()
-row_count=()
+# undated_notes は、日付を求めたのに git の履歴から見つからなかった学び（まだ commit していない適用など）の数である。
 row_steps=()
 row_bullets=()
 row_kinds=()
+undated_notes=0
 measure() {
 	local i count steps bullets applied kinds
 	build_applied_dates
 	collect_notes
+	join_measures
+	[ "${#applied_paths[@]}" -gt 0 ] || return 0
 	for i in "${!applied_paths[@]}"; do
-		count=${rec_count["${applied_names[i]}"]:-0}
+		count=${row_count[i]}
 		IFS=$'\t' read -r steps bullets applied <<<"$(note_shape "${applied_paths[i]}")"
 		applied_tos[i]=${applied}
 		kinds=""
@@ -284,23 +331,25 @@ measure() {
 		if [ "${steps}" -ge "${PROCEDURAL_STEPS_MIN}" ] || [ "${bullets}" -ge "${PROCEDURAL_BULLETS_MIN}" ]; then
 			kinds="${kinds:+${kinds},}procedural"
 		fi
-		row_date[i]=${applied_date_by_name["${applied_names[i]}"]:-unknown}
-		row_count[i]=${count}
 		row_steps[i]=${steps}
 		row_bullets[i]=${bullets}
 		row_kinds[i]=${kinds:--}
+		if [ -z "${dates_unavailable}" ] && [ "${row_date[i]}" = unknown ]; then
+			warn "git の履歴に、frontmatter の status を applied にした commit が無いので、適用した日を unknown にする（まだ commit していない適用など）: ${applied_paths[i]}"
+			undated_notes=$((undated_notes + 1))
+		fi
 	done
 	[ -z "${dates_unavailable}" ] || warn "${dates_unavailable}"
 }
 
 cmd_list() {
-	local i name
+	local i
 	measure
 	printf 'note\tapplied_date\trecurrences\trecurrence_notes\tproposal_steps\tproposal_bullets\tcandidate\tapplied_to\n'
+	[ "${#applied_paths[@]}" -gt 0 ] || return 0
 	for i in "${!applied_paths[@]}"; do
-		name=${applied_names[i]}
 		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(one_line "${applied_paths[i]}")" "${row_date[i]}" "${row_count[i]}" \
-			"$(one_line "${rec_notes["${name}"]:--}")" "${row_steps[i]}" "${row_bullets[i]}" "${row_kinds[i]}" "$(one_line "${applied_tos[i]}")"
+			"${row_rec_all[i]}" "${row_steps[i]}" "${row_bullets[i]}" "${row_kinds[i]}" "$(one_line "${applied_tos[i]}")"
 	done
 }
 
@@ -318,8 +367,7 @@ reason_text() {
 
 # 表に載せる再発の記録。MAX_RECURRENCE_NOTES 件を超えた分は件数だけを書く。$1 は学びの添字。
 recurrence_cell() {
-	local name=${applied_names[$1]} count=${row_count[$1]} list
-	list=${rec_short["${name}"]:--}
+	local count=${row_count[$1]} list=${row_rec_short[$1]}
 	[ "${count}" -le "${MAX_RECURRENCE_NOTES}" ] || list="${list}、ほか $((count - MAX_RECURRENCE_NOTES)) 件"
 	printf '%s' "${list}"
 }
@@ -328,9 +376,13 @@ cmd_candidates() {
 	local i shown=0 candidates=()
 	measure
 	# 候補を再発の多い順に並べる（同じ件数の中は、glob が並べたパスの順）。
-	mapfile -t candidates < <(for i in "${!applied_paths[@]}"; do
-		[ "${row_kinds[i]}" = - ] || printf '%s\t%s\n' "${row_count[i]}" "${i}"
-	done | sort -t $'\t' -k1,1nr -k2,2n | cut -f2)
+	if [ "${#applied_paths[@]}" -gt 0 ]; then
+		while IFS= read -r i; do
+			candidates+=("${i}")
+		done < <(for i in "${!applied_paths[@]}"; do
+			[ "${row_kinds[i]}" = - ] || printf '%s\t%s\n' "${row_count[i]}" "${i}"
+		done | sort -t $'\t' -k1,1nr -k2,2n | cut -f2)
+	fi
 	echo "## 効果を測り直す規約の候補"
 	echo
 	echo "適用した学び ${#applied_paths[@]} 件のうち、${#candidates[@]} 件が候補です。"
@@ -339,6 +391,9 @@ cmd_candidates() {
 	if [ -n "${dates_unavailable}" ]; then
 		echo
 		echo "> 適用した日は求めていません（${dates_unavailable}）。"
+	elif [ "${undated_notes}" -gt 0 ]; then
+		echo
+		echo "> ${undated_notes} 件の学びは、git の履歴に frontmatter の status を applied にした commit が無いので、適用した日を unknown にしています（まだ commit していない適用など）。対象は実行のログ（stderr）に出します。"
 	fi
 	if [ "${unmatched_recurrences}" -gt 0 ] || [ "${malformed_recurrences}" -gt 0 ]; then
 		echo
@@ -353,7 +408,7 @@ cmd_candidates() {
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| `%s` | %s | %s | %s | %s |\n' "$(table_cell "${applied_paths[i]}")" "${row_date[i]}" "$(reason_text "${i}")" \
-			"$(table_cell "$(recurrence_cell "${i}")")" "$(table_cell "$(truncate_chars "${applied_tos[i]}" "${MAX_APPLIED_TO_CHARS}")")"
+			"$(pipe_cell "$(recurrence_cell "${i}")")" "$(table_cell "$(truncate_chars "${applied_tos[i]}" "${MAX_APPLIED_TO_CHARS}")")"
 		shown=$((shown + 1))
 	done
 	if [ "${#candidates[@]}" -gt "${shown}" ]; then

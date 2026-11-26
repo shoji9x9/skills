@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -286,12 +286,18 @@ describe("適用した日", () => {
       commitAll(dir, "2026-09-10");
       renameSync(join(dir, ".kaizen", "later.md"), join(dir, ".kaizen", "archive", "later.md"));
       commitAll(dir, "2026-10-20");
-      // commit していない適用は日付を求めない。
-      writeFileSync(join(dir, ".kaizen", "fresh.md"), note());
+      // commit していない適用は日付を求めず、理由と対象を出す。
+      writeFileSync(join(dir, ".kaizen", "fresh.md"), note({ proposal: "1. a\n2. b\n3. c" }));
       const rows = listRows(dir);
       expect(rowOf(rows, ".kaizen/archive/later.md").applied_date).toBe("2026-09-10");
       expect(rowOf(rows, ".kaizen/born.md").applied_date).toBe("2026-09-10");
       expect(rowOf(rows, ".kaizen/fresh.md").applied_date).toBe("unknown");
+      const { stdout, stderr } = run(dir, ["candidates"]);
+      expect(stdout).toContain(
+        "1 件の学びは、git の履歴に frontmatter の status を applied にした commit が無い",
+      );
+      expect(stderr).toContain(".kaizen/fresh.md");
+      expect(stderr).not.toContain(".kaizen/born.md");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -439,6 +445,38 @@ describe("候補の表（candidates）", () => {
 });
 
 describe("呼び出し方と機能を減らした実行", () => {
+  test("学びが 0 件でも、list と candidates は exit 0 で終わる", () => {
+    const dir = makeProject({});
+    try {
+      expect(listRows(dir)).toStrictEqual([]);
+      const { status, stdout } = run(dir, ["candidates"]);
+      expect(status).toBe(0);
+      expect(stdout).toContain("適用した学び 0 件のうち、0 件が候補です。");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // macOS の標準の bash は 3.2 で、連想配列・mapfile・大文字と小文字の変換の展開を持たない。
+  // テストを実行する環境の bash では、これらを使っても失敗しないので、ソースの字面で確かめる。
+  test("Bash 4 以降にしか無い機能を使わない", () => {
+    const source = readFileSync(script, "utf8")
+      .split("\n")
+      .filter((l) => !/^\s*#/.test(l))
+      .join("\n");
+    for (const feature of [
+      /declare -A/,
+      /local -A/,
+      /\bmapfile\b/,
+      /\breadarray\b/,
+      /\$\{[^}]*(,,|\^\^)\}/,
+      /&>>/,
+      /\|&/,
+    ]) {
+      expect(source).not.toMatch(feature);
+    }
+  });
+
   test("モードが無ければ使い方を出して exit 2", () => {
     const dir = makeProject({});
     try {
