@@ -85,8 +85,8 @@ query($endCursor: String) {
 レビューが submit された直後は、レビュー（`reviews`）は取得できるのに、`reviewThreads` へのコメントの反映が遅れることがある（実測）。
 未解決のスレッドが 0 件というだけで「指摘なし」と判定すると、コメント付きのレビューを取りこぼす。
 
-レビューは [`state-query.md`](state-query.md) の 1 段目（review の索引。`comments { totalCount }` を含み、`body` は取らない）で取得し、レビュー済みかの判定と、この突き合わせの両方に使う。
-本文は、同じファイルの 2 段目で、対象のレビューだけを取得する。
+レビューは [`state-query.md`](state-query.md) の ステップ 1（review の索引。`comments { totalCount }` を含み、`body` は取らない）で取得し、レビュー済みかの判定と、この突き合わせの両方に使う。
+本文は、同じファイルの ステップ 2で、対象のレビューだけを取得する。
 
 - HEAD への作成者以外のレビューの `comments.totalCount` が 1 以上なのに、そのレビューのコメントを reviewThreads から取得できなければ、反映が遅れているとみなす。
   Copilot なら、レビューの本文の「generated N comments」でも件数を確かめられる（実測）。
@@ -98,7 +98,7 @@ query($endCursor: String) {
 指摘が書かれる場所はスレッドだけではない。レビューの本文と PR のトップレベルのコメントにも置かれる。置き場所と実測した形、トップレベルのコメントから集める対象は、[`review-threads.md`](review-threads.md)「スレッドの外の指摘の形と集める対象」にある。
 参照先を読めなければ、収束したと判定せず、「行き詰まり」として止まる。
 
-取得は、[`state-query.md`](state-query.md) の 2 段の取得に従う。索引（1 段目）で本文を読む対象を決め、その本文だけを個別に取得する。
+取得は、[`state-query.md`](state-query.md) の 2 ステップの取得に従う。索引（ステップ 1）で本文を読む対象を決め、その本文だけを個別に取得する。
 
 ```bash
 # レビュー本文（索引で対象と決めた review だけ）

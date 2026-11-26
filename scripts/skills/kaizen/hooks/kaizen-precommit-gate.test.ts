@@ -1874,7 +1874,7 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       args: [],
       expected: 2,
     },
-    // `commit` の語が生の JSON に 1 つも無い形。絞り込みが `\u` を見て次の段に渡す。
+    // `commit` の語が生の JSON に 1 つも無い形。絞り込みが `\u` を見て次のステップに渡す。
     {
       name: "tool_input の値の \\u0063ommit（commit の語なし）",
       input: `{"tool_name":"Bash","tool_input":{"command":"git \\u0063ommit -m x"}}`,
@@ -2045,7 +2045,7 @@ describe.concurrent("jq だけがある環境でのコマンドの取り出し",
 
 // 事前の絞り込みは、Hook の入力のうちツールの名前と入力（`tool_name`・`tool_input`・Copilot の `toolArgs`）だけを見る（Issue #678）。
 // 入力の全体を見ると、パスに `git` と `commit` を含む worktree の中のセッションでは、`cwd`・`transcript_path` の語で
-// すべての呼び出しが次の段（jq / python3 / git rev-parse）に進む。終了コードはどちらも 0 なので、
+// すべての呼び出しが次のステップ（jq / python3 / git rev-parse）に進む。終了コードはどちらも 0 なので、
 // jq・python3・git を、起動を記録してから実体を実行するスクリプトに差し替えて、起動したかで確かめる。
 describe.concurrent("事前の絞り込みはツールの名前と入力だけを見る", () => {
   function makeTracingPath(trace: string) {
@@ -2086,7 +2086,7 @@ describe.concurrent("事前の絞り込みはツールの名前と入力だけ�
   const wordyCwd = JSON.stringify("/home/u/repo/.claude/worktrees/git-commit-fix");
   const wordyTranscript = JSON.stringify("/home/u/.claude/projects/git-commit/s.jsonl");
 
-  // 次の段に進まないもの。語は cwd か transcript_path の値にだけある。
+  // 次のステップに進まないもの。語は cwd か transcript_path の値にだけある。
   const stopped: [string, string][] = [
     [
       "cwd だけに語がある",
@@ -2112,8 +2112,8 @@ describe.concurrent("事前の絞り込みはツールの名前と入力だけ�
     expect(lines).toEqual([]);
   });
 
-  // 次の段に進むもの（上と同じ cwd・transcript_path を持つ）。
-  test("コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す", async () => {
+  // 次のステップに進むもの（上と同じ cwd・transcript_path を持つ）。
+  test("コマンドに語があれば次のステップに進み、commit でなければ jq を 1 回だけ起動して通す", async () => {
     const { status, lines } = await runWithTrace(
       `{"session_id":"s","transcript_path":${wordyTranscript},"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git log --grep commit"}}`,
     );

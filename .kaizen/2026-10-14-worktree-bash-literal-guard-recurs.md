@@ -67,7 +67,7 @@ Hook の条件は、`;`・`&&` と `node` や `bash` の起動の組まで広げ
 1 回目は、worktree に入った直後の準備の処理である。`git rev-parse`・`git branch`・`cp`・`mise trust`・`pnpm install`・`git status` を `;` でつないだ（`names git in a form too complex to verify`）。
 2 回目は、python の quoted heredoc で置換をまとめた処理で、本文の JavaScript に `git(...)` の呼び出しを含んでいた（`feeds python text naming git in a plain command`）。
 どちらも、単独の呼び出しに分けるか、Write ツールでスクリプトにして実行する形に直して通した。
-同じ run の前の段（issue-batch の preflight）でこの学びを読んでいたが、worktree に入った最初の呼び出しで同じ形を書いた。4 つ目のセッションでの再発である。
+同じ run の前のステップ（issue-batch の preflight）でこの学びを読んでいたが、worktree に入った最初の呼び出しで同じ形を書いた。4 つ目のセッションでの再発である。
 
 2026-10-17、同じセッションで #632 の run を再開した後にも、拒否が 6 回起きた。
 拒否された呼び出しは、`git -C <共有のリポジトリ>`、`&&` でつないだ `git rev-parse` と `sed` と `bash`、python の quoted heredoc、`sed` でスクリプトを作る呼び出し、変数に入れたパスで `bash` を起動する呼び出しである。

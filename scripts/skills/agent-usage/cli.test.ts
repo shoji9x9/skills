@@ -1537,10 +1537,10 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
     if (reason === "") expect(t.slug).toBe(remote.split("/").slice(1).join("/"));
   });
 
-  // 取得した期間の coverage の行は、停止の分類に使う段がすべて取れたときだけ ok にする。
+  // 取得した期間の coverage の行は、停止の分類に使うステップがすべて取れたときだけ ok にする。
   // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能（ok でない）にしない。
   // 課金 API と artifact を数えない分岐は、aggregate.test.ts の classifyingFailuresOf のテストが確かめる。
-  test("collect の coverage: Actions の run の取得も失敗したら、その段だけを挙げて判定不能にする", async () => {
+  test("collect の coverage: Actions の run の取得も失敗したら、そのステップだけを挙げて判定不能にする", async () => {
     const { tmp, repo, git, cli, cliWith } = await setup();
     expect((await cli("setup", "--time-zone", "UTC", "--billing", "user")).status).toBe(0);
     await git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
@@ -1569,7 +1569,7 @@ describe.concurrent("agent-usage のコマンドと Hook", () => {
       "collect",
     );
     expect(r.status, r.stderr).toBe(0);
-    // 失敗した段は、coverage の判定に使わなくても collect の出力に出す
+    // 失敗したステップは、coverage の判定に使わなくても collect の出力に出す
     expect(r.stdout).toMatch(/artifacts/);
     expect(r.stdout).toMatch(/billing/);
     const dir = join(repo, ".agent-usage", "records", "_github");

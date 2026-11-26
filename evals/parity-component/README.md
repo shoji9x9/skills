@@ -98,9 +98,9 @@ fixture をさらに削っても、差は戻らない。items と evidence は�
 | `catalog-unset` | 上記＋**採取成果物の実体**（`metadata.json` / `axes.json` / `component-api.md` / `gaps.md` / `baseline/`。`baseline/` は 2 インスタンス × 4 状態の `element.png` / `traits.json` / `css-rules.json`）＋`references` が指す `docs/`。設定に `component_catalog` / `catalog_url`（`catalog_url_command` も）が無い | カタログ未宣言で `build` に入らず停止する |
 | `breaking-change-request` | カタログ宣言済み（`docs/component-catalog.md` の実体を含む）・採取した成果物の一式・`build` 完了済み（`component-api.md` / `parity.md` / `build-metadata.json`） | 破壊的変更を自分で決めず判断を求める |
 
-## fixture の前段のチェック
+## fixture の前のステップのチェック
 
-**対象の分岐より手前で停止させないため、fixture は対象の分岐までの前段のチェックをすべて満たす。**
+**対象の分岐より手前で停止させないため、fixture は対象の分岐までの前のステップのチェックをすべて満たす。**
 `catalog-unset` は当初、`metadata.json` に `capture.complete: true` と書くだけで、採取成果物の実体を置いていなかった。
 実行した run は「採取物の実体を伴わない記録」と正しく判定して、`capture` からのやり直しを求めた
 （カタログ未宣言という、検証したい分岐へ到達しなかった）。成果物の実体を足して解消してある。
@@ -109,7 +109,7 @@ fixture をさらに削っても、差は戻らない。items と evidence は�
 6 値としていた。しかし採取済みのインスタンスは 2 件で、2 件から割り出せるのは高々 2 値である
 （「値の集合は採取物から列挙する」という本スキルの取り決めに反する）。実行した run がこの矛盾を指摘したので、2 値へ揃えた。
 
-**前段のチェックの見落としは 2 度目で、今回はレビューの指摘で見つかった。** `catalog-unset` / `breaking-change-request` はともに、
+**前のステップのチェックの見落としは 2 度目で、今回はレビューの指摘で見つかった。** `catalog-unset` / `breaking-change-request` はともに、
 `references.architecture` などが `docs/*.md` を指しているのに、実体を同梱していなかった。そのため `build` の手順 1 がそこで停止していた。
 さらに `catalog-unset` の `baseline/` には要素のスクリーンショットが無く、`breaking-change-request` には `axes.json` と `baseline/` 自体が無かった。
 つまり、**eval 5・6 はどちらも目的の分岐へ到達していなかった**。参照ドキュメントの実体・`element.png`・採取した成果物の一式を足して解消してある。
@@ -124,7 +124,7 @@ fixture をさらに削っても、差は戻らない。items と evidence は�
 生成物どうしの整合（プロパティ集合・ツールのバージョン・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は、`scripts/eval/fixtures/parity-component-fixtures.test.ts` が CI で検査する。
 `component-api.md` / `parity.md` などエージェントが書く成果物は、生成物の値（幅・ツールのバージョン）に合わせて手で揃える。
 
-**`build` の前段には、姉妹スキル `parity-suite` もある。** 陳腐化の判定（`traits_version` / `traits_property_set` の突き合わせ）は、インストール済みの `parity-suite` の同梱ツールを読む。
+**`build` の前のステップには、姉妹スキル `parity-suite` もある。** 陳腐化の判定（`traits_version` / `traits_property_set` の突き合わせ）は、インストール済みの `parity-suite` の同梱ツールを読む。
 そのため、ハーネスが対象のスキルしか設置しないと、先にそこで止まってカタログ未宣言を調べない run が、スキルの記述に反せずに出うる
 （Issue #357。iteration-4 の with は全部調べてから報告したので、表に出なかった）。
 eval 5・6 は、`evals.json` の `requires_skills` で `parity-suite` を両方の configuration に併設させる（ハーネス側の取り決めは `docs/skill-development.md`「eval 実行の隔離（必須）」）。
@@ -132,7 +132,7 @@ eval 5・6 は、`evals.json` の `requires_skills` で `parity-suite` を両方
 
 ## 実行の証拠の状態（iteration-2）
 
-**前段のチェックを解消したうえで、全 6 eval を実行し直した**（`with_skill` / `without_skill` 各 1 run、executor `claude-code`、model `opus`）。
+**前のステップのチェックを解消したうえで、全 6 eval を実行し直した**（`with_skill` / `without_skill` 各 1 run、executor `claude-code`、model `opus`）。
 1 run では分散を測れないので、**Delta の数値は語らず、差が残っているかだけ**を見る（`.agents/rules/eval-run-scope.md` で定義する）。
 
 | eval | with | without | 差が出た assertion 数 |
@@ -148,7 +148,7 @@ eval 5・6 は、`evals.json` の `requires_skills` で `parity-suite` を両方
 
 - **eval 5 は目的の分岐へ到達し、最も大きな差が出た。** `with_skill` は、カタログの取り決めのドキュメントと baseURL の欠落を挙げて停止した。
   あわせて、`build` の前提の検証（採取物 8 組の実在の確認・`--baseline` での軸の再導出と `axes.json` の一致・スクリプトのバージョンの突き合わせ）を実行している。
-  `without_skill` は停止せず、**部品を実装して見本まで書いた**（1/6）。前段のチェックを解消したので、この eval が測りたかった差がそのまま出た
+  `without_skill` は停止せず、**部品を実装して見本まで書いた**（1/6）。前のステップのチェックを解消したので、この eval が測りたかった差がそのまま出た
 - **eval 3 は今回も差が 0 件だった**（上記「eval 3 は Delta ではなく後退の検知のためのもの」の再確認）。`without_skill` も、網羅表が動作しか数えていないことを自力で述べた
 - **eval 6 は iteration-2 で 4/5 だったのを直して、iteration-3 で 5/5 にした。**
   落ちていたのは、「引数を足してデフォルト値を据え置く形で解けるか」という代替案（assertion 4）である。
@@ -178,7 +178,7 @@ eval 5・6 は、`evals.json` の `requires_skills` で `parity-suite` を両方
 
 eval 5 の `without_skill` は停止せず実装まで進んだので、fixture の中身を実装の材料として読み、こちらが気付いていなかった不整合を 3 件挙げた。
 いずれも**採取物として不自然**で、`build` が採取物を材料にする以上は直す価値がある。
-**#354 で、採取物を実物のツールの出力で作り直して解消した**（上記「fixture の前段のチェック」）。
+**#354 で、採取物を実物のツールの出力で作り直して解消した**（上記「fixture の前のステップのチェック」）。
 
 - `css-rules.json` の内容が、`traits.json` の計算値と食い違う（users-create の hover で、規則は `rgb(0, 70, 130)`、計算値は `rgb(221, 221, 221)`）。
   disabled の規則に `:disabled` が付いていないのに、`unresolved` は 0 件

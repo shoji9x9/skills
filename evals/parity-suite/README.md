@@ -140,7 +140,7 @@ scripts/eval/run/run-skill-eval.sh \
   対象は、`artifact_health` の読み手の宣言・字面の照合・`unread_reason` の宣言の口・`derived_from` による鮮度・`freshness_unverified_reason`・`artifact-health-check.mjs` の通過である。
   **prompt で読み手の検査がどこまで見れば足りるかを問う一文は、あえて取り決めと反対の答えを示唆する形**にしてある。
   iteration-39 で、`without_skill` は「参照の有無まででは意味がありません」として、摂動で赤くなるテスト名まで見よと答えた。
-  `with_skill` は「字面で足ります」「assertion に使っているかまでは見ません」と答え、依存の実在は強度チェックが持つと段を分けた（7/7 対 1/7）。
+  `with_skill` は「字面で足ります」「assertion に使っているかまでは見ません」と答え、依存の実在は強度チェックが持つとステップを分けた（7/7 対 1/7）。
   初版（iteration-38）は、skill 固有の宣言と汎用の grep の発想を 1 本の assertion に同居させていた。
   `without_skill` のほうが先に「ファイル名を spec 全体に grep」へ到達していたので、2 本へ分けた。
   検査そのもの（未宣言・sha256 の不一致・字面の不一致・0 件の扱い・名前の境界で一致を取ること）は、`scripts/skills/parity-suite/checks/artifact-health-check.test.ts` が確かめる。

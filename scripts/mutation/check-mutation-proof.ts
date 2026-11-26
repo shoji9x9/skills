@@ -235,7 +235,7 @@ function discardStaging(staging: string) {
 /**
  * ロックを取る。取れなければ、生きている持ち主がいるか、競合が続いたときに exit 2 で止める。
  *
- * **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 段だと、
+ * **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 ステップだと、
  * 作成した直後の短い間はロックが**空**になる。そこに入った 2 本目は「pid が読めない＝残骸」と判定し、
  * 生きている持ち主のロックを奪える。`Number("")` は NaN ではなく 0 なので、`pid > 0` が false になる。
  * 一時ファイルへ pid を書いてから `linkSync` で公開すると、公開されたロックは常に pid を持つ。

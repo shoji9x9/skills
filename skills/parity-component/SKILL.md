@@ -221,7 +221,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 1. 前提を検証して着手する。最初に `style_policy` を確かめ（「前提」）、`free` なら停止する。次に、`capture` の完了と、`references.architecture`・`references.component_catalog`・`verification_commands.full` を実測し、欠けていれば停止する。
    採取物が古くなっていないかも、あわせて判定する。宣言だけを見ると、古い基準の上に実装して「一致した」と報告することになる。
-   判定は 2 段で行う。先に設定の宣言と採取物の実体を全部調べ、欠けがあれば、下の 3 項目（古くなっていないかの判定）に進まずに、見つけた欠けをすべて挙げて停止する。
+   判定は 2 つのステップで行う。先に設定の宣言と採取物の実体を全部調べ、欠けがあれば、下の 3 項目（古くなっていないかの判定）に進まずに、見つけた欠けをすべて挙げて停止する。
    宣言と実体はプロジェクトの中のファイルを読むだけで決まるが、古くなっていないかの判定は `parity-suite` 同梱ツールなど、外の実体に依存する。
    順番を決めないと、外の実体のせいで先に止まった実行が宣言の欠けを報告せず、利用者は直して再実行するたびに別の欠けに当たる。
    - ツールのバージョンを比べる。`metadata.json` の `capture.tools` に記録されたバージョンと集合を、今使うツールの実際のバージョンと集合と突き合わせる。
@@ -389,5 +389,5 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 ## 利用者への確認
 
-このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+このスキルが利用者に確認するステップ・承認を得るステップ・選んでもらうステップは、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
 確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

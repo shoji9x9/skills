@@ -86,7 +86,7 @@ check-run（名前 `Review`）は、`workflow_dispatch` の run では起動し�
 
 ## レビューの観点と手順
 
-プロンプトの原本は、ワークフローの `Run Claude Code` の段の `prompt` である。手元の `/code-review` が挙げ、このワークフローが挙げ損ねた誤りの分類から、次の観点と手順を置いている。
+プロンプトの原本は、ワークフローの `Run Claude Code` のステップの `prompt` である。手元の `/code-review` が挙げ、このワークフローが挙げ損ねた誤りの分類から、次の観点と手順を置いている。
 
 - 観点: 不具合・セキュリティ・規約との食い違いに加えて、次の 4 つを挙げる。文書・コメントと実装の食い違い（文書どうしを含む）・条件や入力の状態の抜け・記録の項目の抜け・テストが固定していない分岐である。
 - 差分の外: 差分で変えた名前・見出し・設定のキー・取り決めの語を Grep で検索し、それを参照する他のファイル（文書・テスト・設定）を読む。
@@ -135,7 +135,7 @@ effort がエージェントの振る舞いに反映されたことは、run の
 
 使用量を抑えるために、次の上限を置く。
 
-- エージェントの段の `timeout-minutes` は 15 分、job は 25 分である。
+- エージェントのステップの `timeout-minutes` は 15 分、job は 25 分である。
 - `--max-turns`（`CLAUDE_REVIEW_MAX_TURNS`）で往復の回数を限る。上限に達した回は失敗として扱い、目印を書かない。
 - 同じ PR の古い HEAD のレビューは取り消す。
 
@@ -161,7 +161,7 @@ effort がエージェントの振る舞いに反映されたことは、run の
 
 `claude-code-action` は、agent モードでは、git に `github_token` を使わせる設定を `.git/config` に書き込む。
 書き込むのは、action の `src/github/operations/git-config.ts` の `replaceCheckoutCredentials` である。
-書き込む形は `allowed_bots` の有無で変わる（雛形の「Run Claude Code」の段のコメント）。どちらの形でも、次の拒否の規則で読ませない。
+書き込む形は `allowed_bots` の有無で変わる（雛形の「Run Claude Code」のステップのコメント）。どちらの形でも、次の拒否の規則で読ませない。
 checkout の `persist-credentials: false` は、この書き込みを防がない。そのため、エージェントの許可の規則（`Read(./**)`）に加えて、`Read(./.git/**)` を拒否の規則に入れる。
 この拒否の規則は、Read に加えて Grep と Glob にも当たる。Grep と Glob の形の拒否の規則（`Grep(./.git/**)` など）は当たらない。
 手元の Claude Code 2.1.325 の `claude -p` で、この拒否の規則があると Read・Grep・Glob のどれでも `.git/config` の中を読めないことを確かめた。拒否の規則が無いと、Read でも Grep でも読めた。
@@ -173,7 +173,7 @@ checkout の `persist-credentials: false` は、この書き込みを防がな�
 - エージェントの文章の中のメンション（`@<login>`）と外部の画像のリンクは、そのまま投稿する。エージェントが読めるのは作業ツリーの中だけなので、リンクで外に出せるのは PR の作成者が読める内容に限られる。
 
 `claude-code-action` は、`workflow_dispatch` の run ではインラインコメントのツール（`mcp__github_inline_comment__create_inline_comment`）を用意しない。PR のイベントでないからである。
-そのため、エージェントには指摘を structured output（`--json-schema`）で返させ、ワークフローの段がインラインコメントと総評を投稿する。
+そのため、エージェントには指摘を structured output（`--json-schema`）で返させ、ワークフローのステップがインラインコメントと総評を投稿する。
 
 ## このワークフローを別のリポジトリで使う
 

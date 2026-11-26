@@ -1,7 +1,7 @@
 // 週次のセキュリティ監査（Issue #941。親は #508）で、監査の記録から追跡 Issue の本文とコメントを作る。
 // 監査は cloudflare/security-audit-skill をエージェントが実行し、実行の出力のディレクトリに
 // run-metadata.json（実行の状態）と findings.json（指摘の記録）を書く。
-// 週次のワークフロー（.github/workflows/security-audit.yml）が、2 つの段で実行する。
+// 週次のワークフロー（.github/workflows/security-audit.yml）が、2 つのステップで実行する。
 //
 // summarize: 監査のジョブで、出力のディレクトリから公開してよい要約（件数・状態・識別子）だけを取り出す。
 //   公開リポジトリの追跡 Issue に脆弱性の詳細を書かないため、指摘の題名・説明・場所は要約に入れない。

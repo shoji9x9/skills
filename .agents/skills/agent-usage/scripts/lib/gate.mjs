@@ -846,7 +846,7 @@ function recordCommit(repo, context, note) {
     git(["add", "--", ".agent-usage/records"], repo.root);
     const github =
       r.githubFailures.length > 0
-        ? `（GitHub の取得に失敗した段: ${r.githubFailures.length}。その期間の停止は「判定不能」になる）`
+        ? `（GitHub の取得に失敗したステップ: ${r.githubFailures.length}。その期間の停止は「判定不能」になる）`
         : r.githubSkipped
           ? `（GitHub は取得していない: ${r.githubSkipReason}）`
           : "";

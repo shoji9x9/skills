@@ -155,7 +155,7 @@ test.each([
   ["region が文字列でない", [{ ...group("a/x.md", "b/x.md"), region: 1 }]],
 ])("陽性: 宣言が読めない（%s）なら exit 2（組 0 件＝違反なしとして扱わない）", (_, groups) => {
   const root = makeRepo({ "a/x.md": BODY, "b/x.md": BODY, "c/x.md": BODY }, groups);
-  // 宣言の段で弾くこと（比較の段の読み取り失敗で偶然 exit 2 になる形と区別する）。
+  // 宣言のステップで弾くこと（比較のステップの読み取り失敗で偶然 exit 2 になる形と区別する）。
   expect(() => loadGroups(root)).toThrow();
   expect(main([root])).toBe(2);
 });

@@ -332,8 +332,8 @@ test.each([
   expect(lines).toEqual([]);
 });
 
-// 次の段に進むもの（上と同じ cwd を持つ）。
-test("コマンドに語があれば次の段に進み、branch を作らない形なら通知しない", () => {
+// 次のステップに進むもの（上と同じ cwd を持つ）。
+test("コマンドに語があれば次のステップに進み、branch を作らない形なら通知しない", () => {
   const { stdout, lines } = runGuardWithTrace(
     `{"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git worktree list"}}`,
   );
@@ -341,7 +341,7 @@ test("コマンドに語があれば次の段に進み、branch を作らない�
   expect(lines).toContain("jq");
 });
 
-test("EnterWorktree はツールの名前で次の段に進み、cwd に語があっても通知する", () => {
+test("EnterWorktree はツールの名前で次のステップに進み、cwd に語があっても通知する", () => {
   const { stdout, lines } = runGuardWithTrace(
     `{"cwd":${wordyCwd},"tool_name":"EnterWorktree","tool_input":{"name":"feature/x"}}`,
   );

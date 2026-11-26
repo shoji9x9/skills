@@ -108,7 +108,7 @@ const SHARD_LINE = /シャード (\d+)\/(\d+): 選んだ変異/;
 
 /**
  * `--shard i/N` で分けた run のログが、1〜N のすべてのシャードの分を持つかを確かめる。欠けていれば例外にする。
- * 前の段（checkout・install）で失敗したシャードは、ログを残さない。残りのシャードのログだけで更新すると、
+ * 前のステップ（checkout・install）で失敗したシャードは、ログを残さない。残りのシャードのログだけで更新すると、
  * そのシャードの宣言の見積もりが古いまま、更新が成功したように見える。
  * シャードの行が 1 行も無いログ（`--shard` を付けない手元の実行）は、確かめずに通す。
  */
@@ -129,7 +129,7 @@ export function checkShards(text: string): void {
   const lacking = Array.from({ length: total }, (_, i) => i + 1).filter((i) => !seen.has(i));
   if (lacking.length > 0) {
     throw new Error(
-      `シャード ${lacking.map((i) => `${i}/${total}`).join(", ")} のログが無い（そのシャードは前の段で失敗した）`,
+      `シャード ${lacking.map((i) => `${i}/${total}`).join(", ")} のログが無い（そのシャードは前のステップで失敗した）`,
     );
   }
 }

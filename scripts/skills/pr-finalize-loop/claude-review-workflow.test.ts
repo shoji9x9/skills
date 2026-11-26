@@ -1,11 +1,11 @@
-// pr-finalize-loop に同梱したワークフローの雛形（skills/pr-finalize-loop/assets/claude-review.yml）の段（run の本文）を取り出し、
+// pr-finalize-loop に同梱したワークフローの雛形（skills/pr-finalize-loop/assets/claude-review.yml）のステップ（run の本文）を取り出し、
 // 偽の gh で実行して振る舞いを確かめる（Issue #1030）。
 // このリポジトリの .github/workflows/claude-review.yml は、雛形のバイト単位の複製である（下の「雛形と複製の一致」）。
 //
 // このワークフローは、レビューを依頼する側（pr-finalize-loop など）が読む目印のコメントを書く。
 // 目印が誤って残ると、依頼する側はレビューしていない HEAD をレビュー済みとして扱う。
 // また、workflow_dispatch の入力の検査を誤ると、fork のコードや古い HEAD を secret のある job でレビューする。
-// どちらも run は緑のまま進むので、段の本文を実際に実行して確かめる。
+// どちらも run は緑のまま進むので、ステップの本文を実際に実行して確かめる。
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -42,10 +42,10 @@ type Workflow = { env: Record<string, string>; jobs: { review: { steps: Step[] }
 
 const doc = loadYamlAs<Workflow>(readFileSync(join(repoRoot, WORKFLOW), "utf8"));
 
-/** 名前で段を返す。0 件・複数件は落とす（段の名前を変えたら、検査が空振りするだけになるため）。 */
+/** 名前でステップを返す。0 件・複数件は落とす（ステップの名前を変えたら、検査が空振りするだけになるため）。 */
 function step(name: string): Step {
   const matched = doc.jobs.review.steps.filter((s) => s.name === name);
-  expect(matched, `${WORKFLOW}: "${name}" の段`).toHaveLength(1);
+  expect(matched, `${WORKFLOW}: "${name}" のステップ`).toHaveLength(1);
   return matched[0] ?? {};
 }
 
@@ -88,7 +88,7 @@ esac
 
 type RunResult = { status: number | null; stdout: string; stderr: string; dir: string };
 
-/** 段の本文を、偽の gh を PATH の先頭に置いた bash で実行する。cwd は dir（無ければ一時ディレクトリ）。 */
+/** ステップの本文を、偽の gh を PATH の先頭に置いた bash で実行する。cwd は dir（無ければ一時ディレクトリ）。 */
 function runStep(script: string, env: Record<string, string>, cwd?: string): RunResult {
   const dir = makeTempDir("claude-review-step-");
   const bin = join(dir, "bin");
@@ -97,7 +97,7 @@ function runStep(script: string, env: Record<string, string>, cwd?: string): Run
   chmodSync(join(bin, "gh"), 0o755);
   for (const f of ["gh.log", "inline.log", "output", "summary"]) writeFileSync(join(dir, f), "");
   writeFileSync(join(dir, "step.sh"), script);
-  // GitHub Actions が shell: bash の段を起動するときと同じオプションで実行する（pipefail を含む）。
+  // GitHub Actions が shell: bash のステップを起動するときと同じオプションで実行する（pipefail を含む）。
   const res = spawnSync(
     "bash",
     ["--noprofile", "--norc", "-eo", "pipefail", join(dir, "step.sh")],
@@ -294,10 +294,10 @@ describe("Post review", () => {
     RUN_URL: "https://example.invalid/run/345",
     CLAUDE_CODE_OAUTH_TOKEN: "oauth-value-xyz",
     GITHUB_TOKEN_VALUE: "github-token-value-xyz",
-    // 段の env の値をそのまま使い、ワークフローの正規表現を確かめる。
+    // ステップの env の値をそのまま使い、ワークフローの正規表現を確かめる。
     SECRET_FORMS: step("Post review").env?.SECRET_FORMS ?? "",
   };
-  /** 実行記録（SDK のメッセージの配列）を書いて段を実行する。null なら実行記録が無い状態にする。 */
+  /** 実行記録（SDK のメッセージの配列）を書いてステップを実行する。null なら実行記録が無い状態にする。 */
   const postRaw = (execution: string | null, env: Record<string, string> = {}) => {
     const file = join(makeTempDir("claude-review-exec-"), "execution.json");
     if (execution !== null) writeFileSync(file, execution);
@@ -313,6 +313,13 @@ describe("Post review", () => {
     );
   const marker = (findings: number, open: number) =>
     `<!-- claude-review sha=${SHA} findings=${findings} open=${open} effort=high run=345 -->`;
+  /** 行へのコメントとして送った本文（1 行に 1 件の JSON）を読む。 */
+  const readInline = (dir: string) =>
+    read(dir, "inline.log")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l): unknown => JSON.parse(l));
 
   test("指摘 0 件でも、目印を 1 行目に置いた総評を投稿する", () => {
     const res = post({ summary: "問題なし", findings: [] });
@@ -333,11 +340,7 @@ describe("Post review", () => {
       ],
     });
     expect(res.status, res.stderr + res.stdout).toBe(0);
-    const inline = read(res.dir, "inline.log")
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((l): unknown => JSON.parse(l));
+    const inline = readInline(res.dir);
     expect(inline).toEqual([
       { body: "行の指摘", commit_id: SHA, path: "a.ts", line: 3, side: "RIGHT" },
       {
@@ -354,6 +357,31 @@ describe("Post review", () => {
     expect(comment.split("\n")[0]).toBe(marker(3, 1));
     expect(comment).toContain("全体の指摘");
     expect(outputs(res.dir)).toMatchObject({ findings: "3", inline: "2", open: "1" });
+  });
+
+  test("path と line の片方しか無い指摘もステップを失敗させず、両方ある指摘だけを行に付け、ほかは位置を添えて総評に書く", () => {
+    const res = post({
+      summary: "s",
+      findings: [
+        { path: "a.ts", line: 3, body: "両方" },
+        { path: "config.yml", body: "ファイル全体" },
+        { line: 7, body: "行だけ" },
+        { start_line: 2, body: "開始行だけ" },
+        { body: "位置なし" },
+      ],
+    });
+    expect(res.status, res.stderr + res.stdout).toBe(0);
+    const inline = readInline(res.dir);
+    expect(inline).toEqual([
+      { body: "両方", commit_id: SHA, path: "a.ts", line: 3, side: "RIGHT" },
+    ]);
+    const comment = read(res.dir, "comment.md");
+    expect(comment.split("\n")[0]).toBe(marker(5, 4));
+    expect(comment).toContain("1. `config.yml` ファイル全体");
+    expect(comment).toContain("2. （行 7、ファイルの指定なし） 行だけ");
+    expect(comment).toContain("3. 開始行だけ");
+    expect(comment).toContain("4. 位置なし");
+    expect(outputs(res.dir)).toMatchObject({ findings: "5", inline: "1", open: "4" });
   });
 
   test("API が拒否した行の指摘は、総評に移して open に数える", () => {
@@ -395,7 +423,7 @@ describe("Post review", () => {
   test.each([
     ["findings が無い", { summary: "s" }],
     ["body が空の指摘", { summary: "s", findings: [{ body: "" }] }],
-    ["path だけで line が無い指摘", { summary: "s", findings: [{ path: "a.ts", body: "x" }] }],
+    ["body が文字列でない指摘", { summary: "s", findings: [{ path: "a.ts", line: 1, body: 1 }] }],
   ])("%s なら、何も投稿せずに失敗する", (_label, result) => {
     const res = post(result);
     expect(res.status).toBe(1);
@@ -1046,7 +1074,7 @@ function evalGha(expr: string, ctx: GhaCtx): GhaValue {
 
 // CLAUDE_REVIEW_AUTO を切ったときは、pull_request の job を飛ばし、run を skipped で終える。依頼する側は skipped の run を
 // 数えないので、HEAD を未レビューとして workflow_dispatch で依頼できる（claude-review-action.test.ts の request のテスト）。
-// 段の中で止めると run が成功で終わり、依頼する側は「一時停止」として依頼しなくなるので、job の if で止める。
+// ステップの中で止めると run が成功で終わり、依頼する側は「一時停止」として依頼しなくなるので、job の if で止める。
 describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
   const raw = loadYamlAs<{ jobs: { review: { if: string } } }>(
     readFileSync(join(repoRoot, WORKFLOW), "utf8"),
@@ -1141,7 +1169,7 @@ describe("自動のレビューの切り替え（CLAUDE_REVIEW_AUTO）", () => {
     expect(isTruthy(evalGha(cond, ctx))).toBe(runs);
   });
 
-  test("段の中（一時停止の段）では、CLAUDE_REVIEW_AUTO を読まない", () => {
+  test("ステップの中（一時停止のステップ）では、CLAUDE_REVIEW_AUTO を読まない", () => {
     expect(JSON.stringify(doc.jobs.review.steps)).not.toContain("CLAUDE_REVIEW_AUTO");
   });
 });
@@ -1218,7 +1246,7 @@ describe("dry_run の run の見分け", () => {
     );
   });
 
-  test("dry_run の結果を残す段は、Post review が成功し dry_run のときだけ動き、再実行では前の試行の結果を上書きする", () => {
+  test("dry_run の結果を残すステップは、Post review が成功し dry_run のときだけ動き、再実行では前の試行の結果を上書きする", () => {
     const upload = step("Upload dry-run result");
     expect(upload.if).toBe(
       "steps.post.outcome == 'success' && steps.target.outputs.dry_run == 'true'",

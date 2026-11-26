@@ -94,7 +94,7 @@ const FIRED_SIGNALS = ["event-listener", "dom-change", "state-change"];
 
 /**
  * 語彙に含まれる文字列か。`String()` で潰してから比較すると `["coordinate"]` のような型崩れが
- * allowlist を通り、後段の厳密比較（`=== "coordinate"`）だけ false になって、その分岐でしか
+ * allowlist を通り、後のステップの厳密比較（`=== "coordinate"`）だけ false になって、その分岐でしか
  * 課されない必須検査（座標操作の hit-test 等）を回避できる。型を先に確かめる。
  * @param {unknown} v
  * @param {string[]} allowed

@@ -119,7 +119,7 @@ function checkTools(tools: Metadata["capture"]["tools"], problems: string[]) {
     problems.push(`traits_version ${String(tools.traits_version)} ≠ ${traitCapture.VERSION}`);
   }
   // element-shot.mjs のバージョンも突き合わせる。build 手順 1 でツールのバージョンを判定するときにこの値を読むので、
-  // 欠けていると eval が実装の分岐へ届かず前段で止まる。
+  // 欠けていると eval が実装の分岐へ届かず前のステップで止まる。
   if (tools.element_shot_version !== elementShot.VERSION) {
     problems.push(
       `element_shot_version ${String(tools.element_shot_version)} ≠ ${elementShot.VERSION}`,
@@ -140,9 +140,9 @@ function checkTools(tools: Metadata["capture"]["tools"], problems: string[]) {
   }
 }
 
-/** `build` の前段のチェックが求めるもの（採取の完了・付属のファイル・特性の集合）を検査する。 */
+/** `build` の前のステップのチェックが求めるもの（採取の完了・付属のファイル・特性の集合）を検査する。 */
 function checkPrerequisites(dir: string, meta: Metadata, problems: string[]) {
-  // `build` の前段のチェックを満たしていること自体も検査する。整合していても、採取未完了や
+  // `build` の前のステップのチェックを満たしていること自体も検査する。整合していても、採取未完了や
   // 軸の割り出しが失敗した採取物は、eval を目的の分岐より手前で止める。
   if (meta.capture.complete !== true) problems.push("capture.complete が true でない");
   for (const name of ["axes.json", "component-api.md"]) {

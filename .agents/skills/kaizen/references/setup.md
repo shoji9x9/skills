@@ -762,7 +762,7 @@ github.com では `GH_HOST=github.com` になるだけなので、振る舞い�
 GitHub Enterprise Server では、`agent` モードのレポートを受け渡せない。
 テンプレートが使う `actions/upload-artifact` と `actions/download-artifact` の v4 以降は、GHES で使えないからである。
 出典は、各 action の README の「GHES Support」（<https://github.com/actions/upload-artifact#ghes-support>・<https://github.com/actions/download-artifact#ghes-support>）である。
-このとき upload の段は失敗するが、`continue-on-error` なので `review` ジョブは成功で終わり、追跡 Issue には「エージェントのレポートを受け取れませんでした」と書かれる。
+このとき upload のステップは失敗するが、`continue-on-error` なので `review` ジョブは成功で終わり、追跡 Issue には「エージェントのレポートを受け取れませんでした」と書かれる。
 GHES では `notify` モードで動かす。`notify` モードは artifact を使わない。
 
 このワークフローは、リポジトリを変えない。pending の一覧（エージェントを使う場合はその分析も）を 1 つの Issue にまとめ、既存の追跡 Issue があれば本文を更新する。pending が 0 件になれば、その Issue を閉じる。
@@ -850,7 +850,7 @@ claude に許す `Write` は書き込む先を限らないので、エージェ�
 - 資格情報が無い場合は、エージェントを起動せずに `notify` として動き、Issue に「未設定のため通知のみ」と書く
 - pending が 0 件の場合は、`agent` を指定していても `notify` として動く（エージェントに渡す材料が無い）。既存の Issue は閉じる
 - エージェントが失敗した、または何も出さなかった場合は、ジョブを失敗させず、Issue に run へのリンク付きでその旨を書く。
-  判定は 2 段で、まずステップの `outcome` を見て、成功していれば出力ファイルが空でないかを見る。片方だけでは足りない。
+  判定は 2 つのステップで行う。まずステップの `outcome` を見て、成功していれば出力ファイルが空でないかを見る。片方だけでは足りない。
   - `copilot` は CLI の stdout がそのままレポートになるので、レート制限などで途中で終わった run の一部の出力も空でなくなる。空でないことだけを見ると、未完成のレポートを完成品として転記する。
   - 逆に空かどうかを見ないと、正常に終わって何も出さなかった run を失敗と区別できない。
   - Issue には、この 2 つが別の文言で出る

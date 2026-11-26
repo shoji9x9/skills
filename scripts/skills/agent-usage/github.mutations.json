@@ -37,7 +37,7 @@
       "occurrences": 1,
       "expect_failing": [
         "collectGitHub 更新されていない open な PR と、since より前に始まって実行中の run も取得する",
-        "collectGitHub 取得に失敗した段を failures に残し、他の段は続ける"
+        "collectGitHub 取得に失敗したステップを failures に残し、他のステップは続ける"
       ]
     },
     {

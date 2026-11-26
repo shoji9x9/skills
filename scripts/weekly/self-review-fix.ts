@@ -1,5 +1,5 @@
 // 週次のセルフ点検（Issue #940）の指摘のうち、文の書き換えで直せるものを、エージェントに直させて PR にする（Issue #942。親は #508）。
-// ワークフロー（.github/workflows/self-review-fix.yml）が、エージェントの前後と PR の扱いを決める段で、このスクリプトを実行する。
+// ワークフロー（.github/workflows/self-review-fix.yml）が、エージェントの前後と PR の扱いを決めるステップで、このスクリプトを実行する。
 // エージェントの手順は docs/self-review-fix-procedure.md に、運用は docs/self-review.md にある。
 //
 // 何を直してよいかと、エージェントが何を変えたかは、エージェントに任せずにここで決める。

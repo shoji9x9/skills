@@ -531,18 +531,18 @@ export function runRows(runs, o) {
 /**
  * @typedef {object} GitHubResult
  * @property {Row[]} rows
- * @property {string[]} failures 取得に失敗した段（空なら全部取れた）
+ * @property {string[]} failures 取得に失敗したステップ（空なら全部取れた）
  */
 
 /**
- * collectGitHub の各段が使うもの。
+ * collectGitHub の各ステップが使うもの。
  * @typedef {object} Collector
  * @property {GitHubOptions} o
  * @property {Row[]} rows
  * @property {{ person: string; tz: string }} base
  * @property {string} sinceDate since の日付（YYYY-MM-DD）
  * @property {string} me 自分の login（取得できなければ空）
- * @property {(step: string, fn: () => void) => void} attempt fn の例外を、段の名前を付けて failures に残す
+ * @property {(step: string, fn: () => void) => void} attempt fn の例外を、ステップの名前を付けて failures に残す
  */
 
 /**

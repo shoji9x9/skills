@@ -347,7 +347,7 @@ function entryProblem(c, i, scan) {
  *
  * 読み手の検証は、思いついた不正な形からではなく、書き手（下の main の record）が必ず満たす不変条件から作る。
  * 手で直した記録や不正な記録も同じ処理で読まれ、--from で再開してよいかの判定に使われる（判定できなければ止めるチェック）。
- * そのため、書き手が作らない形を 1 つでも受けると、前段の成果物を確かめないまま再開できてしまう。
+ * そのため、書き手が作らない形を 1 つでも受けると、前のステップの成果物を確かめないまま再開できてしまう。
  *
  * | # | 書き手が保証すること | 根拠（record の実装） |
  * |---|---|---|
@@ -558,7 +558,7 @@ function checkFingerprint(target, inherited, files) {
     throw new UsageError(`--include の根にファイルが無い: ${emptyRoots.join(", ")}`);
   }
   // 前の区切りから成果物が足されも書き換えられもしていないなら、その間の手順は何も作っていない（採取・強度チェックを飛ばした記録になる）。
-  // 削除だけは進んだ証拠にしない。前段の成果物が消えただけでも指紋は変わるからである。
+  // 削除だけは進んだ証拠にしない。前のステップの成果物が消えただけでも指紋は変わるからである。
   if (pos > 0) {
     const prevFiles = record.checkpoints[record.checkpoints.length - 1].files;
     const moved = Object.keys(files).some((f) => prevFiles[f] !== files[f]);

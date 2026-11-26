@@ -771,7 +771,7 @@ describe("停止の分類", () => {
     expect(r.runHistogram).toEqual([0, 0, 0, 2, 0]);
   });
 
-  // classifyingFailuresOf の戻り値は、coverage の行の detail（failed:<段>）に挙げる段になる。
+  // classifyingFailuresOf の戻り値は、coverage の行の detail（failed:<ステップ>）に挙げるステップになる。
   test("coverage は、課金 API と artifact の失敗だけなら判定不能にしない", () => {
     expect(classifyingFailuresOf(["billing 2026-10-01: 404", "artifacts: 500"])).toEqual([]);
     expect(classifyingFailuresOf(["pulls: 502", "billing 2026-10-01: 404"])).toEqual([

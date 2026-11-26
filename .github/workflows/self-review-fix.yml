@@ -188,7 +188,7 @@ jobs:
             docs/self-review-fix-procedure.md を読み、その手順に従って ${{ env.INPUT_DIR }}/candidates.json の指摘を直し、結果をリポジトリのルートの ${{ env.RESULT_FILE }} に書いてください。
           # ツールは、リポジトリの中を読むことと、直してよいファイルと結果のファイルを書くことに限る。
           # 直してよいファイルの範囲は scripts/weekly/self-review-fix.ts の ALLOWED_PATHS と同じにし、ほかのファイルへの書き込みはツールの側で拒否する。
-          # エージェントが変えたファイルは、次の段でもスクリプトが確かめる。
+          # エージェントが変えたファイルは、次のステップでもスクリプトが確かめる。
           # 設定はユーザーの層（runner には無い）だけを読み、リポジトリの Hook と .mcp.json のサーバーを起動させない（security-audit.yml と同じ）。
           # action が .git/config に書く github_token を読ませないよう、Read(./.git/**) を拒否する（self-review.yml と同じ）。
           # 許可の規則に無い書き込みと、作業ディレクトリの外の読み取りは、--permission-mode default で拒否する（self-review.yml と同じ）。
