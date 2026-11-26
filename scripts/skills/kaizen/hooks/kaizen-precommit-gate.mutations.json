@@ -235,7 +235,7 @@
     },
     {
       "id": "GATE-PREFILTER-PASSES-UNICODE",
-      "why": "最初の絞り込みで、\\u を含む入力を次の段に渡さない（git \\u0063ommit は生の JSON に commit の語が無いので、jq に渡る前に通す）",
+      "why": "最初の絞り込みで、\\u を含む入力を次のステップに渡さない（git \\u0063ommit は生の JSON に commit の語が無いので、jq に渡る前に通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
       "find": "*'\\u'*) ;;\n*) exit 0 ;;",
       "replace": "*) exit 0 ;;",
@@ -348,7 +348,7 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code 用の登録（引数なし）を Copilot が呼んだとき COPILOT_CLI が空（Claude Code が呼んだ） なら、これまでどおり他のセッションの警告を exit 1 で出す",
-        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
+        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次のステップに進み、commit でなければ jq を 1 回だけ起動して通す"
       ]
     },
     {

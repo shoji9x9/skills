@@ -4,7 +4,7 @@
 // 確かめた内容は .agents/rules/github-actions-authoring.md と Issue #1031 にある。
 // 規則が消えても、ほかの検査と run は成功のまま進むので、エージェントを動かすワークフローの宣言をここで確かめる。
 // 同じ理由で、使えるツールを --tools で限ることと、リポジトリの設定を読ませないこと（--setting-sources user・--strict-mcp-config）も確かめる。
-// 対象は、.github/workflows/ と skills/*/assets/ の YAML のうち、Claude Code の段を持つものすべてである。
+// 対象は、.github/workflows/ と skills/*/assets/ の YAML のうち、Claude Code のステップを持つものすべてである。
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -117,7 +117,7 @@ describe("hasFlag は、別の option の値として書いた flag を数えな
 
 const GIT_DENY = "Read(./.git/**)";
 
-/** ワークフローと配布スキルの雛形のうち、Claude Code の段を持つものを集める（一覧を手で持つと、足したワークフローが抜ける）。 */
+/** ワークフローと配布スキルの雛形のうち、Claude Code のステップを持つものを集める（一覧を手で持つと、足したワークフローが抜ける）。 */
 function claudeWorkflows() {
   const yml = (dir: string) =>
     readdirSync(join(repoRoot, dir))
@@ -137,7 +137,7 @@ function claudeWorkflows() {
 const WORKFLOWS = claudeWorkflows();
 
 // 集める処理が空振りしたときに、どのワークフローも検査せずに通らないよう、知っているものが入っていることを確かめる。
-test("Claude Code の段を持つワークフローと雛形を、もれなく集める", () => {
+test("Claude Code のステップを持つワークフローと雛形を、もれなく集める", () => {
   for (const path of [
     ".github/workflows/self-review.yml",
     ".github/workflows/self-review-fix.yml",
@@ -152,10 +152,10 @@ test("Claude Code の段を持つワークフローと雛形を、もれなく�
 });
 
 describe("エージェントに .git/ を読ませない", () => {
-  test.each(WORKFLOWS)("%s の Claude Code の段は、Read(./.git/**) を拒否する", (path) => {
+  test.each(WORKFLOWS)("%s の Claude Code のステップは、Read(./.git/**) を拒否する", (path) => {
     const found = claudeSteps(path);
-    // 0 件を合格として扱わない（段を 1 つも見つけられずに通ったテストを根拠にしない）。
-    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
+    // 0 件を合格として扱わない（ステップを 1 つも見つけられずに通ったテストを根拠にしない）。
+    expect(found.length, `${path} に Claude Code のステップが無い`).toBeGreaterThan(0);
     for (const step of found) {
       const args = withString(step, "claude_args");
       const denied = optionValues(args, "--disallowed-tools");
@@ -171,18 +171,22 @@ describe("エージェントに .git/ を読ませない", () => {
 
   // 権限のモードを渡さないと action のデフォルトになる。auto mode をデフォルトにしたバージョンの action では、
   // 許可の規則に無い呼び出しを安全性の判定で通しうる。bypassPermissions・acceptEdits も同じく通しうる。
-  test.each(WORKFLOWS)("%s の Claude Code の段は、権限のモードに default だけを渡す", (path) => {
-    const found = claudeSteps(path);
-    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
-    for (const step of found) {
-      const args = withString(step, "claude_args");
-      // `--permission-mode=<mode>` の形も CLI は受け付けるので、空白と `=` の両方で値を取る。
-      expect(optionValues(args, "--permission-mode"), `${path} の --permission-mode`).toStrictEqual(
-        ["default"],
-      );
-      expect(args, path).not.toContain("dangerously-skip-permissions");
-    }
-  });
+  test.each(WORKFLOWS)(
+    "%s の Claude Code のステップは、権限のモードに default だけを渡す",
+    (path) => {
+      const found = claudeSteps(path);
+      expect(found.length, `${path} に Claude Code のステップが無い`).toBeGreaterThan(0);
+      for (const step of found) {
+        const args = withString(step, "claude_args");
+        // `--permission-mode=<mode>` の形も CLI は受け付けるので、空白と `=` の両方で値を取る。
+        expect(
+          optionValues(args, "--permission-mode"),
+          `${path} の --permission-mode`,
+        ).toStrictEqual(["default"]);
+        expect(args, path).not.toContain("dangerously-skip-permissions");
+      }
+    },
+  );
 });
 
 // 使えるツールを拒否の一覧で限ると、エージェントがツールを足すたびに抜けが出る（#958）。
@@ -194,9 +198,9 @@ describe("エージェントに .git/ を読ませない", () => {
 const ALLOWED_TOOL_NAMES = ["Read", "Grep", "Glob", "Edit", "Write", "Agent", "Bash"];
 
 describe("エージェントのツールを限り、リポジトリの設定を読ませない", () => {
-  test.each(WORKFLOWS)("%s の Claude Code の段は、--tools で使えるツールを限る", (path) => {
+  test.each(WORKFLOWS)("%s の Claude Code のステップは、--tools で使えるツールを限る", (path) => {
     const found = claudeSteps(path);
-    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
+    expect(found.length, `${path} に Claude Code のステップが無い`).toBeGreaterThan(0);
     for (const step of found) {
       const tools = optionValues(withString(step, "claude_args"), "--tools");
       // 2 つ書くと、どちらが使われるかを確かめていない。1 つにまとめる。
@@ -212,18 +216,22 @@ describe("エージェントのツールを限り、リポジトリの設定を�
     }
   });
 
-  test.each(WORKFLOWS)("%s の Claude Code の段は、user の設定だけを読み、MCP を限る", (path) => {
-    const found = claudeSteps(path);
-    expect(found.length, `${path} に Claude Code の段が無い`).toBeGreaterThan(0);
-    for (const step of found) {
-      const args = withString(step, "claude_args");
-      // project・local を含めると、リポジトリの .claude/settings.json の Hook と permissions を読む。
-      expect(optionValues(args, "--setting-sources"), `${path} の --setting-sources`).toStrictEqual(
-        ["user"],
-      );
-      expect(hasFlag(args, "--strict-mcp-config"), `${path} の --strict-mcp-config`).toBe(true);
-    }
-  });
+  test.each(WORKFLOWS)(
+    "%s の Claude Code のステップは、user の設定だけを読み、MCP を限る",
+    (path) => {
+      const found = claudeSteps(path);
+      expect(found.length, `${path} に Claude Code のステップが無い`).toBeGreaterThan(0);
+      for (const step of found) {
+        const args = withString(step, "claude_args");
+        // project・local を含めると、リポジトリの .claude/settings.json の Hook と permissions を読む。
+        expect(
+          optionValues(args, "--setting-sources"),
+          `${path} の --setting-sources`,
+        ).toStrictEqual(["user"]);
+        expect(hasFlag(args, "--strict-mcp-config"), `${path} の --strict-mcp-config`).toBe(true);
+      }
+    },
+  );
 });
 
 // 検証スクリプトは引数のファイルを読み、エラーのメッセージに値を含める。引数を出力のディレクトリの記録に限る。
@@ -257,11 +265,11 @@ describe("security-audit.yml は、監査する commit をエージェントに�
   const PATH = ".github/workflows/security-audit.yml";
   const SHA = "0123456789abcdef0123456789abcdef01234567";
 
-  /** Resolve settings の段を実行し、GITHUB_OUTPUT に書いた値を返す。 */
+  /** Resolve settings のステップを実行し、GITHUB_OUTPUT に書いた値を返す。 */
   function resolveSettings(env: Record<string, string>) {
     const doc = load(PATH);
     const step = steps(PATH).find((s) => s.name === "Resolve settings");
-    expect(step?.run, "Resolve settings の段").toBeTypeOf("string");
+    expect(step?.run, "Resolve settings のステップ").toBeTypeOf("string");
     // makeTempDir は、テストの終わりにディレクトリを消す予約まで済ませる。
     const dir = makeTempDir("security-audit-settings-");
     const script = join(dir, "step.sh");

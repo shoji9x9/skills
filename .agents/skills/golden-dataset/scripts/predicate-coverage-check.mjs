@@ -1,7 +1,7 @@
 // 参照表の役割と行数を、すべての消費側から決めるための検査（原本）。
 //
 // 何のためか: データ設計は「入れたものが入ったか」までしか数えていない。
-// **「入れたもので現行のどの分岐が踏めるか」を数える段が無い**ので、
+// **「入れたもので現行のどの分岐が踏めるか」を数えるステップが無い**ので、
 // 踏めない分岐は下流（parity-suite / parity-replace）が「観測できない」に当たってから分かる。
 // そのときにはベースラインを採り終えているので、行を足すと version が上がり、交差する slug の採取物が古くなる。
 //
@@ -13,7 +13,7 @@
 //      役割は**消費するかどうか**で決まる（`JOIN` で引くか `FROM` の母集合として引くかは関係がない）。
 //   3. 踏めない分岐。参照表の件数が 0 / 1、または述語の真・偽どちらかの該当行数が 0。
 //      0 件では真の分岐へ入れない。1 件では絞り込みを外しても結果が変わらない（絞り込みが機能していることを観測できない）。
-//      踏めない分岐は、「足す」か「gaps に記録」かを**設計の段で**選ばせる（足すとバージョンが上がるので、選ぶのは判断であってデフォルトの値ではない）。
+//      踏めない分岐は、「足す」か「gaps に記録」かを**設計のステップで**選ばせる（足すとバージョンが上がるので、選ぶのは判断であってデフォルトの値ではない）。
 //   4. 変換で値が変わる識別子。次のどれかに当たる。
 //      - データセットが決めた識別子の値（採番帯）が、消費側の変換（整数への変換・桁の切り詰め・型の上限）の後に
 //        同じ値で届くかを、消費側ごとに列挙していない
@@ -911,7 +911,7 @@ function checkPredicateVerdict(findings, row, { id, trueCount, falseCount }) {
     if (!DISPOSITIONS.includes(disposition)) {
       findings.push({
         code: "predicate-disposition-missing",
-        message: `述語 ${id} は踏めない（真 ${trueCount} 件 / 偽 ${falseCount} 件）のに扱いが「${disposition || "（空欄）"}」。足すか gaps に記録するかを設計の段で選ぶ（足すと version が上がり交差する slug の採取物が陳腐化する）`,
+        message: `述語 ${id} は踏めない（真 ${trueCount} 件 / 偽 ${falseCount} 件）のに扱いが「${disposition || "（空欄）"}」。足すか gaps に記録するかを設計のステップで選ぶ（足すと version が上がり交差する slug の採取物が陳腐化する）`,
       });
     } else if (disposition === "gaps に記録" && normalizeCell(row["根拠"]) === "") {
       findings.push({
@@ -1527,7 +1527,7 @@ function checkMeasuredPredicate(findings, row, measuredById) {
       message: `述語 ${id} の実測（真 ${measuredTrue} / 偽 ${measuredFalse}）が設計（真 ${designedTrue} / 偽 ${designedFalse}）と違う`,
     });
   }
-  // **設計の段で「gaps に記録」と決めた分岐は、投入後も踏めないのが正しい姿**。
+  // **設計のステップで「gaps に記録」と決めた分岐は、投入後も踏めないのが正しい姿**。
   // 0 件を無条件に落とすと、設計が受理した扱いを検証が覆し、
   // 「足す」を選ばない限り exit 0 にできなくなる（記録して進む方法が無くなる）。
   const disposition = normalizeCell(row["扱い"]);

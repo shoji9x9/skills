@@ -27,7 +27,7 @@ env:
   INPUT_DIR: self-review-input
 
 # ジョブは kaizen-schedule.yml と同じく 2 つに分ける。エージェント（claude の Write）は作業ツリーのファイルを書き換えられるので、
-# 同じジョブの後の段は、エージェントが書いたスクリプトを Issue の書き込みの権限で実行してしまう。
+# 同じジョブの後のステップは、エージェントが書いたスクリプトを Issue の書き込みの権限で実行してしまう。
 # エージェントを動かす review には読む権限だけを与え、追跡 Issue を書く tracking-issue は、checkout し直した作業ツリーのスクリプトと、
 # artifact で受け取った結果（データとして読むだけ）だけを使う。
 jobs:
@@ -37,9 +37,9 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
-      # 入力にする費用の指標の追跡 Issue を読む。claude-code-action には同じ token を渡すので、エージェントの段も Issue を読めるが、書き込みはできない。
+      # 入力にする費用の指標の追跡 Issue を読む。claude-code-action には同じ token を渡すので、エージェントのステップも Issue を読めるが、書き込みはできない。
       issues: read
-    # tracking-issue が読む値。outcome 以外は、エージェントを動かす前に終わった段の出力から取る。
+    # tracking-issue が読む値。outcome 以外は、エージェントを動かす前に終わったステップの出力から取る。
     # outcome は runner が記録するステップの結果で、エージェントは書き換えられない。
     outputs:
       skip: ${{ steps.pause.outputs.skip }}
@@ -64,7 +64,7 @@ jobs:
             echo "リポジトリ変数 SELF_REVIEW_SKIP で一時停止している" >>"$GITHUB_STEP_SUMMARY"
           fi
 
-      # 手順が commit message を根拠に使うので、履歴をすべて取得する（件名の一覧は、点検の前の段が入力に書き出す）。
+      # 手順が commit message を根拠に使うので、履歴をすべて取得する（件名の一覧は、点検の前のステップが入力に書き出す）。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.pause.outputs.skip != 'true'
         with:
@@ -183,7 +183,7 @@ jobs:
             docs/self-review-procedure.md を読み、その手順に従って点検し、結果をリポジトリのルートの ${{ env.REPORT_FILE }} に書いてください。
           # ツールは、リポジトリの中を読むことと、結果のファイルを書くことだけに限る。リポジトリの外（/proc や ~/.claude）を読めると、
           # 仕込まれた指示に従って資格情報を結果に書くおそれがある。ほかのファイルに書けると、git の設定を書き換えて、
-          # checkout の post 段の git にコマンドを実行させるおそれがある。Edit の規則は Write にも当たり、Write(<path>) の形の規則は当たらない（手元の Claude Code 2.1.319 の claude -p で確かめた）。
+          # checkout の post ステップの git にコマンドを実行させるおそれがある。Edit の規則は Write にも当たり、Write(<path>) の形の規則は当たらない（手元の Claude Code 2.1.319 の claude -p で確かめた）。
           # --allowed-tools は許可の一覧なので、使わせないツールは --disallowed-tools で明示して拒否する。
           # Agent も拒否する。サブエージェントをバックグラウンドで起動したまま、メインのエージェントがターンを終えると、
           # 非対話の実行はそこで終わり、結果のファイルを書かずに成功として終わる（Issue #956 の実行記録で確かめた）。
@@ -291,7 +291,7 @@ jobs:
         with:
           persist-credentials: false
       # 本文を作るスクリプトを動かすのは、結果を受け取れた週だけなので、node と依存もその週だけ入れる。
-      # 準備が失敗しても、次の段で理由を Issue に書けるよう、ここではジョブを止めない。
+      # 準備が失敗しても、次のステップで理由を Issue に書けるよう、ここではジョブを止めない。
       - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         id: mise
         if: needs.review.outputs.outcome == 'success'
@@ -312,7 +312,7 @@ jobs:
           name: ${{ needs.review.outputs.report_artifact }}
           path: ${{ runner.temp }}/self-review
 
-      # 結果に資格情報の値があれば、Issue に載せない。資格情報は、この段だけに渡す。
+      # 結果に資格情報の値があれば、Issue に載せない。資格情報は、このステップだけに渡す。
       - name: Check report for credentials
         id: leak
         if: steps.download.outcome == 'success'
@@ -369,7 +369,7 @@ jobs:
           elif [ "$MODEL_VALID" = false ]; then
             failure="リポジトリ変数 SELF_REVIEW_MODEL に、モデル名に使わない文字があるため、点検していない"
           elif [ -z "$OUTCOME" ] || [ "$OUTCOME" = skipped ]; then
-            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
+            failure="エージェントを起動する前のステップが失敗した（どのステップかは run のログで確かめる）"
           elif [ "$OUTCOME" != success ]; then
             failure="エージェントの実行が失敗した（outcome: ${OUTCOME:-unknown}）"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then

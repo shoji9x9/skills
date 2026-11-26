@@ -19,7 +19,7 @@ issue-batch の #697 で、`pr-finalize-loop` の description の `--max-iterati
 
 1. なぜ縮め直したか → 書き換える前に、元の description のバイト数を測らなかった。
 2. なぜ測らなかったか → Issue のコメントが description の該当の箇所を変えると決めていたので、書く量の制約を考えずに書いた。
-3. なぜ考えなかったか → description の上限は frontmatter の規約（`.agents/rules/skill-file-format.md`）にあるが、上限に近い description を書き換える手順に、先に測る段が無い ← 根本原因
+3. なぜ考えなかったか → description の上限は frontmatter の規約（`.agents/rules/skill-file-format.md`）にあるが、上限に近い description を書き換える手順に、先に測るステップが無い ← 根本原因
 
 ## 提案
 

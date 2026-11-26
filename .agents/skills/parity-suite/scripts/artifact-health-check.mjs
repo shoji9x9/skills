@@ -1940,7 +1940,7 @@ function judgeStageRuntimeErrors(s) {
 }
 
 /**
- * checkStage の判定の途中経過。所見と注記は各段が足す。
+ * checkStage の判定の途中経過。所見と注記は各ステップが足す。
  * @typedef {{ ctx: { root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }, stageDir: string, diffPath: string, carryTo: string | null, replaceMeta: Record<string, unknown>, diffMeta: Record<string, unknown>, replaceNew: Record<string, unknown> | null, diffNew: Record<string, unknown> | null, findings: string[], notes: string[] }} StageState
  */
 

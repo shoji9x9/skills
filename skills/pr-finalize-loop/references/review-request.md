@@ -42,7 +42,7 @@
   mention で依頼する方法（`claude-code`・`codex`）は名前が決まっていないので、1 つの名前を推測して照会しない。
   ただし、[`review-tool.md`](review-tool.md) が定めるとおり、check-run はレビューが進行中かを示す共通のシグナルである。指摘が 0 件のときに、結果を check-run だけに載せることもある（同じファイルの出典を参照）。
   照会そのものを省くと、bot のコメントを伴わないレビューを無いものと誤って判定し、同じ mention を重ねて投稿する。
-  名前が決まっていないツールでは、現在の HEAD の未完了の check-run を候補として取得し、`app`・`name`・`output` の内容から、レビューのエージェントのものだと確かめられたものだけを数える（[`state-query.md`](state-query.md) の 2 段の取得と同じ形）。
+  名前が決まっていないツールでは、現在の HEAD の未完了の check-run を候補として取得し、`app`・`name`・`output` の内容から、レビューのエージェントのものだと確かめられたものだけを数える（[`state-query.md`](state-query.md) の 2 ステップの取得と同じ形）。
   確かめられない候補は特定できたものとして数えないが、完了するか分類できるまで、「無い」という結論も保留する（後述）。
 
   ```bash
@@ -53,14 +53,14 @@
           | select(.name == "copilot-pull-request-reviewer")
           | {name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
 
-  # claude-code / codex: 名前を固定できないので未完了の候補を列挙し（1 段目。output は返さない）、app / name で仕分ける。
+  # claude-code / codex: 名前を固定できないので未完了の候補を列挙し（ステップ 1。output は返さない）、app / name で仕分ける。
   # 絞り込みは gh の --jq 内で完結させる（外部 jq へパイプしない。前提ツールを増やさず、gh api の終了コードも保てる）。
   gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
     --jq '.check_runs[]
           | select(.status != "completed")
           | {id, head_sha, name, app: .app.slug, status, started_at}'
 
-  # 2 段目: 仕分けに output が要る候補と未同定の候補は id を保持し、同じ run を id で取り直す
+  # ステップ 2: 仕分けに output が要る候補と未同定の候補は id を保持し、同じ run を id で取り直す
   # （未完了だけの照会では完了した run が消えて追跡できない）。
   gh api "repos/<owner>/<repo>/check-runs/<id>" \
     --jq '{id, head_sha, name, app: .app.slug, status, conclusion, title: .output.title, summary: .output.summary}'

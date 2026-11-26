@@ -365,7 +365,7 @@ export async function captureElementShot(page, locator, options = {}) {
   const clip = planElementClip(measured.page_rect, measured.viewport);
   // `path` は Playwright へ渡さずバッファで受け取る。撮影後の検査で落ちる run が、
   // 拒否したはずのフレームを基準ファイルとして書き残す（または上書きする）のを避けるためである。
-  // 書き残すと、後段の「ファイルがあるか」で確かめる手順が、無効な成果物を読んでしまう。
+  // 書き残すと、後のステップの「ファイルがあるか」で確かめる手順が、無効な成果物を読んでしまう。
   const buffer = await page.screenshot({ clip, animations });
 
   // clip は撮影**前**に測った矩形から決まるが、`animations: "disabled"` は撮影のときに反映される

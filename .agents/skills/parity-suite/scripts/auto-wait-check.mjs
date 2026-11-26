@@ -967,7 +967,7 @@ function leadingChain(rhs) {
 // TS の型アサーション（`x as Locator` / `<Locator>x`）。**注釈（`loc: Locator`）と同じ宣言**なので
 // 同じ強さで受け側を決め（対象が識別子チェーンの形に限る。下の TRAILING_ASSERTION を参照）、
 // Page / Locator 以外へアサートした別名は由来を追えないものとして扱う。
-// 読まないと `leadingChain` の後段の条件（`ident` の直後が `.` / `(` / `[`）に当たらず、
+// 読まないと `leadingChain` の後のステップの条件（`ident` の直後が `.` / `(` / `[`）に当たらず、
 // locators にも pages にも opaqueAliases にも入らないまま、違反 0 件でも判定不能 0 件でもなく、警告なしに消える。
 // **続きが識別子で始まる形だけを角括弧アサーションと読む**。`(` を許すと、`.ts` で
 // generic なアロー関数（`const pick = <T>(x: T) => x;`）が `<T>` のアサーションに見え、

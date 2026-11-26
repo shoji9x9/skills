@@ -225,7 +225,7 @@
     ],
     "capture_scope": [
       {
-        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の抜けとして数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。抜けは記録せず寸法から導くので、ここには実測だけを書く。原本は parity-suite の references/baseline.md「撮る範囲の決め方（抜けは採取の段で数える）」。寸法は実測値（正の数）で埋める。下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では抜けが 1 つも出ないため）。",
+        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の抜けとして数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。抜けは記録せず寸法から導くので、ここには実測だけを書く。原本は parity-suite の references/baseline.md「撮る範囲の決め方（抜けは採取のステップで数える）」。寸法は実測値（正の数）で埋める。下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では抜けが 1 つも出ないため）。",
         "page": "<capture_conditions.pages[].name>",
         "state": "<capture_conditions.states の状態名>",
         "viewport": "<ビューポート label。表示の軸の変種は変種の label>",
@@ -550,7 +550,7 @@
     "baseline_pointer": "<ベースライン（.replace/parity/<slug>/baseline/）の保存先ポインタ>"
   },
   "artifact_health": {
-    "_note": "採取物ごとの「読むスペック」と「何から作ったか」の宣言。採取物は工程の出力であり次の工程の入力なので、読まれていない採取物と古い加工物を数える段をここに置く。検査は parity-suite の scripts/artifact-health-check.mjs（parity-diff が収束判定で同じスクリプトを呼ぶ）。キーごと無い旧成果物は判定しない（後方互換）。原本は parity-suite の references/baseline.md「採取物の健全性」。",
+    "_note": "採取物ごとの「読むスペック」と「何から作ったか」の宣言。採取物は工程の出力であり次の工程の入力なので、読まれていない採取物と古い加工物を数えるステップをここに置く。検査は parity-suite の scripts/artifact-health-check.mjs（parity-diff が収束判定で同じスクリプトを呼ぶ）。キーごと無い旧成果物は判定しない（後方互換）。原本は parity-suite の references/baseline.md「採取物の健全性」。",
     "declared": true,
     "baseline_dir": "<採取物の置き場所（リポジトリルートからの相対パス。既定 .replace/parity/<slug>/baseline/）。この直下を再帰的に列挙し、entries に現れないファイルは未宣言として数える>",
     "entries": [

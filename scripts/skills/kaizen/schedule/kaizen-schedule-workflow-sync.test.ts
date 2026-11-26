@@ -115,8 +115,8 @@ describe("エージェントのレポートを本文の予算の中で載せる"
     expect(body).not.toContain(OMITTED);
   });
 
-  // `tracking-issue` は `review` が途中で失敗しても動く。資格情報を確かめる段まで進まなかったときに、
-  // 「資格情報が未設定」と書くと、利用者は secret を疑い、本当の原因（前の段の失敗）を探さない。
+  // `tracking-issue` は `review` が途中で失敗しても動く。資格情報を確かめるステップまで進まなかったときに、
+  // 「資格情報が未設定」と書くと、利用者は secret を疑い、本当の原因（前のステップの失敗）を探さない。
   test("資格情報を確かめる前に review が失敗したときは、未設定とは書かず、review の失敗と書く", () => {
     const { body } = appendReport("届いたレポート\n", { CRED_PRESENT: "" });
     expect(body).toContain("エージェントを起動する前に `review` ジョブが失敗しました");
@@ -198,11 +198,11 @@ type Job = {
 const canonJobs = () =>
   loadYamlAs<{ jobs: Record<string, Job> }>(readFileSync(join(repoRoot, CANON), "utf8")).jobs;
 
-/** エージェント（Claude Code・Codex・Copilot CLI）を起動する段か。 */
+/** エージェント（Claude Code・Codex・Copilot CLI）を起動するステップか。 */
 const isAgentStep = (s: NonNullable<Job["steps"]>[number]) =>
   /claude-code-action|codex-action/.test(s.uses ?? "") || /^\s*copilot /m.test(s.run ?? "");
 
-// エージェントは作業ツリーのファイルを書き換えられる（claude の `Write`）。同じジョブの後の段が
+// エージェントは作業ツリーのファイルを書き換えられる（claude の `Write`）。同じジョブの後のステップが
 // そのファイルを読み込むと、エージェントが書いた内容が Issue の書き込みの権限で実行される（Issue #779）。
 describe("エージェントを Issue の書き込みの権限から分ける", () => {
   const jobs = canonJobs;
@@ -227,7 +227,7 @@ describe("エージェントを Issue の書き込みの権限から分ける", 
     const names = steps.map((s) => s.name ?? s.uses ?? "");
     const checkout = steps.findIndex((s) => (s.uses ?? "").startsWith("actions/checkout@"));
     expect(checkout, `${id} に checkout が無い`).toBeGreaterThanOrEqual(0);
-    // スクリプトを読む段は、checkout の後に置く。
+    // スクリプトを読むステップは、checkout の後に置く。
     for (const name of ["Build notify body", "Update tracking issue"]) {
       expect(names.indexOf(name), `${id} の ${name}`).toBeGreaterThan(checkout);
     }
@@ -277,7 +277,8 @@ describe("エージェントが読める範囲を、リポジトリの中に限�
 
   test("Claude Code は、使えるツールとパスを限り、リポジトリの設定を読まない", () => {
     const args = String(
-      one((s) => /claude-code-action/.test(s.uses ?? ""), "Claude Code の段").with?.claude_args,
+      one((s) => /claude-code-action/.test(s.uses ?? ""), "Claude Code のステップ").with
+        ?.claude_args,
     );
     expect(args).toContain('--tools "Read,Grep,Glob,Edit,Write"');
     expect(args).toContain(
@@ -297,7 +298,7 @@ describe("エージェントが読める範囲を、リポジトリの中に限�
   });
 
   test("Codex は、書いた permission profile で動き、profile を書けなかったときは起動しない", () => {
-    const profile = one((s) => s.id === "codex-profile", "permission profile を書く段");
+    const profile = one((s) => s.id === "codex-profile", "permission profile を書くステップ");
     const run = String(profile.run);
     expect(run).toContain("[permissions.repo-read]");
     expect(run).toContain('extends = ":read-only"');
@@ -310,7 +311,7 @@ describe("エージェントが読める範囲を、リポジトリの中に限�
     expect(run).toContain('inherit = "core"');
     expect(run).toContain('cat >"$tmp"');
     expect(run).toContain('mv "$tmp" "$CODEX_HOME_DIR/config.toml"');
-    const codex = one((s) => /codex-action/.test(s.uses ?? ""), "Codex の段");
+    const codex = one((s) => /codex-action/.test(s.uses ?? ""), "Codex のステップ");
     expect(codex.with?.["permission-profile"]).toBe("repo-read");
     const codexHome = "${{ runner.temp }}/codex-home";
     expect(String(codex.with?.["codex-home"])).toBe(codexHome);
@@ -320,7 +321,7 @@ describe("エージェントが読める範囲を、リポジトリの中に限�
   });
 
   test("Copilot CLI は、読み取りのツールだけを使い、一時ディレクトリと組み込みの MCP を使わない", () => {
-    const run = String(one((s) => /^\s*copilot /m.test(s.run ?? ""), "Copilot CLI の段").run);
+    const run = String(one((s) => /^\s*copilot /m.test(s.run ?? ""), "Copilot CLI のステップ").run);
     // コメントはフラグの名前を挙げるので、コメントの行を除いたコマンドで確かめる。
     const command = run
       .split("\n")

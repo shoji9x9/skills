@@ -361,7 +361,7 @@ const each = (fn: (c: Checkpoint) => unknown) => (rec: CheckpointRecord) =>
   rec.checkpoints.forEach(fn);
 
 // 書き手（record）の不変条件 W1〜W9 ごとに、record が作った記録を 1 か所だけ成り立たなくして verify が exit 2 になることを確かめる。
-// 番号と条件の原本は checkpoint.mjs の recordProblem の表（手で直した・不正な記録で --from が前段を確かめずに再開しない）
+// 番号と条件の原本は checkpoint.mjs の recordProblem の表（手で直した・不正な記録で --from が前のステップを確かめずに再開しない）
 test.each([
   ["W1 tool が無い", (rec: CheckpointRecord) => removeField(rec, "tool"), "最上位が"],
   ["W1 version が違う", (rec: CheckpointRecord) => (rec.version = "0"), "version（0）"],
@@ -371,7 +371,7 @@ test.each([
     "個を超える",
   ],
   [
-    "W2 前段を欠いて gated だけが並ぶ",
+    "W2 前のステップを欠いて gated だけが並ぶ",
     (rec: CheckpointRecord) => (rec.checkpoints = rec.checkpoints.slice(2)),
     "順の先頭から並んでいない",
   ],

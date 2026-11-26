@@ -165,7 +165,7 @@ test.each([
   expect(shown.length).toBeLessThanOrEqual(200);
 });
 
-// 段ごとに失敗する偽物を PATH の先頭に置く。指定した引数を持つ呼び出しだけを失敗させ、ほかは本物に渡す。
+// ステップごとに失敗する偽物を PATH の先頭に置く。指定した引数を持つ呼び出しだけを失敗させ、ほかは本物に渡す。
 const realGrep = spawnSync("bash", ["-c", "command -v grep"], {
   encoding: "utf8",
   timeout: CHILD_TIMEOUT_MS,
@@ -191,13 +191,13 @@ test.each([
     reason: /split_segments の終了コード 2/,
   },
   {
-    stage: "1 段目の grep",
+    stage: "ステップ 1 の grep",
     tool: "grep",
     body: `#!/bin/sh\ncase "$1" in -aE) exit 2 ;; esac\nexec '${realGrep}' "$@"\n`,
     reason: /grep の終了コード 2/,
   },
   {
-    stage: "2 段目の grep",
+    stage: "ステップ 2 の grep",
     tool: "grep",
     body: `#!/bin/sh\ncase "$1" in -avE) exit 2 ;; esac\nexec '${realGrep}' "$@"\n`,
     reason: /grep の終了コード 2/,
@@ -280,7 +280,7 @@ test("危険語はあるが command を取り出せない payload は、検査�
 // 実際 `.toolArgs.command` は toolArgs が文字列のとき jq がエラー終了し（実測: jq 1.8.2 で rc=5）、
 // node の無い環境では Codex の JSON 文字列形が検査されないまま通っていた。
 // そこで node を PATH から外し、jq だけが居る環境でスクリプト全体を起動して、payload の形ごとに確かめる。
-// jq の取り出しが失敗すると、node の後段も無いので「検査していない」の警告で exit 0 になり、exit 2 と区別できる。
+// jq の取り出しが失敗すると、node の後のステップも無いので「検査していない」の警告で exit 0 になり、exit 2 と区別できる。
 const jqOnlyEnv = (() => {
   const jq = spawnSync("bash", ["-c", "command -v jq"], {
     encoding: "utf8",

@@ -126,7 +126,7 @@ Codex のログはセッションの開始時のブランチ（`session_meta`）
 | `review-wait` | レビューの依頼（`@codex review` のコメントを含む）から、同じツールのレビューが届くまでの区間 |
 | `review` | PR のレビュー 1 件、または自分の Actions で実行したレビューの使用量 |
 | `billing` | 課金 API から取った日別の実額 |
-| `coverage` | GitHub の情報を取得した期間と、その成否（`ok` か `failed:<段>`） |
+| `coverage` | GitHub の情報を取得した期間と、その成否（`ok` か `failed:<ステップ>`） |
 | `pr` | PR 1 件。`start` は作った時刻、`end` は merge した時刻（merge せずに閉じたら閉じた時刻、open なら作った時刻）。`detail` は `pr=<番号>;author=<login>;state=<merged・closed・open>` |
 
 上の表に無い `kind` の行は、新しいバージョンの agent-usage が記録した行として扱う。

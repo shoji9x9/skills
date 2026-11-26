@@ -1,9 +1,9 @@
 # PR の状態を取得するときにコンテキストを節約する
 
 CI とレビューを繰り返し確かめるときに、reviews・timeline・トップレベルのコメントの全文を毎回返すと、状態がほとんど変わっていなくてもコンテキストを使う。
-取得を「索引（compact index）」と「必要な本文」の 2 段に分け、判定の正確さを落とさずに出力を減らす。
+取得を「索引（compact index）」と「必要な本文」の 2 つのステップに分け、判定の正確さを落とさずに出力を減らす。
 
-## 1 段目: 索引（compact index）
+## ステップ 1: 索引（compact index）
 
 反復ごとに、最初は次のものだけを取得する。
 
@@ -15,7 +15,7 @@ CI とレビューを繰り返し確かめるときに、reviews・timeline・�
 | トップレベルのコメント | 作成者以外のコメントの ID、作成者、createdAt、updatedAt、本文の文字数。`body` はまだ返さない |
 | timeline | review request やレビューの開始など、進行中かの判定に要るイベントと時刻だけ |
 | `review_tool: claude-code-action` の目印 | 同梱の `scripts/claude-review-action.sh check` の出力（`status`・`run`・`findings`・`open`・`effort`）。目印の行と run の一覧はスクリプトが読むので、会話に返さない |
-| check-runs（`review_tool` が `claude-code` か `codex` のとき） | 現在の `headRefOid` を ref にした、レビュー用の候補の ID、name、head_sha、app、status、conclusion、started_at、completed_at。1 段目では `output` を返さず、2 段目で候補だけについて `output.title` と `output.summary` を取り出す |
+| check-runs（`review_tool` が `claude-code` か `codex` のとき） | 現在の `headRefOid` を ref にした、レビュー用の候補の ID、name、head_sha、app、status、conclusion、started_at、completed_at。ステップ 1では `output` を返さず、ステップ 2で候補だけについて `output.title` と `output.summary` を取り出す |
 
 reviews と reviewThreads はページネーションのカーソルが別なので、1 つの `$endCursor` を共用せず、別のクエリでそれぞれ全ページを取得する。
 `gh api --jq` で要る行だけを出力し、加工していない API の応答の全体を会話に返さない。
@@ -65,13 +65,13 @@ gh api --paginate repos/<owner>/<repo>/issues/<number>/comments \
   --jq '.[] | select(.user.login != "<author>") |
     {id, login: .user.login, created_at, updated_at, body_length: (.body | length)}'
 
-# 現在の HEAD の check-run の索引。output は 2 段目で候補だけ取得する
+# 現在の HEAD の check-run の索引。output は ステップ 2で候補だけ取得する
 gh api --paginate \
   "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
   --jq '.check_runs[] | {id, name, head_sha, app: .app.slug, status, conclusion, started_at, completed_at}'
 ```
 
-## 2 段目: 対象だけ全文を取得する
+## ステップ 2: 対象だけ全文を取得する
 
 索引を前回に取得した状態と比べ、次に当たるものだけ本文を個別に取得する。
 
@@ -79,7 +79,7 @@ gh api --paginate \
 2. 前回の取得より後に submit されたレビュー。commit が前の HEAD でも、push の前から進んでいて遅れて届いたレビューは、今の HEAD にも当てはまる指摘を含むので対象にする
 3. 未処理のレビューの ID。自分が残した対応の記録のコメントに ID が無く、まだ妥当かを判断していないもの
 4. 作成者以外の、新しいか更新されたトップレベルのコメント
-5. 未解決のレビュースレッド（1 段目で本文を取得済み）
+5. 未解決のレビュースレッド（ステップ 1で本文を取得済み）
 6. `review_tool` が `claude-code` か `codex` のときに、レビューが届いたかの判定に使う、現在の HEAD の check-run。
    候補だけについて `output.title` と `output.summary` を取得し、正常に完了したか、失敗・timeout・skip などかを判定する。
    トップレベルのコメントだけを根拠にするときは、本文に書かれたレビューした commit を GitHub API で完全な SHA に解決し、現在の `headRefOid` と一致することも確かめる

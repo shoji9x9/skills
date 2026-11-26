@@ -44,7 +44,7 @@
         "skills/replace-strategy/references/user-confirmation.md",
         "skills/spec-parity/references/user-confirmation.md"
       ],
-      "reason": "利用者に承認を求める段と選択肢から選んでもらう段で、確認のツールを使えないエージェントがどう聞くか（Issue #855）。スキルで食い違うと、同じエージェントでも、スキルによって承認を待たずに更新する操作へ進んだり止まったりする"
+      "reason": "利用者に承認を求めるステップと選択肢から選んでもらうステップで、確認のツールを使えないエージェントがどう聞くか（Issue #855）。スキルで食い違うと、同じエージェントでも、スキルによって承認を待たずに更新する操作へ進んだり止まったりする"
     },
     {
       "files": [

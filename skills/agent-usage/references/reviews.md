@@ -43,6 +43,6 @@ PR に付いたレビューの作者（GitHub の login）から決める。対�
 
 - 内訳は日・モデル・製品の単位で、リポジトリや PR の単位ではない。レビュー以外の利用も含む
 - 組織のプランの実額は、組織の管理者の権限が要るので取得しない
-- 取得に失敗した日は、collect の出力に段の名前が出る（他の段は続ける）
+- 取得に失敗した日は、collect の出力にステップの名前が出る（他のステップは続ける）
 
 参考: [REST API endpoints for billing usage](https://docs.github.com/en/rest/billing/usage)

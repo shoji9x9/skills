@@ -1,4 +1,4 @@
-# pre-commit は次の 3 段で実行する。
+# pre-commit は次の 3 つのステップで実行する。
 #   1. format: 整形して再ステージするジョブ（piped＝逐次。並列 stage_fixed の index 競合を避ける）
 #   2. lint:   ファイル単位の checker とリポジトリ全体の検査（並列・再ステージしない）
 #   3. scan:   シークレットの走査（並列）
@@ -16,7 +16,7 @@ pre-commit:
             run: node scripts/tools/generate-word-list.ts --index && git add .textlint/word-list.md
           - name: fallow-config
             # fallow の設定（.fallowrc.json）を、index の手で書く設定（.config/fallow/base.jsonc）と、意図したコピーの宣言から生成して stage する。
-            # lint の fallow より前の段で生成するので、同じ commit の検査は生成し直した設定を使う。
+            # lint の fallow より前のステップで生成するので、同じ commit の検査は生成し直した設定を使う。
             # 範囲（region）の組は、コピーの中身から外す export の名前を読むので、JS・TS の変更でも生成し直す。
             glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},.config/fallow/base.jsonc,scripts/gates/packaging/copies/identical-copies.json,.fallowrc.json}"
             run: node scripts/gates/packaging/copies/generate-fallow-config.ts --index && git add .fallowrc.json

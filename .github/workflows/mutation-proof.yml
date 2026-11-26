@@ -125,7 +125,7 @@ jobs:
         with:
           pattern: mutation-shard-log-*
           path: ${{ runner.temp }}/mutation-logs
-      # 更新できない（途中で止まったシャードのログがある・前の段で失敗してログを残さなかったシャードがある、など）ときは、
+      # 更新できない（途中で止まったシャードのログがある・前のステップで失敗してログを残さなかったシャードがある、など）ときは、
       # 理由を結果に出してこのジョブを失敗にする。
       - name: Update durations from the logs
         run: |

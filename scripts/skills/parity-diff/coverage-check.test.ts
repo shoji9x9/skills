@@ -254,7 +254,7 @@ test("fired-without-response は送り方・発火確認・観測結果が揃わ
     (e) => removeField(e.action, "locator"),
     (e) => removeField(e.action, "detail"),
     (e) => (e.action.method = "guess"),
-    // 型崩れ。String() で潰して比較すると allowlist を通り、後段の厳密比較だけ false になって
+    // 型崩れ。String() で潰して比較すると allowlist を通り、後のステップの厳密比較だけ false になって
     // coordinate の hit-test 検査を回避できる
     (e) => (e.action.method = invalidInput(["locator-api"])),
     (e) => (e.fired.signal = invalidInput(["event-listener"])),

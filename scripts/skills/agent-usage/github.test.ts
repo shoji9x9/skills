@@ -190,7 +190,7 @@ describe("actionRuns", () => {
 });
 
 describe("collectGitHub", () => {
-  test("取得に失敗した段を failures に残し、他の段は続ける", () => {
+  test("取得に失敗したステップを failures に残し、他のステップは続ける", () => {
     const gh: Gh = (args) => {
       if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
       if (args[0] === "graphql") throw new Error("HTTP 502");
@@ -630,7 +630,7 @@ describe("collectGitHub の失敗と読めない応答", () => {
       fakeGh([], [["actions/runs?created", [{}]]]),
       /^actions\/runs: repos\/o\/r\/actions\/runs\?created=\S+: 項目の配列が無い$/,
     ],
-  ])("%s は、その段を failures に残す", (_name, gh, failure) => {
+  ])("%s は、そのステップを failures に残す", (_name, gh, failure) => {
     const res = collectGitHub(options(gh, { billing: "user" }));
     expect(
       res.failures.some((f) => (typeof failure === "string" ? f === failure : failure.test(f))),

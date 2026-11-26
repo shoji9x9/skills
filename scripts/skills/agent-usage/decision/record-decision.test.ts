@@ -140,8 +140,8 @@ test.each<{
 
 describe("判断が無いときにコミットを止める案内（gate.mjs の stopResult）", () => {
   // 案内の文は人の設定があるかで変わるので、止める前に人の設定を読む。
-  // CLI の流れでは、その前の段（defaultDecision の読み取り）が同じファイルを読んで設定のエラーを返す。
-  // 案内の段で初めて読めなくなる形（読み取りの間にファイルが変わったなど）は CLI では作れないので、ここで直接確かめる
+  // CLI の流れでは、その前のステップ（defaultDecision の読み取り）が同じファイルを読んで設定のエラーを返す。
+  // 案内のステップで初めて読めなくなる形（読み取りの間にファイルが変わったなど）は CLI では作れないので、ここで直接確かめる
   const context = { fallbackCwd: "/", now: 0, script: "/s/agent-usage.mjs", agent: "claude-code" };
 
   afterEach(() => {

@@ -37,7 +37,7 @@ agent-usage status
 
 - ツール: `git`、Node.js（22 以上）、`bash`（Hook のスクリプト）
 - 設定: `agent-usage.jsonc`（リポジトリ・`.local.jsonc`・人ごとの 3 つの層）。同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。置き場所・解決の順序・書き込みの決まりは [`references/config-files.md`](references/config-files.md) にある
-- GitHub の情報（CI・レビュー・自分の操作）を取るときだけ `gh`（GitHub CLI）。リポジトリの読み取りの権限で足りる。`gh` が無いか失敗したら、その期間の停止を「判定不能」として記録し、collect は続ける。失敗した段は collect の出力に「GitHub の取得に失敗」として出る。
+- GitHub の情報（CI・レビュー・自分の操作）を取るときだけ `gh`（GitHub CLI）。リポジトリの読み取りの権限で足りる。`gh` が無いか失敗したら、その期間の停止を「判定不能」として記録し、collect は続ける。失敗したステップは collect の出力に「GitHub の取得に失敗」として出る。
   GitHub を取得するのは、origin が `<ホスト>/<owner>/<name>` の形のときだけである。
   ホストは、github.com・`GH_HOST`・`gh auth login --hostname <ホスト>` でログインしたホストのどれかに限る。
   github.com 以外のホストに、環境変数の token（`GH_TOKEN`・`GH_ENTERPRISE_TOKEN` など）だけで認証するなら `GH_HOST` を指定する。
@@ -102,5 +102,5 @@ PR のレビューの費用（自分の GitHub Actions で実行するレビュ�
 
 ## 利用者への確認
 
-このスキルが利用者に確認する段・承認を得る段・選んでもらう段は、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
+このスキルが利用者に確認するステップ・承認を得るステップ・選んでもらうステップは、すべて [`references/user-confirmation.md`](references/user-confirmation.md) の手順で行う。
 確認のツールを使えないエージェントでは、判断の材料と選択肢を本文に出して返事を待ち、返事を受け取る前に、その返事で決まる操作へ進まない。

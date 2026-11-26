@@ -7,7 +7,7 @@ applied-to: [.agents/rules/state-space-and-mutation-proof.md]
 session: claude-code
 ---
 
-# 後段の検査ツールを前段のチェックに流用し、その時点で揃わない入力を列挙しなかった
+# 後のステップの検査ツールを前のステップのチェックに流用し、その時点で揃わない入力を列挙しなかった
 
 ## 事象
 
@@ -27,7 +27,7 @@ unreachable-declaration-invalid を取りこぼしていた（/code-review が�
 
 ## 提案
 
-検査ツールを複数の工程（前提判定・完了判定など）から呼ぶときは、工程ごとにその時点で揃う入力を列挙し、判定を終了コードではなく「許容する finding の集合」で書く。前提を新設したら、その前提を前段に持つ既存の eval fixture を同じ変更で列挙して通ることを確かめる。
+検査ツールを複数の工程（前提判定・完了判定など）から呼ぶときは、工程ごとにその時点で揃う入力を列挙し、判定を終了コードではなく「許容する finding の集合」で書く。前提を新設したら、その前提を前のステップに持つ既存の eval fixture を同じ変更で列挙して通ることを確かめる。
 
-- 適用先候補: `.agents/rules/state-space-and-mutation-proof.md` §3（呼ばれる工程を軸に足す）、§4（新設の前段チェック→既存 fixture）
+- 適用先候補: `.agents/rules/state-space-and-mutation-proof.md` §3（呼ばれる工程を軸に足す）、§4（新設の前のステップチェック→既存 fixture）
 - 横断: `component-comparison-check.mjs` も `parity-replace` の複数工程から呼ばれるので同型がないか確認する

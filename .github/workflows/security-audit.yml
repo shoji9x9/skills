@@ -6,7 +6,7 @@ name: Security audit
 # 追跡 Issue には、件数と識別子だけを載せる。運用（鍵・一時停止・記録の読み方）は docs/security-scanning.md にある。
 on:
   schedule:
-    # 曜日と時刻の決め方は docs/weekly-schedule.md にある。schedule では inputs が空なので、各値は Resolve settings の段の `||` の後の値（self・quick・40）になる。inputs の default を変えるときは、そこも変える。
+    # 曜日と時刻の決め方は docs/weekly-schedule.md にある。schedule では inputs が空なので、各値は Resolve settings のステップの `||` の後の値（self・quick・40）になる。inputs の default を変えるときは、そこも変える。
     - cron: "30 2 * * 2"
   workflow_dispatch:
     inputs:
@@ -65,7 +65,7 @@ jobs:
       actions: read
     outputs:
       skip: ${{ steps.pause.outputs.skip }}
-      # 監査できたか、できなかった理由は、Decide result の段だけが決める（tracking-issue はそれを読む）。
+      # 監査できたか、できなかった理由は、Decide result のステップだけが決める（tracking-issue はそれを読む）。
       result_outcome: ${{ steps.result.outcome }}
       failure: ${{ steps.result.outputs.failure }}
       state_note: ${{ steps.result.outputs.state_note }}
@@ -145,7 +145,7 @@ jobs:
             echo "budget が 1〜999 の整数でない" >&2
           fi
           root="$RUNNER_TEMP/security-audit"
-          # 監査する commit は、checkout した commit をここで渡す。エージェントには .git/ を読ませない（Run Claude Code の段のコメント）。
+          # 監査する commit は、checkout した commit をここで渡す。エージェントには .git/ を読ませない（Run Claude Code のステップのコメント）。
           if [ "$INPUT_TARGET" = self ]; then
             target_dir="$GITHUB_WORKSPACE"
             read_glob="./**"
@@ -306,7 +306,7 @@ jobs:
             サブエージェントは、結果が返るまで待ってから次に進めます。
             終える前に、出力のディレクトリの run-metadata.json の run_status を complete か incomplete（理由つき）にしてください。
           # ツールは、対象とスキルと記録を読むこと、記録を書くこと、サブエージェントを使うこと、上流の検証スクリプトを実行することに限る。
-          # 書き込みを出力の下に限るのは、git の設定などを書き換えて、後の段の git にコマンドを実行させないためである。
+          # 書き込みを出力の下に限るのは、git の設定などを書き換えて、後のステップの git にコマンドを実行させないためである。
           # Edit の規則は Write にも当たる。Bash は検証スクリプトの起動の形だけを許す（Claude Code は複合コマンドを 1 つずつ照合する）。
           # 検証スクリプトは引数のファイルを読み、エラーに値を含めるので、引数は出力のディレクトリの 2 つの記録に限り、ワイルドカードを使わない。
           # --permission-mode default は、許可の規則に無い Bash の呼び出し（引数の違う検証スクリプトなど。読むだけのコマンドを除く）と、作業ディレクトリと
@@ -433,11 +433,11 @@ jobs:
 
       # 監査できたかを、ここで 1 回だけ決める。failure は、要約を使えない理由（監査していない・終えられなかった）である。
       # state_note は、要約は使えるが今回の記録を残せなかったことを表す。tracking-issue は要約で本文を更新し、この文を足して失敗させる。
-      # 飛ばされた段の出力は空になるので、空の値から「未設定」「不正」を推測しない。資格情報・設定・復号は、段が書いた値
+      # 飛ばされたステップの出力は空になるので、空の値から「未設定」「不正」を推測しない。資格情報・設定・復号は、ステップが書いた値
       # （present と valid の false、result の failed）でだけ判定する。
       # エージェントと要約は、success でなければ（飛ばされたときを含めて）要約を使えないものとして扱う。upload は、実行して失敗した（failure）かだけを見る。
-      # job.status が success でなければ、continue-on-error の無い段が失敗している。その段はすべてエージェントより前にあるので、
-      # 「起動する前の段が失敗した」と書く。エージェントより後に段を足すときは、continue-on-error を付けてこの前提を保つ。
+      # job.status が success でなければ、continue-on-error の無いステップが失敗している。そのステップはすべてエージェントより前にあるので、
+      # 「起動する前のステップが失敗した」と書く。エージェントより後にステップを足すときは、continue-on-error を付けてこの前提を保つ。
       - name: Decide result
         id: result
         if: ${{ !cancelled() && steps.pause.outputs.skip != 'true' }}
@@ -459,7 +459,7 @@ jobs:
           if [ "$RESTORE_RESULT" = failed ]; then
             failure="前回の記録を同じ鍵で復号できないため、監査していない（記録が不正。restart を true にして実行すると、初回として監査する）"
           elif [ "$JOB_STATUS" != success ]; then
-            failure="エージェントを起動する前の段が失敗した（どの段かは run のログで確かめる）"
+            failure="エージェントを起動する前のステップが失敗した（どのステップかは run のログで確かめる）"
           elif [ "$CRED_PRESENT" = false ]; then
             failure="secret CLAUDE_CODE_OAUTH_TOKEN か SECURITY_AUDIT_STATE_KEY が未設定のため、監査していない"
           elif [ "$SETTINGS_VALID" = false ]; then
@@ -472,7 +472,7 @@ jobs:
             failure="監査の要約を artifact に上げられなかった"
           fi
           if [ -z "$failure" ]; then
-            # どの upload を実行するかは各段の if が決める。ここでは実行して失敗したかだけを見る。
+            # どの upload を実行するかは各ステップの if が決める。ここでは実行して失敗したかだけを見る。
             outcomes="暗号化: ${ENCRYPT_OUTCOME:-skipped}・引き継ぐ記録の upload: ${STATE_OUTCOME:-skipped}・今回の記録の upload: ${RUN_UPLOAD_OUTCOME:-skipped}"
             if [ "$TARGET" = self ] && { [ "$ENCRYPT_OUTCOME" = failure ] || [ "$STATE_OUTCOME" = failure ]; }; then
               # 引き継ぐ記録を上げられないと、次の実行は前回までの記録と比べるので、新規と解消が 2 回分の差になる。
@@ -489,7 +489,7 @@ jobs:
           echo "state_note=$state_note" >>"$GITHUB_OUTPUT"
 
       # 監査を終えられなかったときと、記録を残せなかったときに、run を失敗にする。
-      # tracking-issue はデフォルトブランチの self でしか動かないので、ほかのブランチと dvna の run では、この段だけが失敗を示す。
+      # tracking-issue はデフォルトブランチの self でしか動かないので、ほかのブランチと dvna の run では、このステップだけが失敗を示す。
       - name: Fail if audit or records failed
         if: ${{ !cancelled() && (steps.result.outputs.failure != '' || steps.result.outputs.state_note != '') }}
         env:
@@ -503,7 +503,7 @@ jobs:
     name: Update security audit tracking issue
     needs: audit
     # dvna の監査は検出できるかの確認なので、追跡 Issue を触らない。
-    # 入力から判定する。audit の target は設定の段が実行されたときだけ出るので、資格情報が無い実行では空になる。
+    # 入力から判定する。audit の target は設定のステップが実行されたときだけ出るので、資格情報が無い実行では空になる。
     # 追跡 Issue は 1 本なので、デフォルトブランチの監査だけが書く。ほかのブランチの実行は記録を別に引き継ぐので、結果が食い違う。
     if: ${{ !cancelled() && needs.audit.outputs.skip != 'true' && (inputs.target || 'self') != 'dvna' && github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-latest
@@ -534,7 +534,7 @@ jobs:
 
       # 監査できなかったときは、「指摘 0 件」として閉じず、理由を追跡 Issue に書いてからジョブを失敗させる。
       # 理由は、audit ジョブの Decide result が決めたもの（資格情報か鍵が未設定・設定が不正・前回の記録を復号できない・
-      # エージェントを起動する前の段の失敗・エージェントの失敗・記録の形の誤り・要約の upload の失敗）と、このジョブで要約を読めなかったことである。
+      # エージェントを起動する前のステップの失敗・エージェントの失敗・記録の形の誤り・要約の upload の失敗）と、このジョブで要約を読めなかったことである。
       - name: Update tracking issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -561,7 +561,7 @@ jobs:
           comment="$RUNNER_TEMP/issue-comment.md"
           failure=""
           if [ "$RESULT_OUTCOME" != success ]; then
-            failure="audit ジョブが、監査の結果を決める前に失敗した（どの段かは run のログで確かめる）"
+            failure="audit ジョブが、監査の結果を決める前に失敗した（どのステップかは run のログで確かめる）"
           elif [ -n "$AUDIT_FAILURE" ]; then
             failure="$AUDIT_FAILURE"
           elif [ "$DOWNLOAD_OUTCOME" != success ]; then

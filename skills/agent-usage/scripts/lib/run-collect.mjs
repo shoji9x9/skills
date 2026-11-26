@@ -260,7 +260,7 @@ function githubSinceOf(o) {
 }
 
 /**
- * 停止の分類に使う段の失敗だけを返す。課金 API と artifact の失敗は費用の行が欠けるだけなので、
+ * 停止の分類に使うステップの失敗だけを返す。課金 API と artifact の失敗は費用の行が欠けるだけなので、
  * その期間を判定不能（coverage が ok でない）にしない。
  * @param {readonly string[]} failures
  * @returns {string[]}
@@ -706,7 +706,7 @@ function coverageRow(o) {
     tz: o.tz,
     start: toIso(o.since),
     end: toIso(o.now),
-    // 停止の分類に使う段（PR・Actions の run・外部の CI・自分の login）が取れていれば ok にする。
+    // 停止の分類に使うステップ（PR・Actions の run・外部の CI・自分の login）が取れていれば ok にする。
     // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能にしない（失敗は collect の出力に出る）
     detail:
       classifyingFailures.length === 0

@@ -454,7 +454,7 @@ export function judgeMotion(base, noise, candidate) {
  */
 
 /**
- * 突き合わせの途中の状態（compareMotions の各段が読み書きする）。
+ * 突き合わせの途中の状態（compareMotions の各ステップが読み書きする）。
  * baseline の値が undefined の組み合わせは、時系列はあったが基準にできなかったもの。
  * @typedef {{
  *   findings: MotionFinding[],

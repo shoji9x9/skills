@@ -87,7 +87,7 @@ PR の Claude のレビュー（[`claude-review.md`](claude-review.md)）は、�
 ## リポジトリ全体の監査
 
 `.github/workflows/security-audit.yml` が、[cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill)（MIT）をエージェントに実行させ、リポジトリ全体を監査する。
-上流のスキルは、偵察・調査・候補の検証・記録の検証・報告の段に分けてサブエージェントを使い、`findings.json`（指摘の記録）と `coverage-ledger.json`（網羅の台帳）を書く。
+上流のスキルは、偵察・調査・候補の検証・記録の検証・報告のステップに分けてサブエージェントを使い、`findings.json`（指摘の記録）と `coverage-ledger.json`（網羅の台帳）を書く。
 スキルは、ワークフローの `SKILL_SHA` に固定した commit を取得して使う。上げるときは、差分を読んでから SHA を変える。
 
 ### 資格情報と設定
