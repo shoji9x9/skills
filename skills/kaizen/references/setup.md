@@ -688,6 +688,7 @@ gh skill install shoji9x9/skills multiagent-setup --agent <利用するエージ
 
 pending の学びは、コミット前のチェックが抽出を促す一方で、適用されるきっかけが無い。
 閾値に達すれば自動の忘却が対象にするが、忘却は「適用せずに終わりにする」決着なので、適用する機会そのものを作るために、週に 1 回棚卸しする。
+同じ Issue に、適用した学びの効果を測り直した候補の表も載せる（`references/housekeeping.md`「適用した学びの効果の測り直し」）。
 
 リモートが無い（`git remote` の出力が空の）リポジトリでは、GitHub Actions も Issue も使えないので、この定期実行を設定しない。
 代わりに、週に 1 回、`/kaizen apply` で pending の学びを適用し、`/kaizen forget --list` で適用されないまま古くなった学びを確かめるよう、利用者に案内する。

@@ -407,9 +407,11 @@ jobs:
       issues: write
     steps:
       # `review` の作業ツリーはエージェントが書き換えられるので、使わない。同じ commit を checkout し直す。
+      # 全履歴を取得する。本文の「効果を測り直す規約の候補」は、学びを適用した日を git の履歴から求めるからである。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Build notify body
         env:

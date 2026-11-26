@@ -356,7 +356,7 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local count _rank _sort_key idx shown escaped=0 path_cell summary_cell
+	local count
 	# 解決した値は使わない。採った層を出すと、環境変数を受け取らない step のログに
 	# 実際と違う値が残るので、設定を読めるかだけを確かめる。
 	load_config_or_exit
@@ -370,11 +370,39 @@ cmd_issue() {
 	echo "達した時点で自動的に \`status: forgotten\` になります。"
 	echo
 
-	if [ "${count}" -eq 0 ]; then
-		rm -f "${pending_index}"
-		return 0
+	if [ "${count}" -gt 0 ]; then
+		pending_table
 	fi
+	rm -f "${pending_index}"
+	effectiveness_section
+}
 
+# 適用した学びの効果を測り直す候補の節を出す（references/housekeeping.md「適用した学びの効果の測り直し」）。
+# 測れなかったときも、節を省かずに測れなかったことを書く。省くと「候補が無い」と読まれるからである。
+effectiveness_section() {
+	local script out
+	script="$(dirname "${BASH_SOURCE[0]}")/kaizen-effectiveness.sh"
+	echo
+	if [ ! -r "${script}" ]; then
+		warn "kaizen-effectiveness.sh を読めないので、適用した学びの効果を測らない: ${script}"
+		effectiveness_unmeasured "\`kaizen-effectiveness.sh\` を読めない。kaizen を再インストールしてください"
+	elif ! out=$(bash "${script}" candidates); then
+		warn "kaizen-effectiveness.sh が失敗したので、適用した学びの効果を載せない"
+		effectiveness_unmeasured "\`kaizen-effectiveness.sh candidates\` が失敗した。理由は実行のログにあります"
+	else
+		printf '%s\n' "${out}"
+	fi
+}
+
+effectiveness_unmeasured() {
+	echo "## 効果を測り直す規約の候補"
+	echo
+	echo "> 測れませんでした（$1）。"
+}
+
+# 未適用の学びの表を出す。
+pending_table() {
+	local _rank _sort_key idx shown escaped=0 path_cell summary_cell
 	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
 	echo "| --- | --- | --- | --- | --- |"
 	shown=0
@@ -396,7 +424,6 @@ cmd_issue() {
 			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" "${summary_cell}"
 		shown=$((shown + 1))
 	done <"${pending_index}"
-	rm -f "${pending_index}"
 	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、表からコピーしたパスでノートを開けない。
 	if [ "${escaped}" = 1 ]; then
 		echo
