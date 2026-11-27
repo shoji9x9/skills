@@ -614,6 +614,34 @@ describe("pending の数え方と並び", () => {
     });
   });
 
+  // パスは切らないので、ファイル名の上限に近い名前（252 バイト）の学びが 60 件あると、行数の上限の内でも表がおよそ 25,000 文字になる（Issue #1152）。
+  // 未適用の学びの節は、本文の上限 65536 からエージェントのレポートの分 31000 と候補の節の上限 15000 を引いた 19536 文字に収める。
+  // `|` を含む名前の学びを優先度 low で 1 件足す。表の最後に並んで省かれるので、戻し方は出ない。
+  test("名前の長い学びが多いと、表を文字数の上限で切り、省いた件数を書く", () => {
+    const notes: Record<string, Omit<NoteOptions, "slug">> = {};
+    for (let i = 0; i < 60; i += 1) {
+      notes[`${String(i).padStart(2, "0")}-${"x".repeat(246)}`] = { proposal: "あ".repeat(200) };
+    }
+    notes["zz|pipe"] = { priority: "low" };
+    withProject({ notes }, (p) => {
+      const { status, stdout } = run(p, ["issue"]);
+      expect(status).toBe(0);
+      expect(Buffer.byteLength(`${Object.keys(notes)[0]}.md`)).toBe(252);
+      const section = stdout.slice(0, stdout.indexOf("## 効果を測り直す規約の候補"));
+      const withoutReport = 65_536 - 31_000;
+      expect(section.length).toBeLessThanOrEqual(withoutReport - 15_000);
+      expect(stdout.length).toBeLessThanOrEqual(withoutReport);
+      const shown = tableRows(section).length;
+      // 行数の上限より前で切れている（文字数の上限が機能していることの確認）。
+      expect(shown).toBeGreaterThan(0);
+      expect(shown).toBeLessThan(60);
+      expect(section).toContain(`優先度の高い ${shown} 件だけを載せています`);
+      expect(section).toContain(`残り ${61 - shown} 件`);
+      expect(section).not.toContain("zz\\|pipe");
+      expect(section).not.toContain(NOTE_MARK);
+    });
+  });
+
   test("prompt 出力は対象ノートのパスを列挙する", () => {
     withProject({ notes: { a: {}, b: {} } }, (p) => {
       const out = run(p, ["prompt"]).stdout;

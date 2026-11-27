@@ -60,9 +60,10 @@ fi
 #
 # **予算はコメントで宣言するだけでなく実装で強制する。** 要約を切らずに「1 行およそ
 # 400 文字」と書いていたバージョンは、実データで既に 439 文字の行を出していた（実測）。
-# 1 行 = 要約 120 + 判断待ちの印 22 + パス・優先度・種別・記録日・区切り およそ 150 で、多くて 292 文字、
-# 60 行で 17,520 文字。切った分は、件数と参照先を明示する
-# （警告なしに省くと「表に無い＝存在しない」と読まれる）。
+# 1 行 = 要約 120 + 判断待ちの印 22 + パス・優先度・種別・記録日・区切り およそ 150 で、ふだんは多くて 292 文字、
+# 60 行で 17,520 文字。パスは切らないので、ファイル名の上限（255 バイト）に近い名前の学びが多いと、行数の上限だけでは
+# 本文の上限を守れない。そのため、節の文字数にも上限（MAX_PENDING_SECTION_CHARS）を置き、どちらかに達したら切る。
+# 切った分は、件数と参照先を明示する（警告なしに省くと「表に無い＝存在しない」と読まれる）。
 readonly MAX_TABLE_ROWS=60
 readonly MAX_SUMMARY_CHARS=120
 # 食い違いの判断待ちの学び（references/extract.md「食い違いの確認」）に、Issue の表と prompt の一覧で付ける印。
@@ -372,15 +373,19 @@ cmd_issue() {
 }
 
 # 未適用の学びの節（件数・案内・表）を出す。$1 は件数。
+# 節は MAX_PENDING_SECTION_CHARS 文字に収める。案内の文と表の後の注記の分を引いた残りを、表の見出しと行に使える文字数として渡す。
 pending_section() {
-	echo "\`.kaizen/\` に未適用（\`status: pending\`）の学びが **$1 件** あります。"
-	echo
-	echo "適用するには、このリポジトリを開いたセッションで \`/kaizen apply\` を実行してください。"
-	echo "適用せずに終わりにしてよい学びは、閾値（\`forget_after_days\` / \`forget_max_priority\`）に"
-	echo "達した時点で自動的に \`status: forgotten\` になります。"
-	echo
+	local intro
+	# SC2016: バックティックはリテラル。展開させない意図で単一引用符が正しい。
+	# shellcheck disable=SC2016
+	printf -v intro '%s\n\n%s\n%s\n%s\n\n' \
+		"\`.kaizen/\` に未適用（\`status: pending\`）の学びが **$1 件** あります。" \
+		'適用するには、このリポジトリを開いたセッションで `/kaizen apply` を実行してください。' \
+		'適用せずに終わりにしてよい学びは、閾値（`forget_after_days` / `forget_max_priority`）に' \
+		'達した時点で自動的に `status: forgotten` になります。'
+	printf '%s' "${intro}"
 	if [ "$1" -gt 0 ]; then
-		pending_table
+		pending_table "$((MAX_PENDING_SECTION_CHARS - ${#intro} - PENDING_NOTES_RESERVED_CHARS))"
 	fi
 }
 
@@ -388,12 +393,17 @@ pending_section() {
 # 測れなかったときも、節を省かずに測れなかったことを書く。省くと「候補が無い」と読まれるからである。
 # 節は $1 文字で、行の境界で切る。$1 は Issue の本文の上限（ISSUE_BODY_MAX_CHARS）から 2 つの長さを引いた残りで、MAX_EFFECTIVENESS_CHARS を超えない。
 # 引くのは、同梱のワークフローが足すエージェントのレポートの分（AGENT_REPORT_RESERVED_CHARS）と、実際に出した未適用の学びの節の長さである。
-# 未適用の学びの表はパスの長さを切らないので、固定の上限では本文の上限を守れない。
+# 未適用の学びの節が短い週は、その分を候補の節に回す（MAX_EFFECTIVENESS_CHARS まで）。
 # 長さは、UTF-8 のロケールの bash と gawk では文字数、それ以外ではバイト数で数える。バイト数は文字数以上なので、どちらでも上限を超えない。
 readonly ISSUE_BODY_MAX_CHARS=65536
 # ワークフローの MAX_REPORT_CHARS（30,000 文字）と、その前後の説明（見出し・エージェントの名前・run の URL・省略の注記）の分。
 readonly AGENT_REPORT_RESERVED_CHARS=31000
 readonly MAX_EFFECTIVENESS_CHARS=15000
+# 未適用の学びの節の上限。本文の上限から、レポートの分と候補の節の上限を引いた残り（19,536 文字）にする。
+# 2 つの節がそれぞれの上限まで伸びても、レポートと合わせた本文は ISSUE_BODY_MAX_CHARS を超えない。
+readonly MAX_PENDING_SECTION_CHARS=$((ISSUE_BODY_MAX_CHARS - AGENT_REPORT_RESERVED_CHARS - MAX_EFFECTIVENESS_CHARS))
+# 表の後に出す注記（パスの戻し方・省いた件数）の分。2 つの注記は、空行を含めて合わせて 210 文字ほどなので、文言が延びる分を見込んで 500 にする。
+readonly PENDING_NOTES_RESERVED_CHARS=500
 effectiveness_section() {
 	local budget=$1 script out
 	script="$(dirname "${BASH_SOURCE[0]}")/kaizen-effectiveness.sh"
@@ -427,17 +437,16 @@ effectiveness_unmeasured() {
 	echo "> 測れませんでした（$1）。"
 }
 
-# 未適用の学びの表を出す。
+# 未適用の学びの表を出す。$1 は表の見出しと行に使える文字数で、行は MAX_TABLE_ROWS 行と $1 文字の両方に収める。
 pending_table() {
-	local count=${#pending_files[@]} _rank _sort_key idx shown escaped=0 path_cell summary_cell
-	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
-	echo "| --- | --- | --- | --- | --- |"
+	local count=${#pending_files[@]} max=$1 _rank _sort_key idx shown escaped=0 path_cell summary_cell row header used next
+	header=$'| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |\n| --- | --- | --- | --- | --- |'
+	printf '%s\n' "${header}"
+	used=$((${#header} + 1))
 	shown=0
 	while IFS=$'\t' read -r _rank _sort_key idx; do
 		[ "${shown}" -lt "${MAX_TABLE_ROWS}" ] || break
-		# ノートの列は、Markdown のまま本文を読む読み手もいるので、`|` を `\|` と書いた分も書き分けとして数える。
 		path_cell=$(table_cell "${pending_files[idx]}")
-		[ "${path_cell}" = "${pending_files[idx]}" ] || escaped=1
 		summary_cell=$(summary_of "${pending_files[idx]}")
 		# 食い違いの判断待ちの学びは、`/kaizen apply` の案内の下に並んでも従う対象と読まれないように印を付ける。
 		# 読み方は注入・忘却と同じ共通ライブラリの関数にする。
@@ -446,9 +455,17 @@ pending_table() {
 		fi
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
-		printf '| %s | %s | %s | `%s` | %s |\n' \
+		printf -v row '| %s | %s | %s | `%s` | %s |' \
 			"$(table_cell "${pending_priorities[idx]}")" "$(table_cell "${pending_types[idx]}")" \
 			"$(table_cell "${pending_dates[idx]}")" "${path_cell}" "${summary_cell}"
+		# 入りきらない行から後は出さない。表は優先度の順なので、後の短い行で埋めると、優先度の低い学びが先に載る。
+		next=$((used + ${#row} + 1))
+		[ "${next}" -le "${max}" ] || break
+		printf '%s\n' "${row}"
+		used=${next}
+		# ノートの列は、Markdown のまま本文を読む読み手もいるので、`|` を `\|` と書いた分も書き分けとして数える。
+		# 戻し方は載せた行のために出すので、載せた行だけで判定する。
+		[ "${path_cell}" = "${pending_files[idx]}" ] || escaped=1
 		shown=$((shown + 1))
 	done <"${pending_index}"
 	# 書き分けたパスがあれば、元のパスへの戻し方を書く。書かないと、表からコピーしたパスでノートを開けない。
