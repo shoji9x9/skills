@@ -58,6 +58,9 @@ import {
   readDeterminism,
   verifyDeterminism,
 } from "../../lib/tools/vendor/determinism.mjs";
+// 全画面を撮る前に末尾までスクロールする処理（parity-suite が vendor/ へコピーした scroll-settle.mjs）。
+// 隣の page/scroll-settle.page.mjs を import する。現側の採取と同じコピーを使い、待ち方の差を差分にしない
+import { limitsFromRecord, settleByScrolling } from "../../lib/tools/vendor/scroll-settle.mjs";
 import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>";
 // 新側のロケータ例外（new/<target>/replace-metadata.json の suite.locator_map_new が指すファイル）。
 // 例外ゼロなら parity-replace はこのファイルを作らないので、その場合はこの import ごと外す。
@@ -415,13 +418,14 @@ for (const viewport of shots) {
             "not in PARITY_CAPTURE_PAIRS",
           );
           mkdirSync(outDir, { recursive: true });
-
           await verifyCdpBrowser(page);
           // 時刻と乱数はページを開く前に当てる
           await applyDeterminism(page, determinism);
           await page.goto(pageDef.path);
           // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
           if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });
+          // 全画面で撮るなら、状態へ移す前に末尾までスクロールして遅延読み込みの内容を読み込ませる（settleLikeCurrent）
+          const scrollRecord = await settleLikeCurrent(page, relative(outRoot, outDir));
           // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）。
           // applyState は、撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す取り決めである
           // （parity-suite の references/baseline.md「撮る対象が動かなくなるまで待つ」で定義する）。
@@ -429,12 +433,50 @@ for (const viewport of shots) {
           await applyState(page, state);
           // 撮る直前に時刻と seed を確かめる（表示の軸と状態の操作でも乱数の関数が置き換わりうる。食い違えば撮らずに止まる）
           await verifyDeterminism(page, determinism);
-
-          await captureArtifacts(page, outDir);
+          await captureArtifacts(page, outDir, scrollRecord);
         });
       }
     }
   });
+}
+
+// 全画面で撮るなら、状態へ移す前に文書の末尾まで 1 画面ずつスクロールする。各位置で見えている画像の読み込みを上限付きで待ち、
+// 始めの位置に戻す（content-visibility: auto の要素は visible に上書きする）。状態へ移した後にスクロールすると、
+// スクロールで閉じるポップアップが閉じた画面を撮ってしまう。上限で打ち切った画像は記録に残し、撮影は止めない。
+// 現側の同じ組と同じ待ち方をする。現側の組に scroll-settle.json があれば、その上限でスクロールする。
+// 無ければ、現側は末尾までスクロールせずに撮った成果物（parity-suite の手順の改訂 10 より前）なので、新側もスクロールしない。
+// 片側だけスクロールすると、遅延読み込みの有無が差分になる。スクロールしなかった組は警告を出す（現側を撮り直すまで、
+// 画面の外の遅延読み込みの内容は両側とも読み込まれていない）。ビューポートの中だけを撮る組では、どちらもスクロールしない。
+// 取り決めの原本は parity-suite の references/baseline.md「全画面を撮る前に末尾までスクロールする」である。
+// pairPath は組のディレクトリの outRoot からの相対パス（page/state/viewport）で、現側の baseline/ も同じ並びである
+async function settleLikeCurrent(
+  page: import("@playwright/test").Page,
+  pairPath: string,
+): Promise<unknown> {
+  if (fullPage !== true) return null;
+  const currentRecordPath = join(
+    repoRoot,
+    ".replace",
+    "parity",
+    slug,
+    "baseline",
+    pairPath,
+    "scroll-settle.json",
+  );
+  let text: string;
+  try {
+    text = readFileSync(currentRecordPath, "utf8");
+  } catch (error) {
+    // 無いことだけを「スクロールせずに撮った現側」として扱う。読めない理由がほかにあれば止まる
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      console.warn(
+        `[capture-new] ${pairPath}: current side has no scroll-settle.json; capturing without scrolling (parity-suite で現側を撮り直すと、画面の外の遅延読み込みも比べられる)`,
+      );
+      return null;
+    }
+    throw error;
+  }
+  return settleByScrolling(page, limitsFromRecord(JSON.parse(text)));
 }
 
 // browser が cdp のときに、接続したブラウザを確かめる
@@ -546,10 +588,11 @@ function settledRects(first: MaskSample, second: MaskSample): MaskRect[] | null 
   return JSON.stringify(second.rects) === JSON.stringify(first.rects) ? first.rects : null;
 }
 
-// 1 つの組の成果物（スクリーンショット・マスクを当てた矩形・特性・aria スナップショット）を書き出す
+// 1 つの組の成果物（スクリーンショット・スクロールの記録・マスクを当てた矩形・特性・aria スナップショット）を書き出す
 async function captureArtifacts(
   page: import("@playwright/test").Page,
   outDir: string,
+  scrollRecord: unknown,
 ): Promise<void> {
   // 同じ論理名は 1 回だけ記録する。region-names.mjs は、同じ名前を 2 回記録した mask-rects.json を形の誤りにする
   const maskNames = [...new Set<string>(masks.map((m: { name: string }) => m.name))];
@@ -560,6 +603,8 @@ async function captureArtifacts(
   // 前の回の記録を先に消す。撮影の後に矩形を採る前に失敗すると、新しい画像の隣に前の回の記録が残り、
   // region-names.mjs がそれをこの画像のマスクの位置として読むからである
   rmSync(join(outDir, "mask-rects.json"), { force: true });
+  // スクロールの記録も同じ理由で先に消し、撮影の後に書く（ビューポートの中だけを撮る組では書かない）
+  rmSync(join(outDir, "scroll-settle.json"), { force: true });
   // 撮影条件（アニメーション無効・マスク）は現側と同一。
   // 出典: https://playwright.dev/docs/api/class-page#page-screenshot（animations / mask）
   await page.screenshot({
@@ -570,7 +615,9 @@ async function captureArtifacts(
     animations: "disabled",
     mask: maskLocators.map((m) => m.locator),
   });
+  // マスクの矩形は撮影の直後に採るので、スクロールの記録はその後に書く
   writeJson(join(outDir, "mask-rects.json"), await recordMaskRects(page, maskLocators));
+  if (scrollRecord !== null) writeJson(join(outDir, "scroll-settle.json"), scrollRecord);
 
   // 特性は論理名 1 件ずつ渡して採る（まとめて渡すと 1 件の失敗で既採取分ごと失う）
   const traits = [];

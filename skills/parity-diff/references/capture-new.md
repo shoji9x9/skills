@@ -18,6 +18,11 @@
 - 雛形が読む撮影の条件は、`metadata.json.capture_conditions` の `viewports`・`states`・`pages`・`masks`・`full_page`・`scrollbars`・`display_axes`・`browser`・`determinism` である。
   `determinism` は、`parity-suite` が `vendor/` へコピーした `determinism.mjs`（隣の `page/determinism.page.mjs` を import する）で読んで当てる。
   コピーが無ければ import で止まるので、`parity-suite` へ戻す
+- `full_page` が `true` なら、雛形は表示の軸を当てた後、状態へ移す前に、同じコピーの `scroll-settle.mjs`（隣の `page/scroll-settle.page.mjs` を import する）の `settleByScrolling` を呼ぶ。
+  文書の末尾まで 1 画面ずつスクロールし、見えている画像の読み込みを上限付きで待ってから撮るためである。
+  上限は現側の同じ組の `scroll-settle.json` から読み、現側と同じ待ち方にする。現側の組に `scroll-settle.json` が無ければ、スクロールせずに撮って警告を出す（片側だけスクロールすると、遅延読み込みの有無が差分になる）。
+  新側も組ごとに `scroll-settle.json` を書く。上限で打ち切った画像（`timed_out_images`）と末尾まで届かなかった理由（`stopped`）が記録された組は、利用者に報告する。
+  取り決めの原本は、`parity-suite` の `references/baseline.md`「全画面を撮る前に末尾までスクロールする」である
   `pages[].name` が `noise_baseline[].page` と同じ語彙であることを確かめる。
   語彙がずれると、`PARITY_NOISE_PAIRS` で使い回す組を絞り込んでも 1 組も一致せず、自己ノイズの測定が何も測らずに終わる。
   `masks[].name` は、ロケータのマッピングで解決できる論理名であることを確かめる
@@ -224,6 +229,9 @@ PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> PARITY_NEW_TARG
 - 2 回の結果が一致しても、採取が決定論的であることの証明にはならない（2 つの値のどちらかになる採取は、1/2 の確率でノイズ 0 になる）。
   両方の回とも、操作アダプタの「撮る対象の矩形が落ち着くまで待つ」を通して撮る（原本は `parity-suite` の `references/baseline.md`「撮る対象が動かなくなるまで待つ」）。
   通したら、`noise_measurement.fingerprint.settle_wait: true` を記録する。コードを変えずに撮り直した現と新の差分が回ごとに大きく変わるなら、実装の差を追う前に、この待ちを疑う
+- 全画面で撮る組は、両方の回とも、雛形が現側の組と同じ上限で末尾までスクロールしてから撮る（上の「採取スペックは雛形から起こす」の `full_page` の項）。
+  組ごとに使った上限を `noise_measurement.fingerprint.scroll_settle` に書く。スクロールしなかった組は `null` にする。
+  現側を撮り直して `scroll-settle.json` が増えた組では、スクロールせずに測った前の回の値を使い回さない（下の「失効条件」）
 - 測った結果を、`diff-metadata.json.noise_baseline_new` に記録する。組は現側の `noise_baseline` と同じにし、項目は現側の値に `source` と `measured_at` を加えた形にする。使い回した組も含めて、すべての組を書く
 - 現側の `noise_baseline` との開きが大きいときは、差分を報告せずに止まり、ユーザーに判断を求める。
   新側のノイズが現側より大きいまま比べると、ノイズの基準値による吸収（[`normalize.md`](normalize.md) の、残りの差分へのまとめての適用）が、本物の回帰を警告なしに吸収してしまう。
@@ -276,6 +284,8 @@ PARITY_RUNTIME_CAPTURE=1 PARITY_RUNTIME_RUN=2 PARITY_SLUG=<slug> PARITY_NEW_TARG
 | 撮影に使ったブラウザが同じでなくなった（`launched`・`cdp` のどちらも）。比べるのは、ブラウザの名前・バージョン〈`browser.version()`〉・撮影に使うページで読んだ `navigator.userAgent`・`channel`・`headless`・描画するブラウザの側の OS〈`browser_os`〉である。`browser_os` は現側と同じ読み方と正規化で読む〈`use` を当てない別のコンテキストの安全なページで読んだ `navigator.userAgentData` の `platform`・`platformVersion`・`architecture`〉。`cdp` ではランナーと別の機械なので、Node の `os` で代えない。ランナーや OS の移動、Playwright の更新によるバージョンの変化、`channel` や `headless` の変更が当たる | 全組 | 今回の 1 回目の `new/<target>/browser-identity.baseline.json` と、`fingerprint.capture_conditions.browser_identity` の不一致。今回の記録が無い・読めない・前の回の fingerprint に無いときは、使い回さない（同じであることを確かめられない状態を、一致として扱わない） |
 | 差分ツールの種類やしきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}`・`traits.tool`） | 全組 | 同じく `fingerprint.differ` の不一致 |
 | 前の回の測定に、静止を待つ処理を通した記録が無い（`fingerprint.settle_wait` が無いか、`true` でない） | 全組 | 同じく `fingerprint.settle_wait`（静止を待つ処理を入れる前に測った値は、2 つの値のどちらかになる採取を「ノイズ 0」として持ち越すことがある） |
+| 前の回の測定に、全画面を撮る前のスクロールの記録が無い（`fingerprint.scroll_settle` が無い） | 全組 | 同じく `fingerprint.scroll_settle` |
+| 組の `fingerprint.scroll_settle` の値が、今回の現側の組の `scroll-settle.json` の `limits`（無ければ `null`）と違う | その組 | 同じく `fingerprint.scroll_settle` と、現側の `baseline/<page>/<state>/<viewport>/scroll-settle.json`（スクロールの有無と上限が違うと、遅延読み込みの有無がノイズに入る） |
 | `fingerprint.dataset_version` より後に、対象の slug に影響するデータセットの変更がある | 全組 | `fingerprint.dataset_version` と、dataset の `changes[].affects`（判定の取り決めは `golden-dataset` の `references/versioning.md`） |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復で変えた範囲をたどれない） |
 | 反復が進んでいない（差が 0）のに、`new.tree` が `noise_measurement.measured_at_tree` と違う。`measured_at_tree` が無い記録も含める | 全組 | 同じく `new.tree`（ループの外で新側を触っており、変えた範囲をたどれない） |

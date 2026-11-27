@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "scroll-settle.test.ts のうち、文書の末尾に届くまでスクロールを続ける判定の検出能力を示す変異の一覧（Issue #1155）。",
+    "この判定を誤っても撮影は止まらず、画面の下の遅延読み込みの内容を読み込まないまま、現側と新側の両方が撮られる。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で scripts/mutation/check-mutation-proof.ts が判定する。"
+  ],
+  "test_file": "scripts/skills/parity-suite/visual/scroll-settle.test.ts",
+  "mutations": [
+    {
+      "id": "stop-before-bottom",
+      "why": "末尾に届く前の最初の位置でスクロールを終え、画面の下の遅延読み込みの内容を読み込まずに撮る",
+      "file": "skills/parity-suite/scripts/page/scroll-settle.page.mjs",
+      "find": "if (window.scrollY >= bottom - 1) return \"bottom\";",
+      "replace": "if (true) return \"bottom\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "実際の Chrome で確かめる 末尾までスクロールしてから撮ると、遅延読み込みの画像・IntersectionObserver の要素・content-visibility: auto の要素が描画される（800×600）",
+        "実際の Chrome で確かめる 末尾までスクロールしてから撮ると、遅延読み込みの画像・IntersectionObserver の要素・content-visibility: auto の要素が描画される（400×600）",
+        "実際の Chrome で確かめる 読み込まれない画像は上限で打ち切り、URL をクエリを外して記録し、撮影は続けられる",
+        "実際の Chrome で確かめる 時刻を固定しても（page.clock.setFixedTime）、上限で打ち切って返る",
+        "実際の Chrome で確かめる 位置の数の上限に達したら、末尾まで届かずに止めた理由を記録する",
+        "実際の Chrome で確かめる 全体の時間の上限に達したら、その理由を記録する",
+        "実際の Chrome で確かめる スクロールしても位置が戻されるページでは、同じ位置で待ち続けずに止める"
+      ]
+    }
+  ]
+}

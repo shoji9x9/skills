@@ -558,9 +558,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   [`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs) / 要素単位の撮影を使う場合は [`scripts/element-shot.mjs`](scripts/element-shot.mjs) /
   応答ヘッダーを録画する場合は [`scripts/header-normalize.mjs`](scripts/header-normalize.mjs) である。
   feature モードでは、撮る前に時刻と乱数を固定する [`scripts/determinism.mjs`](scripts/determinism.mjs) と、2 回撮りで揺れた要素からマスクの候補を出す [`scripts/noise-masks.mjs`](scripts/noise-masks.mjs) も使う（[`references/baseline.md`](references/baseline.md)「時刻と乱数を固定する」「揺れた要素からマスクの候補を出す」）。
+  全画面で撮るなら、撮る前に末尾までスクロールして遅延読み込みの内容を読み込ませる [`scripts/scroll-settle.mjs`](scripts/scroll-settle.mjs) も使う（[`references/baseline.md`](references/baseline.md)「全画面を撮る前に末尾までスクロールする」）。
   実行するときは、プロジェクトの側の `<parity_suite_dir>/parity/lib/tools/vendor/`（デフォルト）にコピーして使い、コピー先のディレクトリを `metadata.json` の `suite.tools` に記録する。
   ファイルのパスで書くと、artifact-health-check はスイートの指紋を計算するときに判定できないとして失敗にする（理由は [`references/baseline.md`](references/baseline.md)）。
-  trait-capture.mjs・element-shot.mjs・determinism.mjs・noise-masks.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の同じ名前の `*.page.mjs` から import する。
+  trait-capture.mjs・element-shot.mjs・determinism.mjs・noise-masks.mjs・scroll-settle.mjs は、ページで実行する本体を [`scripts/page/`](scripts/page/) の同じ名前の `*.page.mjs` から import する。
   そのため、これらをコピーするときは、対になる page ファイルも同じバージョンから、コピー先の隣の `page/`（デフォルトは `vendor/page/`）へコピーする。
   コピーは修正しない取り決めなので、プロジェクトが自作したツールとパスで分けられる、コピー専用のサブディレクトリに置く（置き方は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - 網羅プロファイルと、[`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs)・[`scripts/pixel-strict-count.mjs`](scripts/pixel-strict-count.mjs) は、コピーしない。
