@@ -597,7 +597,8 @@ Dependabot がこれらのパッケージを上げた PR は、`.github/dependab
 `dependabot-automerge.yml` は、この PR の自動マージを予約せず、`dependabot/needs-review` ラベルを付けて手動レビューへ回す。
 自動マージを予約すると、同梱物の一致のチェックが失敗したまま、ラベルの無い PR が open で残るからである。
 回ってきた PR は `dependabot-merge` スキルで扱い、Dependabot の branch を checkout して `--fix` を実行し、作り直した同梱物だけを commit して push する。
-push した後は `@dependabot rebase` と `@dependabot recreate` を使わない。どちらも手で足した commit を消す。base が進んだら、base を merge して `--fix` からやり直す。
+push した後に base が進んだら、`@dependabot recreate` させてから、`--fix` で同梱物を作り直して push する（`dependabot-merge` スキルの「手で commit を足した PR の更新」の例外に当たる）。
+`@dependabot rebase` は使わない。
 パッケージを足すときは、`VENDORED_PACKAGES`・`vendored` グループ・`npm-misc` の `exclude-patterns`・ワークフローの `VENDORED_PACKAGES` を同時に変える（`check-vendor.test.ts` が突き合わせる）。
 0.x のパッケージは、`vendored` に入れず、`vendored-esbuild` と同じ形の専用のグループにして、`check-vendor.test.ts` の突き合わせにも足す。
 
