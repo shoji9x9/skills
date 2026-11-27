@@ -254,8 +254,11 @@ gh api graphql --paginate -f query='query($endCursor: String) {
 
 - 作り直すコマンドが、リポジトリの文書（規約の文書や開発の手順の文書）に書かれている。エージェントが自分で考えたコマンドや、文書に無い手順は当たらない
 - commit が変えたファイルが、すべてそのコマンドの出力である。手で書いた修正（コードの変更など）を 1 つでも含めば当たらない
-- 中身もコマンドの出力と同じである。PR の head を checkout してそのコマンドを実行し、`git status --short` が空になることで確かめる。
-  差分が出たら、出力のファイルを手で書き換えている（ロックのバージョンを手で固定した、など）ので当たらない
+- 中身も、手で足した commit が無い状態から、そのコマンドで同じものを作れる。
+  手で足した commit より前の、Dependabot の最後の commit を checkout してコマンドを実行する。`git add -A` の後に `git diff --cached --stat <PR の head>` が空になれば当たる。
+  PR の head で実行し直すだけでは確かめられない。既にある出力を入力に使うコマンド（Gradle の `--update-locks` で一部の依存だけを更新する、など）は、手で固定した値を保つからである
+  （[Gradle の Dependency Locking](https://docs.gradle.org/current/userguide/dependency_locking.html#sec:updating-lock-state-entries-selectively)）。
+  差分が出たら、出力を手で書き換えたか、コマンドが既にある出力に頼っているので当たらない。手で足した commit の後に Dependabot の commit があるときも、この確認ができないので当たらない
 
 変えたファイルは、`git fetch origin pull/<番号>/head` で PR の commit を取得してから、`git show --stat <oid>...` に上のコマンドの oid をまとめて渡して確かめる。
 merge commit（親が 2 つ以上ある commit）は例外に当たらないものとして扱う。`git show --stat` は merge commit で変えたファイルを表示しないので、手で書いた修正を確かめられない。
