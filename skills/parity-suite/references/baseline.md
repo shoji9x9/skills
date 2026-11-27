@@ -537,6 +537,7 @@ Playwright の全画面の撮影（`fullPage: true`）は、スクロールせ�
 `capture_conditions.full_page` が `true` なら、同梱の [`../scripts/scroll-settle.mjs`](../scripts/scroll-settle.mjs) の `settleByScrolling` を、表示の軸を当てた後、状態へ移す前（`applyState` の前）に呼ぶ。
 `settleByScrolling` は、文書の末尾まで 1 画面ずつスクロールし、各位置で見えている画像の読み込み（成功か失敗）を上限付きで待ち、始めの位置に戻す。
 trait-capture.mjs と同じく、プロジェクトの `vendor/` へコピーして使う。ページで実行する [`../scripts/page/scroll-settle.page.mjs`](../scripts/page/scroll-settle.page.mjs) も、同じバージョンから `vendor/page/` へコピーする。
+`parity-diff` の新側の採取の雛形は、`full_page` に関わらずこのコピーを import する。そのため、全画面で撮らない機能でもコピーを置く。置かないと、雛形を読み込む時点で import が失敗する。
 `parity-diff` の新側の採取の雛形も、同じコピーを同じ位置で呼ぶ。現側と新側で待ち方が違うと、その違いが差分になるので、現側の採取のスペックも自分で書いた待ち方に替えない。
 雛形は、現側の同じ組の `scroll-settle.json`（下の記録）から上限を読み、同じ上限でスクロールする。
 現側の組に `scroll-settle.json` が無ければ、スクロールせずに撮って警告を出す。その組は、画面の外の遅延読み込みの内容を両側とも読み込まずに比べている。

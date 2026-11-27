@@ -18,7 +18,8 @@
 - 雛形が読む撮影の条件は、`metadata.json.capture_conditions` の `viewports`・`states`・`pages`・`masks`・`full_page`・`scrollbars`・`display_axes`・`browser`・`determinism` である。
   `determinism` は、`parity-suite` が `vendor/` へコピーした `determinism.mjs`（隣の `page/determinism.page.mjs` を import する）で読んで当てる。
   コピーが無ければ import で止まるので、`parity-suite` へ戻す
-- `full_page` が `true` なら、雛形は表示の軸を当てた後、状態へ移す前に、同じコピーの `scroll-settle.mjs`（隣の `page/scroll-settle.page.mjs` を import する）の `settleByScrolling` を呼ぶ。
+- 雛形は、`full_page` に関わらず、同じコピーの `scroll-settle.mjs`（隣の `page/scroll-settle.page.mjs` を import する）を import する。コピーが無ければ import で止まるので、`parity-suite` へ戻す。
+  `full_page` が `true` なら、雛形は表示の軸を当てた後、状態へ移す前に、その `settleByScrolling` を呼ぶ。
   文書の末尾まで 1 画面ずつスクロールし、見えている画像の読み込みを上限付きで待ってから撮るためである。
   上限は現側の同じ組の `scroll-settle.json` から読み、現側と同じ待ち方にする。現側の組に `scroll-settle.json` が無ければ、スクロールせずに撮って警告を出す（片側だけスクロールすると、遅延読み込みの有無が差分になる）。
   新側も組ごとに `scroll-settle.json` を書く。上限で打ち切った画像（`timed_out_images`）と末尾まで届かなかった理由（`stopped`）が記録された組は、利用者に報告する。
