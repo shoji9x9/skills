@@ -256,7 +256,9 @@ gh api graphql --paginate -f query='query($endCursor: String) {
 - 作り直すコマンドが、リポジトリの文書（規約の文書や開発の手順の文書）に書かれている。エージェントが自分で考えたコマンドや、文書に無い手順は当たらない
 - commit が変えたファイルが、すべてそのコマンドの出力である。手で書いた修正（コードの変更など）を 1 つでも含めば当たらない
 - 中身も、手で足した commit が無い状態から、そのコマンドで同じものを作れる。
-  手で足した commit より前の、Dependabot の最後の commit を checkout してコマンドを実行する。`git add -A` の後に `git diff --cached --stat <PR の head>` が空になれば当たる。
+  手で足した commit より前の、Dependabot の最後の commit を一時的な worktree（`git worktree add --detach <dir> <oid>`）に取り出し、そこでコマンドを実行する。
+  `git add -A` の後に `git diff --cached --stat <PR の head>` が空になれば当たる。確かめたら `git worktree remove --force <dir>` で消す。
+  作業中のツリーで確かめると、残った変更が後の手順の checkout と競合する。
   PR の head で実行し直すだけでは確かめられない。既にある出力を入力に使うコマンド（Gradle の `--update-locks` で一部の依存だけを更新する、など）は、手で固定した値を保つからである
   （[Gradle の Dependency Locking](https://docs.gradle.org/current/userguide/dependency_locking.html#sec:updating-lock-state-entries-selectively)）。
   差分が出たら、出力を手で書き換えたか、コマンドが既にある出力に頼っているので当たらない。手で足した commit の後に Dependabot の commit があるときも、この確認ができないので当たらない
