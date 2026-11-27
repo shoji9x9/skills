@@ -3,7 +3,7 @@ date: 2026-10-28
 type: skill
 priority: low
 confidence: medium
-status: pending
+status: forgotten
 applied-to: []
 session: claude-code
 ---
