@@ -24,6 +24,11 @@ Issue #929 で、`parity-suite` に記録の fixture の雛形（`runtime-errors
 これを確かめずに書いたので、oxlint（関数の行数）・tsc（雛形の import）・mutations-declaration のテストの失敗で 1 つずつ見つけた。
 関数を page ファイルへ移し、文書を直す手戻りが起きた。
 
+2026-11-27 に、Issue #1155（PR #1158）で同じ原因で 2 回目の再発をした。
+`parity-suite` に、ブラウザでだけ動く `page/scroll-settle.page.mjs` を足した。
+同じ種類の既存の page ファイル（`feature-check.page.mjs`）は、カバレッジの除外と CRAP のベースライン（`.config/fallow/crap-baseline.json`）の両方に載っていた。
+カバレッジの除外だけを足し、CRAP のベースラインを確かめずに push したので、CI の Unit tests の CRAP の検査が失敗した。
+
 ## 根本原因
 
 - なぜ CI で失敗したか: 雛形はブラウザでだけ動くので、ユニットテストのカバレッジが無い。
@@ -37,6 +42,7 @@ Issue #929 で、`parity-suite` に記録の fixture の雛形（`runtime-errors
 `IS_ARRAY_HOLDERS` は oxlint の指摘で、カバレッジの除外と CRAP のベースラインは CI の失敗で、それぞれ後から見つけた。3 つとも既存の雛形の名前で grep すれば先に見つかった。
 KEDB 照合では「登録・grep・既存」と「ベースライン・カバレッジ」で照合し、一致は無かった。
 2026-11-25 の再発は、この学びの根本原因と読み比べて同じ原因だったので、確信度を high に上げた。KEDB 照合は「雛形・既存」で、このノートに一致した。
+2026-11-27 の再発も、既存のファイルの名前で一覧を探さなかったという同じ原因だった。KEDB 照合は「雛形・template.ts」で、このノートに一致した。
 
 ## 既存の規約
 
