@@ -39,3 +39,4 @@ ci:46081890739:1,ci,2026-11-27T23:26:00.046Z,p-cdee4961,github-actions,,,,2026-1
 ci:46081890629:1,ci,2026-11-27T23:26:00.046Z,p-cdee4961,github-actions,,,,2026-11-27T23:20:00.000Z,2026-11-27T23:21:55.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,CodeQL;pull_request;success,
 ci:46081890617:1,ci,2026-11-27T23:26:00.046Z,p-cdee4961,github-actions,,,,2026-11-27T23:20:00.000Z,2026-11-27T23:24:24.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-26T23:18:45.330Z:2026-11-27T23:26:00.046Z,coverage,2026-11-27T23:26:00.046Z,p-cdee4961,,,,,2026-11-26T23:18:45.330Z,2026-11-27T23:26:00.046Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-26T23:26:00.046Z:2026-11-27T23:27:28.423Z,coverage,2026-11-27T23:27:28.423Z,p-cdee4961,,,,,2026-11-26T23:26:00.046Z,2026-11-27T23:27:28.423Z,Asia/Tokyo,,,,,,,,,,,,ok,

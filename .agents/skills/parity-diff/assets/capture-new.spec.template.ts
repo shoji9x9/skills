@@ -480,8 +480,14 @@ async function settleLikeCurrent(
     }
     throw error;
   }
-  const record = await settleByScrolling(page, limitsFromRecord(JSON.parse(text)));
-  // 末尾まで読み込み切れなかった組は、現側と同じ関数で警告を出す（撮影は止めない）
+  return warnIfIncomplete(
+    pairPath,
+    await settleByScrolling(page, limitsFromRecord(JSON.parse(text))),
+  );
+}
+
+// 末尾まで読み込み切れなかった組は、現側と同じ関数（incompleteSettle）で警告を出す。撮影は止めない
+function warnIfIncomplete(pairPath: string, record: unknown): unknown {
   const incomplete = incompleteSettle(record);
   if (incomplete !== null) console.warn(`[capture-new] ${pairPath}: ${incomplete}`);
   return record;
