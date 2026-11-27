@@ -193,6 +193,8 @@ head を差し替える操作（rebase・force-push）の後の CI の完了は�
 
 ### behind（base に遅れている）PR の更新
 
+PR に手で commit を足していたら、この節の `@dependabot rebase` と `@dependabot recreate` を使う前に、「手で commit を足した PR の更新」で使ってよいかを決める。
+
 ```bash
 gh pr comment <番号> --repo <owner>/<repo> --body "@dependabot rebase"
 ```
@@ -222,6 +224,56 @@ gh pr view <番号> --repo <owner>/<repo> --json state,headRefOid,mergeStateStat
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   --jq '.[] | select(.user.login == "dependabot[bot]" and .user.type == "Bot") | {created_at, body: (.body // "")[:300]}'
 ```
+
+### 手で commit を足した PR の更新
+
+手で commit を足した PR では、`@dependabot rebase` と `@dependabot recreate` を使わない。どちらも手で足した commit を消す。
+下の例外に当たらなければ、更新の仕方をユーザーに確認する。
+PR に手で足した commit があるかは、作者が `dependabot[bot]` でない commit があるかで確かめる。
+
+`gh pr view --json commits` は先頭の 100 件しか返さないので使わない。GraphQL で全ページをたどって取得する。
+
+```bash
+gh api graphql --paginate -f query='query($endCursor: String) {
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <番号>) {
+      commits(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { commit { oid authors(first: 100) { nodes { user { login } } } } }
+      }
+    }
+  }
+}' --jq '.data.repository.pullRequest.commits.nodes[].commit
+  | select([.authors.nodes[].user.login] != ["dependabot[bot]"]) | .oid'
+```
+
+例外として、手で足した commit がどれも決まったコマンドで作り直せるものなら、`@dependabot recreate` させてから同じコマンドでもう一度作り直してよい。
+作り直せるものの例は、依存から作る生成物や、Dependabot が更新しない Gradle の `buildscript-gradle.lockfile` である。
+
+例外に当たるのは、手で足した commit ごとに次の 3 つを満たすときだけである。
+
+- 作り直すコマンドが、リポジトリの文書（規約の文書や開発の手順の文書）に書かれている。エージェントが自分で考えたコマンドや、文書に無い手順は当たらない
+- commit が変えたファイルが、すべてそのコマンドの出力である。手で書いた修正（コードの変更など）を 1 つでも含めば当たらない
+- 中身も、手で足した commit が無い状態から、そのコマンドで同じものを作れる。
+  手で足した commit より前の、Dependabot の最後の commit を一時的な worktree（`git worktree add --detach <dir> <oid>`）に取り出し、そこでコマンドを実行する。
+  `git add -A` の後に `git diff --cached --stat <PR の head>` が空になれば当たる。確かめたら `git worktree remove --force <dir>` で消す。
+  作業中のツリーで確かめると、残った変更が後の手順の checkout と競合する。
+  PR の head で実行し直すだけでは確かめられない。既にある出力を入力に使うコマンド（Gradle の `--update-locks` で一部の依存だけを更新する、など）は、手で固定した値を保つからである
+  （[Gradle の Dependency Locking](https://docs.gradle.org/current/userguide/dependency_locking.html#sec:updating-lock-state-entries-selectively)）。
+  差分が出たら、出力を手で書き換えたか、コマンドが既にある出力に頼っているので当たらない。手で足した commit の後に Dependabot の commit があるときも、この確認ができないので当たらない
+
+変えたファイルは、`git fetch origin pull/<番号>/head` で PR の commit を取得してから、`git show --stat <oid>...` に上のコマンドの oid をまとめて渡して確かめる。
+merge commit（親が 2 つ以上ある commit）は例外に当たらないものとして扱う。`git show --stat` は merge commit で変えたファイルを表示しないので、手で書いた修正を確かめられない。
+
+例外に当たる PR は、次の順に進める。
+
+1. `@dependabot recreate` を頼み、「behind（base に遅れている）PR の更新」と同じ方法で、PR が作り直されるまで待つ。
+   supersede・close されたら、その節のとおり後継の PR に切り替え、後継の PR で例外の判定からやり直す。
+   作り直された後に、手で足した commit が head に無いことを、上のコマンドの出力が空になることで確かめる
+2. Dependabot の branch を checkout し、文書のコマンドで作り直す。作り直したファイルだけを commit して push する
+3. 新しい head の CI の成功を、「CI 成功の確認」の方法で確かめてから判断を続ける
+4. 例外を使ったことを PR のコメントに記録する（「判断の記録（PR コメント）」の方法で投稿する）。
+   recreate させた理由（base に遅れた、など）、作り直したコマンドとそれを書いた文書、作り直したファイルを書く
 
 ### 判断の記録（PR コメント）
 
@@ -259,7 +311,7 @@ exit 1（設定の誤りか、旧い場所の設定が残っている）なら�
 gh pr merge --squash --match-head-commit <SHA> <番号> --repo <owner>/<repo>   # または --merge / --rebase
 ```
 
-- `BEHIND` でマージを断られた場合は、「behind（base に遅れている）PR の更新」に従う。`@dependabot rebase`（断られたら `@dependabot recreate`）で更新し、CI の成功を確かめてからもう一度試す。
+- `BEHIND` でマージを断られた場合は、「behind（base に遅れている）PR の更新」に従う（手で commit を足した PR は「手で commit を足した PR の更新」で決める）。`@dependabot rebase`（断られたら `@dependabot recreate`）で更新し、CI の成功を確かめてからもう一度試す。
 - commit の `--amend` や force push はしない。`@dependabot` への指示のコメント以外で、履歴を書き換えない。
 
 ## マージ可否の判断ガイド
@@ -269,7 +321,7 @@ gh pr merge --squash --match-head-commit <SHA> <番号> --repo <owner>/<repo>   
 - CI が必須チェックを通っているか。これは最低の条件で、通っていなければマージしない
   - 依存から作った生成物（1 ファイルにまとめて同梱したパッケージなど）を持つリポジトリでは、更新した依存から作り直すまで、生成物の一致のチェックが失敗する。
     リポジトリの文書が作り直しの手順を定めていれば、Dependabot の branch でその手順を実行し、作り直した生成物だけを commit して push する。CI の成功を確かめてから判断を続ける。
-    push した後は `@dependabot rebase` と `@dependabot recreate` を使わない。どちらも手で足した commit を消す。手順が文書に無ければ、マージせずにユーザーに確認する
+    push した後に PR を更新するときは、「手で commit を足した PR の更新」に従う。手順が文書に無ければ、マージせずにユーザーに確認する
 - `>=1.0` のマイナー・パッチか。semver では後方互換が期待でき、changelog がバグ修正や小さな改善の中心なら、比較的安全な側である
 - 0.x（<1.0）のマイナー・パッチか。マイナーでも破壊的な変更がありうる。changelog・release notes で、API の変更・削除・挙動の変更があるかを確かめる。判断できなければ、マージせずにユーザーに確認する
 - major の更新か。破壊的な変更を含むことが前提である。
