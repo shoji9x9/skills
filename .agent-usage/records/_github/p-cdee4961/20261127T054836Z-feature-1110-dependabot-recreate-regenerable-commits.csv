@@ -12,3 +12,4 @@ ci:45923815119:1,ci,2026-11-27T05:48:36.672Z,p-cdee4961,github-actions,,,,2026-1
 ci:45923815187:1,ci,2026-11-27T05:48:36.672Z,p-cdee4961,github-actions,,,,2026-11-27T01:39:35.000Z,2026-11-27T01:39:36.000Z,Asia/Tokyo,feature/1152-cap-pending-table-chars,1152,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-11-26T01:28:02.351Z:2026-11-27T05:48:36.672Z,coverage,2026-11-27T05:48:36.672Z,p-cdee4961,,,,,2026-11-26T01:28:02.351Z,2026-11-27T05:48:36.672Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-11-26T05:48:36.672Z:2026-11-27T06:01:22.848Z,coverage,2026-11-27T06:01:22.848Z,p-cdee4961,,,,,2026-11-26T05:48:36.672Z,2026-11-27T06:01:22.848Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-26T06:01:22.848Z:2026-11-27T06:02:04.215Z,coverage,2026-11-27T06:02:04.215Z,p-cdee4961,,,,,2026-11-26T06:01:22.848Z,2026-11-27T06:02:04.215Z,Asia/Tokyo,,,,,,,,,,,,ok,
