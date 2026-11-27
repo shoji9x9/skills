@@ -28,7 +28,7 @@ import { isCliEntry } from "../../lib/cli/entry.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isNonBlankString, isPlainObject, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
-import { spawnAsync } from "../../lib/spawn-async.ts";
+import { defaultRunner, type Runner } from "./runner.ts";
 import { median } from "./median.ts";
 import { type ContextFile, sessionContextFiles } from "./session-context.ts";
 import {
@@ -41,9 +41,9 @@ import {
 } from "./kaizen-learnings.ts";
 import {
   collectTestLines,
-  isPlainGlob,
   type TestLinesConfig,
   type TestLinesFinding,
+  parseTestLinesConfig,
   testLinesFindings,
   type TestLinesMetrics,
   testLinesTable,
@@ -59,7 +59,7 @@ import {
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type Runner = (command: string, args: readonly string[]) => Promise<string>;
+export { defaultRunner, type Runner };
 
 /** ジョブの API を並べて呼ぶ数。API は run ごとに 1 回呼び、1 回に数秒かかるので、1 件ずつでは run の数に比例して長くなる。 */
 const CONCURRENCY = 8;
@@ -215,30 +215,10 @@ function ratio(value: unknown, where: string): number {
   return found;
 }
 
-/** git の pathspec の glob の一覧。`:` や `/` で始まる値は pathspec の別の記法と読まれるので例外にする。 */
-function globList(value: unknown, where: string): string[] {
-  const list = stringList(value, where);
-  const bad = list.find((g) => !isPlainGlob(g));
-  if (bad !== undefined) throw new Error(`${where} に、: か / で始まる値がある: ${bad}`);
-  return list;
-}
-
 function section(value: Record<string, unknown>, key: string): Record<string, unknown> {
   const found = value[key];
   if (!isRecord(found)) throw new Error(`${key} がオブジェクトでない`);
   return found;
-}
-
-function parseTestLines(tl: Record<string, unknown>): TestLinesConfig {
-  return {
-    days: positive(tl["days"], "test_lines.days"),
-    tests: globList(tl["tests"], "test_lines.tests"),
-    implementation: globList(tl["implementation"], "test_lines.implementation"),
-    maxRatioIncreasePercent: count(
-      tl["max_ratio_increase_percent"],
-      "test_lines.max_ratio_increase_percent",
-    ),
-  };
 }
 
 /** check-cost-metrics.json を読む。足りない・型の違う項目は例外にする。 */
@@ -283,7 +263,7 @@ export function parseConfig(text: string): Config {
       maxPending: count(kz["max_pending"], "kaizen.max_pending"),
       maxStale: count(kz["max_stale"], "kaizen.max_stale"),
     },
-    testLines: parseTestLines(section(value, "test_lines")),
+    testLines: parseTestLinesConfig(value["test_lines"]),
   };
 }
 
@@ -755,21 +735,6 @@ export function formatComment(findings: readonly Finding[], previous: readonly s
 }
 
 // ---- 実行
-
-/** 1 回の呼び出しの上限。gh api は 1 回で数秒なので、止まったときに気付けるよう 2 分で打ち切る。 */
-const CALL_TIMEOUT_MS = 120_000;
-
-/** 本番の呼び出し。失敗（起動できない・0 以外で終わる・時間切れ）は、stderr を添えて例外にする。 */
-export const defaultRunner: Runner = async (command, args) => {
-  const result = await spawnAsync(command, args, { timeout: CALL_TIMEOUT_MS });
-  if (result.error !== undefined || result.status !== 0) {
-    const reason = result.error?.message ?? `終了コード ${String(result.status)}`;
-    throw new Error(
-      `${command} ${args.join(" ")} が失敗した（${reason}）: ${result.stderr.trim()}`,
-    );
-  }
-  return result.stdout;
-};
 
 /** 6 つの指標を集める。確かめられなければ例外を投げる。 */
 export async function collect(

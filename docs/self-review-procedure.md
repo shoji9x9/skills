@@ -27,6 +27,7 @@
 - `.textlint/word-list.md`（使わない語の一覧）
 
 - `self-review-input/cost-metrics.md`: 費用の指標の追跡 Issue（`check-cost-metrics.yml` が書く）の本文。空の一覧・修正の PR が多いチェック・遅くなったジョブ・セッションの開始時に読み込む文書・kaizen の学び・テストと実装の行数の表がある
+- `self-review-input/test-lines.md`: テストと実装の行数と、直近 7 日に行数の増えたテストのファイルの表（`self-review.yml` が `scripts/weekly/cost-metrics/test-lines.ts` で、費用の指標に候補が無い週も書く）
 - `self-review-input/files.txt`: 点検の対象のファイルの一覧（`git ls-files` と同じ形）
 - `self-review-input/commits.txt`: マージを除いた commit の件名（新しい順。1 行に短い SHA・日付・件名）
 
@@ -93,7 +94,7 @@
 
 `docs/testing.md`「守るもののないテストを書かない」の条件に当たるテストを挙げる。テストを消すかは人が決める。
 
-- 対象は、入力の費用の指標の「行数の増えたテストのファイル」の表に載ったすべてのテストのファイルである。
+- 対象は、入力の `self-review-input/test-lines.md` のうち、行数の増えたテストのファイルの表に載ったすべてのファイルである。
   表の上から（増分の大きい順に）点検する。
   ほかの項目を点検する時間を残すために点検しきれなかったファイルは、`notes` に件数と最初のファイルの名前を書く。
   入力が無ければ、この項目は点検せず、`notes` にそう書く

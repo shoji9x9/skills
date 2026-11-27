@@ -169,6 +169,19 @@ jobs:
           git log --no-merges --date=short --format='%h %ad %s' -n 3000 >"$INPUT_DIR/commits.txt"
           wc -l "$INPUT_DIR"/*.txt
 
+      # 手順の項目 9（テスト）が点検する、行数の増えたテストのファイルの表を、費用の指標と同じスクリプトと設定で書く。
+      # 費用の指標の追跡 Issue は候補が 0 件の週に閉じるので、その本文に頼ると、テストの点検が候補の出た週にしか動かない。
+      # test-lines.ts は外部のパッケージを import しないので、node だけを入れ、pnpm install はしない（スクリプトの冒頭のコメント）。
+      # 失敗しても点検は止めない。表が無ければ、手順が項目 9 を点検せずに notes にそう書く。
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        id: mise
+        if: steps.model.outputs.valid == 'true'
+        continue-on-error: true
+      - name: Write test lines input
+        if: steps.model.outputs.valid == 'true' && steps.mise.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/weekly/cost-metrics/test-lines.ts --out "$INPUT_DIR/test-lines.md"
+
       - name: Run Claude Code
         id: run-claude
         if: steps.model.outputs.valid == 'true'

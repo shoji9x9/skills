@@ -8,10 +8,13 @@
 // | 比べる commit | 期間の始まりより前の最後の first-parent の commit / 期間の始まりより前の commit が無い |
 // | 比の上昇率 | 上限の未満・ちょうど・超える / テストと実装が同じ割合で大きく増える / 実装が速い / 両方減る |
 // | 増えたファイル | 新しいファイル / 増えた / 同じ・減った（載せない）/ 増分が同じ（名前の順）/ 件数の上限なし / 名前を変えた |
+// | CLI | 表を書く（exit 0）/ 数えられない（exit 1）/ 設定に test_lines が無い（exit 1）/ --out が無い・知らない引数（exit 2） |
 // | 名前の変更の出力 | 0 件 / 1 件・複数 / 3 つ組でない / R で始まらない / 名前が空 |
-import { mkdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { gitAt, initRepo } from "../../lib/testing/git-at.ts";
 import { writeFiles } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -20,6 +23,7 @@ import {
   collectTestLines,
   grownTestFiles,
   isPlainGlob,
+  main,
   parseCounts,
   parseRenames,
   type TestLinesConfig,
@@ -311,5 +315,68 @@ describe("本文の表", () => {
   test("増えたファイルが無ければ、そう書く", () => {
     const body = testLinesTable(metrics([100, 100], [1, 1]), config).join("\n");
     expect(body).toContain("行数の増えたテストのファイルは無い。");
+  });
+});
+
+describe("CLI", () => {
+  const repo = () =>
+    buildRepo([
+      { daysAgo: 10, files: { "scripts/a.test.ts": lines(1), "scripts/a.ts": lines(2) } },
+      { daysAgo: 1, files: { "scripts/a.test.ts": lines(3) } },
+    ]);
+  const configFile = (root: string, testLines: unknown): string => {
+    const path = join(root, "config.json");
+    writeFileSync(path, JSON.stringify({ test_lines: testLines }));
+    return path;
+  };
+  const TEST_LINES = {
+    days: 7,
+    tests: ["scripts/**/*.test.ts"],
+    implementation: ["scripts/**/*.ts"],
+    max_ratio_increase_percent: 5,
+  };
+
+  test("設定の test_lines で数え、表を --out に書いて 0 を返す", async () => {
+    const root = repo();
+    const out = join(root, "table.md");
+    const args = ["--out", out, "--config", configFile(root, TEST_LINES)];
+    expect(await main(args, { root, now: NOW })).toBe(0);
+    const body = readFileSync(out, "utf8");
+    expect(body).toContain("| テスト | 3 | 1 | +2 | +200.0% |");
+    expect(body).toContain("| scripts/a.test.ts | 3 | +2 |");
+  });
+
+  test.each([
+    [
+      "数えられない（期間より前の commit が無い）",
+      { ...TEST_LINES, days: 30 },
+      "より前の commit が無い",
+    ],
+    ["設定に test_lines が無い", undefined, "test_lines がオブジェクトでない"],
+  ])("%s ときは 1 を返す", async (_name, testLines, message) => {
+    const root = repo();
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (text: string) => errors.push(text);
+    try {
+      const args = ["--out", join(root, "t.md"), "--config", configFile(root, testLines)];
+      expect(await main(args, { root, now: NOW })).toBe(1);
+    } finally {
+      console.error = original;
+    }
+    expect(errors.join("\n")).toContain(message);
+  });
+
+  test.each([
+    ["--out が無い", []],
+    ["知らない引数", ["--out", "t.md", "--x", "y"]],
+    ["値の無い引数", ["--out"]],
+  ])("%s ときは子プロセスで起動しても 2 を返し、使い方を出す", (_name, args) => {
+    const r = spawnSync(process.execPath, [join(import.meta.dirname, "test-lines.ts"), ...args], {
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("使い方: node scripts/weekly/cost-metrics/test-lines.ts --out");
   });
 });

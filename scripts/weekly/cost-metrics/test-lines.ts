@@ -13,11 +13,23 @@
 // - 期間の始まりより前の commit が無い（履歴が浅い・リポジトリが新しい）
 // - どちらかの時点で、tests か implementation の glob に当たるファイルが 1 件も無い（glob の誤りを 0 行として扱わない）
 // - git の出力の行が、パスと行数の形でない
+//
+// 週次のセルフ点検（.github/workflows/self-review.yml）は、費用の指標に候補が出ない週も重複したテストを探せるよう、
+// この CLI で同じ表を作ってエージェントの入力に置く。費用の指標の追跡 Issue は、候補が 0 件の週には閉じるからである。
+// self-review.yml は依存を入れずにこの CLI を起動するので、外部のパッケージを import しない（node: とリポジトリのモジュールだけにする）。
+// 使い方: node scripts/weekly/cost-metrics/test-lines.ts --out <表のパス> [--config <check-cost-metrics.json のパス>]
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "../../lib/cli/args.ts";
+import { isCliEntry } from "../../lib/cli/entry.ts";
+import { errorMessage } from "../../lib/errors.ts";
+import { isNonBlankString, isRecord } from "../../lib/guards.ts";
+import { isArray } from "../../lib/is-array.ts";
+import { defaultRunner, type Runner } from "./runner.ts";
 import { naturalOrder, tableCell } from "../../lib/text/tracking-diff.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-export type Runner = (command: string, args: readonly string[]) => Promise<string>;
 
 /**
  * days は比べる期間、tests と implementation は数えるファイルの glob、
@@ -44,6 +56,34 @@ export type TestLinesMetrics = {
 };
 
 export type TestLinesFinding = { kind: "test-growth"; target: string; detail: string };
+
+function globList(value: unknown, where: string): string[] {
+  if (!isArray(value) || value.length === 0 || !value.every(isNonBlankString)) {
+    throw new Error(`${where} が、空でない文字列の空でない配列でない`);
+  }
+  const bad = value.find((g) => !isPlainGlob(g));
+  if (bad !== undefined) throw new Error(`${where} に、: か / で始まる値がある: ${bad}`);
+  return [...value];
+}
+
+/** check-cost-metrics.json の test_lines の節を読む。足りない・型の違う項目は例外にする。 */
+export function parseTestLinesConfig(value: unknown): TestLinesConfig {
+  if (!isRecord(value)) throw new Error("test_lines がオブジェクトでない");
+  const days = value["days"];
+  if (typeof days !== "number" || !Number.isFinite(days) || days <= 0) {
+    throw new Error("test_lines.days が正の数でない");
+  }
+  const percent = value["max_ratio_increase_percent"];
+  if (typeof percent !== "number" || !Number.isInteger(percent) || percent < 0) {
+    throw new Error("test_lines.max_ratio_increase_percent が 0 以上の整数でない");
+  }
+  return {
+    days,
+    tests: globList(value["tests"], "test_lines.tests"),
+    implementation: globList(value["implementation"], "test_lines.implementation"),
+    maxRatioIncreasePercent: percent,
+  };
+}
 
 /**
  * 設定の値が、`:(glob)` の後にそのまま置ける素の glob かを返す。設定の読み込みで、空の値と、
@@ -268,3 +308,44 @@ export function testLinesTable(metrics: TestLinesMetrics, config: TestLinesConfi
     "",
   ];
 }
+
+// ---- 実行
+
+const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
+const USAGE =
+  "使い方: node scripts/weekly/cost-metrics/test-lines.ts --out <表のパス> [--config <check-cost-metrics.json のパス>]";
+
+/** 表を --out に書く。確かめられなければ 1、引数の誤りは 2 を返す。`options` はテストが時刻と作業ディレクトリを渡すためにある。 */
+export async function main(
+  args: string[],
+  options: { root?: string; now?: Date } = {},
+): Promise<number> {
+  let parsed: Record<string, string>;
+  try {
+    parsed = parseArgs(args);
+  } catch (error) {
+    console.error(`test-lines: ${errorMessage(error)}\n${USAGE}`);
+    return 2;
+  }
+  const { out, config = CONFIG, ...rest } = parsed;
+  if (out === undefined || Object.keys(rest).length > 0) {
+    console.error(USAGE);
+    return 2;
+  }
+  try {
+    const json: unknown = JSON.parse(readFileSync(config, "utf8"));
+    const testLines = parseTestLinesConfig(isRecord(json) ? json["test_lines"] : undefined);
+    const metrics = await collectTestLines(defaultRunner, {
+      root: options.root ?? process.cwd(),
+      now: options.now ?? new Date(),
+      config: testLines,
+    });
+    writeFileSync(out, testLinesTable(metrics, testLines).join("\n"));
+    return 0;
+  } catch (error) {
+    console.error(`test-lines: 確かめられない: ${errorMessage(error)}`);
+    return 1;
+  }
+}
+
+if (isCliEntry(import.meta.url)) process.exit(await main(process.argv.slice(2)));
