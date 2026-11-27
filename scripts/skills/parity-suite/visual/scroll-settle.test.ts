@@ -435,6 +435,22 @@ describe("実際の Chrome で確かめる", () => {
     }
   });
 
+  test("requestAnimationFrame が呼ばれないページ（見えていないタブなど）でも、末尾までスクロールして返る", async () => {
+    const { page, close } = await openPage(pageHtml(), {
+      // ページの scripts より先に、requestAnimationFrame を呼ばれない関数に差し替える
+      setup: async (p) => {
+        await p.addInitScript("window.requestAnimationFrame = () => 0;");
+      },
+    });
+    try {
+      const record = await settleByScrolling(page);
+      expect(record).toMatchObject({ stopped: null, timed_out_images: [] });
+      expect(record.steps).toBeGreaterThan(1);
+    } finally {
+      await close();
+    }
+  });
+
   test("画面に収まるページでは、1 つの位置だけで終える", async () => {
     const { page, close } = await openPage("<!doctype html><p>short</p>");
     try {

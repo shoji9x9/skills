@@ -38,10 +38,20 @@ export async function scrollThroughInPage(options) {
   const root = document.scrollingElement ?? document.documentElement;
   const start = { x: window.scrollX, y: window.scrollY };
 
-  /** 2 フレーム待つ。スクロールや上書きの後の描画の更新（IntersectionObserver のコールバックを含む）を終わらせるためである。 */
+  /**
+   * 2 フレーム待つ。スクロールや上書きの後の描画の更新（IntersectionObserver のコールバックを含む）を終わらせるためである。
+   * 各フレームは、requestAnimationFrame か 100ms の setTimeout の早いほうで進める。ページが見えていない
+   * （cdp で接続したブラウザの裏のタブなど）と requestAnimationFrame が呼ばれず、待ちが終わらないからである。
+   */
   const twoFrames = async () => {
     for (let i = 0; i < 2; i += 1) {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 100);
+        requestAnimationFrame(() => {
+          clearTimeout(timer);
+          resolve(undefined);
+        });
+      });
     }
   };
 
