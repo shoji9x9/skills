@@ -231,9 +231,20 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 下の例外に当たらなければ、更新の仕方をユーザーに確認する。
 PR に手で足した commit があるかは、作者が `dependabot[bot]` でない commit があるかで確かめる。
 
+`gh pr view --json commits` は先頭の 100 件しか返さないので使わない。GraphQL で全ページをたどって取得する。
+
 ```bash
-gh pr view <番号> --repo <owner>/<repo> --json commits \
-  --jq '.commits[] | select([.authors[].login] != ["dependabot[bot]"]) | .oid'
+gh api graphql --paginate -f query='query($endCursor: String) {
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <番号>) {
+      commits(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { commit { oid authors(first: 100) { nodes { user { login } } } } }
+      }
+    }
+  }
+}' --jq '.data.repository.pullRequest.commits.nodes[].commit
+  | select([.authors.nodes[].user.login] != ["dependabot[bot]"]) | .oid'
 ```
 
 例外として、手で足した commit がどれも決まったコマンドで作り直せるものなら、`@dependabot recreate` させてから同じコマンドでもう一度作り直してよい。
