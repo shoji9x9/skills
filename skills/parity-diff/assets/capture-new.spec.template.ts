@@ -18,7 +18,7 @@
  *      除外は playwright.config の `current` / `new` の `testIgnore: '**\/new-only\/**'` で行い、
  *      採取は `testDir` を new-only/ に絞った `new-capture` プロジェクトが担う
  *      （parity-suite が設定し `metadata.json` の `suite.new_only` に記録する）。
- *      下の beforeEach は、設定の忘れに備えてすぐに止めるためのもので、testIgnore の代わりではない
+ *      各テストの最初の assertCaptureProject は、設定の忘れに備えてすぐに止めるためのもので、testIgnore の代わりではない
  *
  * 環境変数は次のとおりである。
  *
@@ -373,14 +373,16 @@ async function recordIdentity(
   });
 }
 
-test.beforeEach(async (_fixtures, testInfo) => {
-  // すぐに止める。current で実行すると、現行アプリを新側ベースラインとして書き出してしまう（testIgnore の設定忘れに備える）
+// すぐに止める。current で実行すると、現行アプリを新側ベースラインとして書き出してしまう（testIgnore の設定忘れに備える）。
+// 各テストの最初に呼ぶ。test.beforeEach にすると、フィクスチャを使わない第 1 引数を Playwright が受け付けない
+// （分割代入でない引数は読み込みの時点で失敗し、空の分割代入 `{}` は oxlint の no-empty-pattern に当たる）
+function assertCaptureProject(testInfo: import("@playwright/test").TestInfo): void {
   if (testInfo.project.name !== "new-capture") {
     throw new Error(
       `new-only spec ran under project "${testInfo.project.name}": exclude it with testIgnore`,
     );
   }
-});
+}
 
 for (const viewport of shots) {
   test.describe(`viewport=${viewport.label}`, () => {
@@ -395,6 +397,7 @@ for (const viewport of shots) {
         assertInsideOutRoot(outDir);
 
         test(`capture ${pair}`, async ({ page, browserName }, testInfo) => {
+          assertCaptureProject(testInfo);
           // 撮影に使うページでスクロールバーの扱いを実測し、同一性を読む（組を飛ばす前に行う。全組を再利用する noise パスでも書く）
           await recordIdentity(page, browserName, testInfo);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
@@ -411,7 +414,6 @@ for (const viewport of shots) {
             pass === "baseline" && capturePairs.length > 0 && !capturePairs.includes(pair),
             "not in PARITY_CAPTURE_PAIRS",
           );
-
           mkdirSync(outDir, { recursive: true });
 
           await verifyCdpBrowser(page);
