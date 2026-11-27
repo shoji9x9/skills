@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "test-lines.test.ts の検出能力を示す変異の一覧（Issue #1109）。誤ると、テストの行数が増えすぎた週に候補を挙げず、追跡 Issue に載らない判定だけを置く。"
+  ],
+  "test_file": "scripts/weekly/cost-metrics/test-lines.test.ts",
+  "mutations": [
+    {
+      "id": "test-growth-never-reported",
+      "why": "テスト ÷ 実装の比の上昇率が上限を超えても候補に挙げず、テストが実装に比べて増えすぎた週を見逃す",
+      "file": "scripts/weekly/cost-metrics/test-lines.ts",
+      "find": "if (!ratioIncreaseExceeds(t, config.maxRatioIncreasePercent)) return [];",
+      "replace": "if (true) return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "候補に挙げるか 比の上昇率が上限を超える",
+        "候補に挙げるか テストの減り方が実装より小さい",
+        "候補に挙げるか 候補の内容に、テストと実装の増分と増加率、比の上昇率と上限を書く"
+      ]
+    }
+  ]
+}

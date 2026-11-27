@@ -11,7 +11,9 @@
     "session_context は、entries のファイルと、そこから @path で取り込む文書（4 段まで）のバイト数を数え、合計が limit_bytes の report_ratio の割合に達したら挙げる（Issue #1095）。",
     "entries は、Claude Code がリポジトリで読む CLAUDE.md にする。AGENTS.md 単体の上限（Codex が読む 32 KiB）は、pre-commit と CI の check-agents-md-size.ts が確かめる。",
     "kaizen は、dir の学びを数える（Issue #1096）。pending が max_pending 件を超えたとき、pending のまま stale_days 日を過ぎた学びが max_stale 件を超えたとき、直近 days 日に再発の学び（recurrence-of を書いた学び）を書いたときに挙げる。",
-    "max_pending は、kaizen.jsonc の inject_max_entries（セッションの開始時に注入する件数）と同じ値にする。stale_days は、忘却の閾値（forget_after_days のデフォルト）と同じ値にする。忘却されずに残る古い pending は、priority が high か判断待ちの学びなので、1 件でも挙げる。"
+    "max_pending は、kaizen.jsonc の inject_max_entries（セッションの開始時に注入する件数）と同じ値にする。stale_days は、忘却の閾値（forget_after_days のデフォルト）と同じ値にする。忘却されずに残る古い pending は、priority が high か判断待ちの学びなので、1 件でも挙げる。",
+    "test_lines は、tests と implementation の glob（git の pathspec の glob）に当たるファイルの行数を、HEAD と days 日前の commit で数える（Issue #1109）。implementation に当たるファイルのうち tests に当たるものは、実装として数えない。",
+    "テスト ÷ 実装の比が days 日前から上がった割合が max_ratio_increase_percent（百分率の整数）を超えたら挙げる。行数の増えたテストのファイルは、すべて本文の表に載せる。週次のセルフ点検は、同じ節の設定で test-lines.ts の CLI が書いた表を、重複したテストを探す対象にする（候補の有無に関わらず毎週書く）。閾値は、Issue #1109 の作業で実測した値から決めた（PR の本文にある）。"
   ],
   "lists": [
     {
@@ -103,5 +105,11 @@
     "stale_days": 30,
     "max_pending": 30,
     "max_stale": 0
+  },
+  "test_lines": {
+    "days": 7,
+    "tests": ["scripts/**/*.test.ts"],
+    "implementation": ["scripts/**/*.ts", "skills/**/*.mjs"],
+    "max_ratio_increase_percent": 5
   }
 }

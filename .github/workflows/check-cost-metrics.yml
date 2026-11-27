@@ -1,6 +1,6 @@
 name: Check cost metrics
 
-# チェックと CI の費用の指標（空の免除・保留の一覧、修正の PR が多いチェック、ジョブの所要時間、セッションの開始時に読み込む文書のバイト数、kaizen の学びの件数）を毎週集め、
+# チェックと CI の費用の指標（空の免除・保留の一覧、修正の PR が多いチェック、ジョブの所要時間、セッションの開始時に読み込む文書のバイト数、kaizen の学びの件数、テストと実装の行数）を毎週集め、
 # 直す候補を追跡 Issue に載せる。廃止するか直すかは人が決める。
 # 集計は scripts/weekly/cost-metrics/check-cost-metrics.ts にあり、対象と閾値は scripts/weekly/cost-metrics/check-cost-metrics.json にある。
 on:
@@ -35,7 +35,7 @@ jobs:
       # 追跡 Issue のタイトルは「接頭辞 + 確認した日」。実行のたびにリネームし、open な 1 本は最後に確認した日を示す。
       ISSUE_TITLE_PREFIX: "Check cost metrics to review"
     steps:
-      # 修正の PR と kaizen の学びの status の履歴を first-parent の履歴で数えるので、履歴をすべて取得する。浅いとスクリプトが失敗する。
+      # 修正の PR と kaizen の学びの status の履歴を first-parent の履歴で数え、テストと実装の行数を期間の始まりの commit でも数えるので、履歴をすべて取得する。浅いとスクリプトが失敗する。
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0

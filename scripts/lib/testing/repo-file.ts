@@ -15,6 +15,11 @@ export function write(root: string, path: string, text: string) {
   writeFileSync(join(root, path), text);
 }
 
+/** root の下に、パスと内容の組をすべて書く。 */
+export function writeFiles(root: string, files: Record<string, string>) {
+  for (const [path, text] of Object.entries(files)) write(root, path, text);
+}
+
 /** root で git init を実行する。失敗したら例外にする。 */
 export function gitInit(root: string) {
   const r = spawnSync("git", ["init", "-q"], {

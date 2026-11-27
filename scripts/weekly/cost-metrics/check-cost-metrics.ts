@@ -2,18 +2,20 @@
 // 週次のワークフロー（.github/workflows/check-cost-metrics.yml）が実行し、候補を追跡 Issue に載せる。
 // 候補を挙げるだけで、チェックを廃止するか、ジョブを直すかは人が決める。
 //
-// 集める指標は次の 5 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
+// 集める指標は次の 6 つである。対象と閾値は、隣の check-cost-metrics.json で決める。
 // - 空の免除・保留の一覧: check-cost-metrics.json の lists に挙げた一覧のファイルが空になっている（readers は確かめず、案内として添える）
 // - 修正の PR が多いチェック: 直近の期間に、チェックのファイルを変えた fix の PR の数（lists の一覧と fix_prs.exclude のファイルは数えない）
 // - GitHub Actions のジョブの所要時間: 直近の期間と前の期間の中央値を比べ、遅くなったジョブを挙げる（最大値は所要時間の表にだけ載せる）
 // - セッションの開始時に読み込む文書のバイト数: 起点のファイルと `@path` で取り込む文書の合計が、上限の報告の割合に達したら挙げる（session-context.ts）
 // - kaizen の学び: status ごとの件数と増減・直近の期間の記録と適用と忘却・適用までの日数・古い pending・再発を数え、閾値を超えたら挙げる（kaizen-learnings.ts）
+// - テストと実装の行数: 直近の期間の増分と比を数え、テスト ÷ 実装の比の上昇率が上限を超えたら挙げる（test-lines.ts）
 //
 // 確かめられなかったものを「該当なし」として扱わない。次のときは exit 1 で止まる。
 // - 設定・一覧のファイルを読めない
 // - セッションの開始時に読み込む文書（起点か取り込み先）が無い
 // - git の履歴が浅い
 // - kaizen の学びを読めない、または学びの status が git の履歴と食い違う（kaizen-learnings.ts の冒頭に条件がある）
+// - テストと実装の行数を数えられない（test-lines.ts の冒頭に条件がある）
 // - fix_prs.exclude のファイルが今無い、または数えるときにテストの本体の名前に寄せられて何も外さない
 // - git や API が失敗する、または API の一覧が上限（1000 件）を超えて取りこぼす
 //
@@ -26,7 +28,7 @@ import { isCliEntry } from "../../lib/cli/entry.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isNonBlankString, isPlainObject, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
-import { spawnAsync } from "../../lib/spawn-async.ts";
+import { defaultRunner, type Runner } from "./runner.ts";
 import { median } from "./median.ts";
 import { type ContextFile, sessionContextFiles } from "./session-context.ts";
 import {
@@ -38,6 +40,15 @@ import {
   kaizenTable,
 } from "./kaizen-learnings.ts";
 import {
+  collectTestLines,
+  type TestLinesConfig,
+  type TestLinesFinding,
+  parseTestLinesConfig,
+  testLinesFindings,
+  type TestLinesMetrics,
+  testLinesTable,
+} from "./test-lines.ts";
+import {
   formatDiffComment,
   kindTracking,
   naturalOrder,
@@ -48,7 +59,7 @@ import {
 const CONFIG = join(dirname(fileURLToPath(import.meta.url)), "check-cost-metrics.json");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type Runner = (command: string, args: readonly string[]) => Promise<string>;
+export { defaultRunner, type Runner };
 
 /** ジョブの API を並べて呼ぶ数。API は run ごとに 1 回呼び、1 回に数秒かかるので、1 件ずつでは run の数に比例して長くなる。 */
 const CONCURRENCY = 8;
@@ -94,6 +105,8 @@ export type Config = {
   sessionContext: { entries: string[]; limitBytes: number; reportRatio: number };
   /** dir は学びのディレクトリ、days は直近の期間、stale_days は古い pending の日数、max_* は候補に挙げない上限の件数。 */
   kaizen: KaizenConfig;
+  /** tests と implementation は数えるファイルの glob、max_ratio_increase_percent はテスト ÷ 実装の比の上昇率の上限（百分率の整数）。 */
+  testLines: TestLinesConfig;
 };
 
 function stringList(value: unknown, where: string): string[] {
@@ -250,6 +263,7 @@ export function parseConfig(text: string): Config {
       maxPending: count(kz["max_pending"], "kaizen.max_pending"),
       maxStale: count(kz["max_stale"], "kaizen.max_stale"),
     },
+    testLines: parseTestLinesConfig(value["test_lines"]),
   };
 }
 
@@ -295,7 +309,8 @@ export type Finding =
       target: string;
       detail: string;
     }
-  | KaizenFinding;
+  | KaizenFinding
+  | TestLinesFinding;
 
 async function loadList(target: ListTarget, root: string): Promise<unknown> {
   const path = join(root, target.file);
@@ -639,6 +654,7 @@ const KIND_LABEL: Record<Finding["kind"], string> = {
   "kaizen-pending": "pending の kaizen の学び",
   "kaizen-stale": "古い pending の kaizen の学び",
   "kaizen-recurrence": "適用した後に再発した kaizen の学び",
+  "test-growth": "行数の増えすぎたテスト",
 };
 
 /** 前回との差分に使う識別子は、種別と対象だけで作る（件数や秒数は週ごとに変わる）。 */
@@ -690,13 +706,14 @@ export type Result = {
   rows: JobRow[];
   context: ContextFile[];
   kaizen: KaizenMetrics | null;
+  testLines: TestLinesMetrics;
   config: Config;
   now: Date;
 };
 
 /** 追跡 Issue の本文。最後の行に、次の実行が差分に使う識別子の一覧を埋める。 */
 export function formatBody(result: Result, previous: readonly string[] = []): string {
-  const { findings, rows, context, kaizen, config, now } = result;
+  const { findings, rows, context, kaizen, testLines, config, now } = result;
   const { kept, resolved } = diffFindings(findings, previous);
   const lines = [
     "チェックと CI の費用の指標から挙げた、直す候補の一覧です。廃止するか直すかは人が決めます。",
@@ -708,6 +725,7 @@ export function formatBody(result: Result, previous: readonly string[] = []): st
     ...durationTable(rows, config.durations.days),
     ...contextTable(context, config.sessionContext),
     ...kaizenTable(kaizen, { now, config: config.kaizen }),
+    ...testLinesTable(testLines, config.testLines),
   ];
   return tracking.finish(lines, findings, resolved);
 }
@@ -718,22 +736,7 @@ export function formatComment(findings: readonly Finding[], previous: readonly s
 
 // ---- 実行
 
-/** 1 回の呼び出しの上限。gh api は 1 回で数秒なので、止まったときに気付けるよう 2 分で打ち切る。 */
-const CALL_TIMEOUT_MS = 120_000;
-
-/** 本番の呼び出し。失敗（起動できない・0 以外で終わる・時間切れ）は、stderr を添えて例外にする。 */
-export const defaultRunner: Runner = async (command, args) => {
-  const result = await spawnAsync(command, args, { timeout: CALL_TIMEOUT_MS });
-  if (result.error !== undefined || result.status !== 0) {
-    const reason = result.error?.message ?? `終了コード ${String(result.status)}`;
-    throw new Error(
-      `${command} ${args.join(" ")} が失敗した（${reason}）: ${result.stderr.trim()}`,
-    );
-  }
-  return result.stdout;
-};
-
-/** 5 つの指標を集める。確かめられなければ例外を投げる。 */
+/** 6 つの指標を集める。確かめられなければ例外を投げる。 */
 export async function collect(
   run: Runner,
   input: { config: Config; root: string; now: Date },
@@ -748,6 +751,7 @@ export async function collect(
     lists: config.lists.map((l) => l.file),
   });
   const kaizen = await collectKaizen(run, { root, now, config: config.kaizen });
+  const testLines = await collectTestLines(run, { root, now, config: config.testLines });
   const rows = await jobRows(run, config.durations, now);
   const findings = [
     ...lists,
@@ -755,8 +759,9 @@ export async function collect(
     ...slowJobs(rows, config.durations),
     ...contextSize(context, config.sessionContext),
     ...kaizenFindings(kaizen, { now, config: config.kaizen }),
+    ...testLinesFindings(testLines, config.testLines),
   ];
-  return { findings, rows, context, kaizen, config, now };
+  return { findings, rows, context, kaizen, testLines, config, now };
 }
 
 /** `options` はテストが一時ディレクトリと偽の時刻を渡すためにある。ワークフローはデフォルトで呼ぶ。 */

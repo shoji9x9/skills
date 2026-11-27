@@ -15,11 +15,10 @@
 // | 古い pending | ちょうど stale_days / 1 日足りない / pending でない |
 // | 再発 | 正しい / 無い学び / 適用していない学び / 再発の後に適用した学び / 期間の内・外 / 既にある学びに後から足した |
 // | 閾値 | 上限ちょうど（挙げない）/ 上限を超える（挙げる） |
-import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { gitAt, initRepo } from "../../lib/testing/git-at.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { defaultRunner } from "./check-cost-metrics.ts";
 import {
@@ -898,33 +897,14 @@ describe("まとめて数える", () => {
   });
 });
 
-/** 日時を固定して git を実行する関数。利用者の hook と署名の設定を使わない。 */
-function gitAt(root: string): (args: string[], daysAgo?: number) => void {
-  return (args, daysAgo = 0) => {
-    const date = isoAgo(daysAgo);
-    const r = spawnSync(
-      "git",
-      ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", ...args],
-      {
-        encoding: "utf8",
-        timeout: CHILD_TIMEOUT_MS,
-        env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
-      },
-    );
-    if (r.status !== 0) throw new Error(`git ${args.join(" ")} が失敗した: ${r.stderr}`);
-  };
-}
-
 /**
  * 学びの履歴を持つリポジトリを作る。a は 20 日前に記録し、15 日前に名前を変え、10 日前に適用し、1 日前に archive へ移す。
  * ctl は本文に制御文字と、frontmatter の外の status の行を含む（--text が無いと git が binary として扱い、差分を出さない）。
  * b は branch で 3 日前に記録し、2 日前に main へ merge する（merge commit の差分にだけ現れる）。
  */
 function buildHistory(root: string): void {
-  const git = gitAt(root);
-  git(["init", "-q", "-b", "main", "."]);
-  git(["config", "user.email", "test@example.com"]);
-  git(["config", "user.name", "test"]);
+  const git = gitAt(root, NOW);
+  initRepo(git);
   writeFiles(root, {
     ".kaizen/2026-10-02-a.md": noteText("pending"),
     // 本文の例として、frontmatter の外に status の行も書く。

@@ -34,6 +34,7 @@ const CATEGORY_LABEL = {
   actions: "効果の無い GitHub Actions",
   wording: "分かりにくい語・旧称",
   unenforced: "チェックの無い規約",
+  tests: "守るもののないテスト・重複したテスト",
 } as const;
 
 export type Category = keyof typeof CATEGORY_LABEL;

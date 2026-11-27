@@ -278,7 +278,7 @@ describe("追跡 Issue の本文", () => {
       finding({ category: "unenforced", path: "AGENTS.md" }),
     ]);
     expect(counts).toBe(
-      "項目ごとの件数: 不要物 0 件、文書の食い違い・重複 2 件、やりすぎな記述 0 件、やりすぎなチェック 0 件、回帰 eval の妥当性 0 件、効果の無い GitHub Actions 0 件、分かりにくい語・旧称 0 件、チェックの無い規約 1 件",
+      "項目ごとの件数: 不要物 0 件、文書の食い違い・重複 2 件、やりすぎな記述 0 件、やりすぎなチェック 0 件、回帰 eval の妥当性 0 件、効果の無い GitHub Actions 0 件、分かりにくい語・旧称 0 件、チェックの無い規約 1 件、守るもののないテスト・重複したテスト 0 件",
     );
     expect(formatBody({ findings: [finding()], notes: [] })).toContain("チェックの無い規約 0 件");
   });

@@ -1,7 +1,7 @@
 # 週次のセルフ点検
 
 決定論的なチェック（textlint・`check-doc-refs.ts`・`check-time-sensitive-prose.ts`・fallow・jscpd）では判定できないものを、LLM で毎週点検する。
-対象は、不要物・文書の間の食い違いと重複・やりすぎな記述とチェック・回帰 eval の妥当性・効果の無い GitHub Actions・分かりにくい語と旧称・機械的に判定できるのにチェックの無い規約である。
+対象は、不要物・文書の間の食い違いと重複・やりすぎな記述とチェック・回帰 eval の妥当性・効果の無い GitHub Actions・分かりにくい語と旧称・機械的に判定できるのにチェックの無い規約・守るもののないテストと重複したテストである。
 指摘は追跡 Issue（`Self review findings`）に載せる。直すか、決定論的なチェックに移すかは人が決める。
 
 点検の項目と、エージェントが書く結果の形は [`self-review-procedure.md`](self-review-procedure.md) にある。
@@ -20,6 +20,7 @@
   使えるツールそのものを `--tools` でこの 5 つに限り、サブエージェント（`Agent`）なども使えなくする。
   サブエージェントをバックグラウンドで起動したまま、エージェントが結果を待たずに終わることがあるためである。
   リポジトリの外（資格情報のある場所）は読めず、結果のファイルのほかは書けない。git も許さないので、履歴の件名とファイルの一覧は点検の前のステップが入力に書き出す。
+  テストの項目が点検する、行数の増えたテストのファイルの表も、点検の前のステップが `scripts/weekly/cost-metrics/test-lines.ts` で書く。費用の指標の追跡 Issue は候補が 0 件の週に閉じるので、その本文には頼らない。
   リポジトリの `.claude/settings.json` の Hook と `.mcp.json` の MCP サーバーは `--tools` の制限の外で動くので、`--setting-sources user` と `--strict-mcp-config` で読まない。
   そのため `CLAUDE.md` も読み込まれないことがあり、点検の手順が規約の文書を最初に読ませる。
   ジョブの権限は `contents: read` と `issues: read` である
@@ -129,7 +130,7 @@ run の `head_branch` は PR の head の branch 名で、fork の PR でも `ma
 
 直す候補は、`scripts/weekly/self-review-fix.ts` がエージェントの前に選ぶ。
 候補にするのは、項目が不要物・文書の食い違いと重複・やりすぎな記述・分かりにくい語と旧称で、対象が `docs/` の Markdown・`README.md`・`evals/<name>/README.md` の指摘である。
-やりすぎなチェック・回帰 eval・GitHub Actions・チェックの無い規約の指摘と、`AGENTS.md`・`.agents/rules/`・`skills/` の指摘は、エージェントやチェックの振る舞いを変えるので、人が直す。
+やりすぎなチェック・回帰 eval・GitHub Actions・チェックの無い規約・テストの指摘と、`AGENTS.md`・`.agents/rules/`・`skills/` の指摘は、エージェントやチェックの振る舞いを変えるので、人が直す。
 1 回の PR に入れる候補は 10 件までにする。
 
 エージェントの後で、同じスクリプトが、変わったファイルとエージェントが「直した」と書いた指摘のファイルを突き合わせる。
