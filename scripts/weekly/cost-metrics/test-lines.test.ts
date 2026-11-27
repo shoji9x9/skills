@@ -2,7 +2,7 @@
 //
 // | 軸 | 値 |
 // | --- | --- |
-// | git grep の出力 | 正しい / 空 / commit の接頭辞が違う / 行数が数でない / NUL が 2 つ / パスが : を含む |
+// | git grep の出力 | 正しい / 空 / commit の接頭辞が違う / 行数が数でない / NUL が 2 つ / NUL が無い / パスが : を含む / パスが改行を含む（合成と本物の git） |
 // | glob | 素の glob / 空 / : で始まる / / で始まる |
 // | 数えるファイル | テスト / 実装（テストの glob に当たるものは外す）/ 0 行のファイル / どちらかの glob に当たるファイルが無い |
 // | 比べる commit | 期間の始まりより前の最後の first-parent の commit / 期間の始まりより前の commit が無い |
@@ -54,6 +54,16 @@ describe("git grep の出力", () => {
     );
   });
 
+  test("改行を含むパスを、改行で区切らずに 1 件として読む", () => {
+    const out = `${C}:a\nb.test.ts\u00002\n${C}:c.test.ts\u00001\n`;
+    expect(parseCounts(out, C)).toEqual(
+      new Map([
+        ["a\nb.test.ts", 2],
+        ["c.test.ts", 1],
+      ]),
+    );
+  });
+
   test("空の出力は 0 件", () => {
     expect(parseCounts("", C).size).toBe(0);
   });
@@ -63,6 +73,7 @@ describe("git grep の出力", () => {
     ["行数が数でない", `${C}:a.ts\u0000x\n`],
     ["NUL が 2 つ", `${C}:a.ts\u00001\u00002\n`],
     ["NUL が無い", `${C}:a.ts:1\n`],
+    ["最後の件が行数で終わらない", `${C}:a.ts\u00001\n${C}:b.ts`],
   ])("%s は例外にする", (_name, out) => {
     expect(() => parseCounts(out, C)).toThrow("パスと行数の形でない");
   });
@@ -162,6 +173,17 @@ describe("行数を数える（本物の git）", () => {
     );
     expect(m.current.commit).toMatch(/^[0-9a-f]{40}$/u);
     expect(m.previous.commit).not.toBe(m.current.commit);
+  });
+
+  test("改行を含むテストのファイルも、ほかのファイルと同じに数える", async () => {
+    const root = buildRepo([
+      {
+        daysAgo: 10,
+        files: { "scripts/a\nb.test.ts": lines(2), "scripts/a.ts": lines(1) },
+      },
+    ]);
+    const m = await collectTestLines(defaultRunner, { root, now: NOW, config });
+    expect(m.current.tests).toEqual(new Map([["scripts/a\nb.test.ts", 2]]));
   });
 
   test("期間の始まりより前の commit が無ければ例外にする", async () => {

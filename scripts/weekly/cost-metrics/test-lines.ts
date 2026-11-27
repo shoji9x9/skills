@@ -93,17 +93,28 @@ export function isPlainGlob(value: string): boolean {
   return value !== "" && !value.startsWith(":") && !value.startsWith("/");
 }
 
-/** `git grep -z -c '' <commit>` の出力を、パスごとの行数にする。行の形が違えば例外にする。 */
+/**
+ * `git grep -z -c '' <commit>` の出力を、パスごとの行数にする。形が違えば例外にする。
+ * 1 件は `<commit>:<パス>` と NUL と行数と改行である。`-z` でもパスは引用されず、改行を含むパスは改行をそのまま含むので、
+ * 改行で区切ってから読まない。NUL までをパスとして読み、その後の改行までを行数として読む（行数は数字だけなので改行を含まない）。
+ */
 export function parseCounts(output: string, commit: string): Map<string, number> {
   const counts = new Map<string, number>();
   const prefix = `${commit}:`;
-  for (const line of output.split("\n")) {
-    if (line === "") continue;
-    const [name = "", count = "", ...rest] = line.split("\0");
-    if (!name.startsWith(prefix) || !/^\d+$/u.test(count) || rest.length > 0) {
-      throw new Error(`git grep の出力の行がパスと行数の形でない: ${JSON.stringify(line)}`);
+  let pos = 0;
+  while (pos < output.length) {
+    const nul = output.indexOf("\0", pos);
+    const newline = nul < 0 ? -1 : output.indexOf("\n", nul);
+    const end = newline < 0 ? output.length : newline;
+    const name = output.slice(pos, nul < 0 ? end : nul);
+    const count = nul < 0 ? "" : output.slice(nul + 1, end);
+    if (!name.startsWith(prefix) || !/^\d+$/u.test(count)) {
+      throw new Error(
+        `git grep の出力がパスと行数の形でない: ${JSON.stringify(output.slice(pos, end))}`,
+      );
     }
     counts.set(name.slice(prefix.length), Number(count));
+    pos = end + 1;
   }
   return counts;
 }
