@@ -577,12 +577,15 @@ Chrome 156 と Playwright 1.65 で、高さ 3000px の要素の下に置いた a
 | `content_visibility_overridden` | `visible` に上書きした `content-visibility: auto` の要素の数 |
 
 - `stopped` が `null` でない組と、`timed_out_images` が空でない組は、利用者に報告する。その部分の画像は、遅延読み込みの前の状態を含みうる。
+  採取のスペックは、記録を `incompleteSettle` に渡し、`null` でなければその 1 行を警告に出す。新側の雛形も同じ関数で警告を出すので、現側も同じ関数を使う。
 - `artifact_health` を宣言した成果物では、`scroll-settle.json` も `entries` に `kind: captured` で宣言する。どのスペックも読まないので、`read_by` を空にし、`unread_reason` にそのことを書く。
 - 前の回の記録を、撮影の前に消す。撮影の後で失敗したときに、新しい画像の隣に古い記録を残さないためである。
 
 ```ts
 // 表示の軸を当てた後、状態へ移す前に呼ぶ（fullPage は capture_conditions.full_page）
 const scrollRecord = fullPage === true ? await settleByScrolling(page) : null;
+const incomplete = scrollRecord === null ? null : incompleteSettle(scrollRecord);
+if (incomplete !== null) console.warn(incomplete);
 await applyState(page, state);
 // ...撮影の前に、前の回の記録を消す
 rmSync(join(outDir, "scroll-settle.json"), { force: true });

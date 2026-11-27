@@ -159,3 +159,22 @@ export async function settleByScrolling(page, limits) {
     content_visibility_overridden: result.content_visibility_overridden,
   };
 }
+
+/**
+ * settleByScrolling の記録が、末尾まで読み込み切れなかった組かを 1 行の警告にする。読み込み切れたなら null を返す。
+ * 現側の採取のスペックと新側の雛形が、撮った後に同じ関数で警告を出す（読み込み切れなかった組を、記録を読まない実行でも利用者に知らせる）。
+ * 撮影は止めない。その部分の画像は、遅延読み込みの前の状態を含みうる。
+ * @param {{ stopped: string | null, timed_out_images: { url: string, y: number }[] }} record
+ * @returns {string | null}
+ */
+export function incompleteSettle(record) {
+  const parts = [];
+  if (record.stopped !== null) parts.push(`stopped before the end (${record.stopped})`);
+  if (record.timed_out_images.length > 0) {
+    const urls = record.timed_out_images.map((image) => image.url).join(", ");
+    parts.push(`${record.timed_out_images.length} image(s) timed out: ${urls}`);
+  }
+  return parts.length === 0
+    ? null
+    : `scroll-settle: ${parts.join("; ")}. 画面の外の遅延読み込みの内容を読み込み切れずに撮った`;
+}

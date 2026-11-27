@@ -12,6 +12,7 @@ import {
   DEFAULT_LIMITS,
   VERSION,
   assertPageVersion,
+  incompleteSettle,
   limitsFromRecord,
   readLimits,
   settleByScrolling,
@@ -74,6 +75,41 @@ describe("limitsFromRecord", () => {
     ],
   ])("%s なら失敗する", (_label, record, message) => {
     expect(() => limitsFromRecord(record)).toThrow(message);
+  });
+});
+
+describe("incompleteSettle", () => {
+  test("末尾まで届き、打ち切った画像も無ければ null を返す", () => {
+    expect(incompleteSettle({ stopped: null, timed_out_images: [] })).toBeNull();
+  });
+
+  test.each([
+    [
+      "末尾まで届かなかった",
+      { stopped: "max_steps", timed_out_images: [] },
+      /stopped before the end \(max_steps\)/,
+    ],
+    [
+      "画像を打ち切った",
+      { stopped: null, timed_out_images: [{ url: "http://x/a.png", y: 600 }] },
+      /1 image\(s\) timed out: http:\/\/x\/a\.png/,
+    ],
+  ])("%s なら、その内容を 1 行の警告にする", (_label, record, message) => {
+    expect(incompleteSettle(record)).toMatch(message);
+  });
+
+  test("両方に当たれば、両方を 1 行に書く", () => {
+    const warning = incompleteSettle({
+      stopped: "total_timeout",
+      timed_out_images: [
+        { url: "http://x/a.png", y: 0 },
+        { url: "http://x/b.png", y: 600 },
+      ],
+    });
+    expect(warning).toMatch(
+      /total_timeout.*2 image\(s\) timed out: http:\/\/x\/a\.png, http:\/\/x\/b\.png/,
+    );
+    expect(warning).not.toContain("\n");
   });
 });
 

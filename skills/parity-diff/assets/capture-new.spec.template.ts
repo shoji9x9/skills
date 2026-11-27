@@ -60,7 +60,11 @@ import {
 } from "../../lib/tools/vendor/determinism.mjs";
 // 全画面を撮る前に末尾までスクロールする処理（parity-suite が vendor/ へコピーした scroll-settle.mjs）。
 // 隣の page/scroll-settle.page.mjs を import する。現側の採取と同じコピーを使い、待ち方の差を差分にしない
-import { limitsFromRecord, settleByScrolling } from "../../lib/tools/vendor/scroll-settle.mjs";
+import {
+  incompleteSettle,
+  limitsFromRecord,
+  settleByScrolling,
+} from "../../lib/tools/vendor/scroll-settle.mjs";
 import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>";
 // 新側のロケータ例外（new/<target>/replace-metadata.json の suite.locator_map_new が指すファイル）。
 // 例外ゼロなら parity-replace はこのファイルを作らないので、その場合はこの import ごと外す。
@@ -476,7 +480,11 @@ async function settleLikeCurrent(
     }
     throw error;
   }
-  return settleByScrolling(page, limitsFromRecord(JSON.parse(text)));
+  const record = await settleByScrolling(page, limitsFromRecord(JSON.parse(text)));
+  // 末尾まで読み込み切れなかった組は、現側と同じ関数で警告を出す（撮影は止めない）
+  const incomplete = incompleteSettle(record);
+  if (incomplete !== null) console.warn(`[capture-new] ${pairPath}: ${incomplete}`);
+  return record;
 }
 
 // browser が cdp のときに、接続したブラウザを確かめる
