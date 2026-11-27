@@ -70,13 +70,17 @@ export async function scrollThroughInPage(options) {
         resolve(true);
         return;
       }
-      const timer = setTimeout(() => resolve(img.complete), ms);
-      const done = () => {
+      // 読み込みを終えたときも上限で打ち切ったときも、load と error の両方のリスナーを外す（応答しない画像が多いページで残さない）
+      const listeners = new AbortController();
+      /** @param {boolean} loaded */
+      const finish = (loaded) => {
         clearTimeout(timer);
-        resolve(true);
+        listeners.abort();
+        resolve(loaded);
       };
-      img.addEventListener("load", done, { once: true });
-      img.addEventListener("error", done, { once: true });
+      const timer = setTimeout(() => finish(img.complete), ms);
+      img.addEventListener("load", () => finish(true), { signal: listeners.signal });
+      img.addEventListener("error", () => finish(true), { signal: listeners.signal });
     });
 
   /**
