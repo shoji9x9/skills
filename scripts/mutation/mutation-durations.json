@@ -110,6 +110,7 @@
     "scripts/skills/parity-diff/row-align.mutations.json": 3.7,
     "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5,
     "scripts/lib/text/tracking-diff.property.mutations.json": 1.2,
-    "scripts/skills/browser-test/feature-check.mutations.json": 28.7
+    "scripts/skills/browser-test/feature-check.mutations.json": 28.7,
+    "scripts/weekly/cost-metrics/test-lines.mutations.json": 1.7
   }
 }

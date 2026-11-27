@@ -15,6 +15,8 @@
 // | 読み込む文書の合計 | 報告の割合の未満・ちょうど・上限を超える / 設定の割合が 0・1 を超える / 起点が無い |
 // | kaizen の設定 | 正しい / 節が無い / dir が空・末尾の /・./・..・絶対パス / max_* が 0・負・小数 / days が 0 |
 // | kaizen の学び | ディレクトリが無い（数えなかったと書く）/ ある（候補と表）。数え方は kaizen-learnings.test.ts |
+// | test_lines の設定 | 正しい / 節が無い / glob が空・: や / で始まる / max_ratio_increase_percent が負・小数 |
+// | テストと実装の行数 | 上限を超える（候補と表）。数え方と判定は test-lines.test.ts |
 // | API | 成功 / 失敗 / 1000 件を超える / total_count が無い / ページの形が違う / 期間の外の run |
 // | 前回の本文 | 目印なし / 識別子あり / 形が違う |
 // | CLI の引数 | 正しい / 足りない / 未知 / --previous が空 |
@@ -51,6 +53,7 @@ import {
   type Runner,
 } from "./check-cost-metrics.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import type { TestLinesMetrics } from "./test-lines.ts";
 
 const NOW = new Date("2026-11-11T03:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
@@ -77,8 +80,54 @@ const configJson = (override: Record<string, unknown> = {}) =>
     },
     session_context: { entries: ["CLAUDE.md"], limit_bytes: 100, report_ratio: 0.8 },
     kaizen: KAIZEN,
+    test_lines: TEST_LINES,
     ...override,
   });
+
+const TEST_LINES = {
+  days: 7,
+  tests: ["**/*.test.ts"],
+  implementation: ["**/*.ts"],
+  max_ratio_increase_percent: 5,
+};
+
+/** test_lines の節の 1 つの値だけを変えた設定の上書き。 */
+const testLinesWith = (over: Record<string, unknown>) => ({
+  test_lines: { ...TEST_LINES, ...over },
+});
+
+const HEAD = "a".repeat(40);
+const BASE = "b".repeat(40);
+
+/**
+ * テストと実装の行数を数える git の呼び出し（rev-parse HEAD・rev-list・diff・grep）に答える偽物を、ほかの指標の偽物の前に置く。
+ * lines は HEAD と BASE の時点のテストと実装の行数で、デフォルトでは増えないので候補にならない。
+ */
+const withTestLines =
+  (run: Runner, lines: Record<string, { test: number; impl: number }> = {}): Runner =>
+  async (command, args) => {
+    if (command === "git" && args[2] === "rev-parse" && args[3] === "HEAD") return `${HEAD}\n`;
+    if (command === "git" && args[2] === "rev-list") return `${BASE}\n`;
+    if (command === "git" && args[2] === "diff") return "";
+    if (command === "git" && args[2] === "grep") {
+      const commit = args[6] ?? "";
+      const n = lines[commit] ?? { test: 1, impl: 1 };
+      const isImpl = args.some((a) => a.startsWith(":(exclude,glob)"));
+      return isImpl ? `${commit}:a.ts\0${n.impl}\n` : `${commit}:a.test.ts\0${n.test}\n`;
+    }
+    return run(command, args);
+  };
+
+const snapshot = (commit: string, test: number, impl: number) => ({
+  commit,
+  tests: new Map([["a.test.ts", test]]),
+  implementation: new Map([["a.ts", impl]]),
+});
+const TEST_LINES_METRICS: TestLinesMetrics = {
+  current: snapshot(HEAD, 1, 1),
+  previous: snapshot(BASE, 1, 1),
+  renames: new Map(),
+};
 
 const KAIZEN = { dir: ".kaizen", days: 7, stale_days: 30, max_pending: 1, max_stale: 0 };
 
@@ -121,6 +170,12 @@ describe("設定", () => {
       durations: { ...durations },
       sessionContext: { entries: ["CLAUDE.md"], limitBytes: 100, reportRatio: 0.8 },
       kaizen: { dir: ".kaizen", days: 7, staleDays: 30, maxPending: 1, maxStale: 0 },
+      testLines: {
+        days: 7,
+        tests: ["**/*.test.ts"],
+        implementation: ["**/*.ts"],
+        maxRatioIncreasePercent: 5,
+      },
     });
   });
 
@@ -299,6 +354,28 @@ describe("設定", () => {
       "kaizen.max_stale が文字列",
       kaizenWith({ max_stale: "0" }),
       "kaizen.max_stale が 0 以上の整数でない",
+    ],
+    ["test_lines が無い", { test_lines: undefined }, "test_lines がオブジェクトでない"],
+    ["test_lines.tests が空", testLinesWith({ tests: [] }), "test_lines.tests が"],
+    [
+      "test_lines.tests が : で始まる",
+      testLinesWith({ tests: [":(exclude)x"] }),
+      "test_lines.tests に、: か / で始まる値がある",
+    ],
+    [
+      "test_lines.implementation が / で始まる",
+      testLinesWith({ implementation: ["/x/*.ts"] }),
+      "test_lines.implementation に、: か / で始まる値がある",
+    ],
+    [
+      "test_lines.max_ratio_increase_percent が負",
+      testLinesWith({ max_ratio_increase_percent: -1 }),
+      "test_lines.max_ratio_increase_percent が 0 以上の整数でない",
+    ],
+    [
+      "test_lines.max_ratio_increase_percent が小数（割合の 0.05 を書いた）",
+      testLinesWith({ max_ratio_increase_percent: 0.05 }),
+      "test_lines.max_ratio_increase_percent が 0 以上の整数でない",
     ],
   ])("%s は例外にする", (_name, override, message) => {
     expect(() => parseConfig(configJson(override))).toThrow(message);
@@ -844,7 +921,15 @@ describe("追跡 Issue の本文", () => {
   ];
 
   test("候補の表・所要時間の表・識別子を書き、表の | をエスケープする", () => {
-    const body = formatBody({ findings, rows, context, kaizen: null, config, now: NOW });
+    const body = formatBody({
+      findings,
+      rows,
+      context,
+      kaizen: null,
+      testLines: TEST_LINES_METRICS,
+      config,
+      now: NOW,
+    });
     expect(body).toContain("直す候補: 2 件");
     expect(body).toContain("readers に書いた案内で、一覧を読む処理を示す。");
     expect(body).toContain("| 空の免除・保留の一覧 | a.json | r.ts、w.yml | 新規 |");
@@ -867,6 +952,7 @@ describe("追跡 Issue の本文", () => {
       rows,
       context,
       kaizen: null,
+      testLines: TEST_LINES_METRICS,
       config,
       now: NOW,
     });
@@ -875,7 +961,15 @@ describe("追跡 Issue の本文", () => {
   });
 
   test("0 件は候補の表を書かない", () => {
-    const body = formatBody({ findings: [], rows: [], context, kaizen: null, config, now: NOW });
+    const body = formatBody({
+      findings: [],
+      rows: [],
+      context,
+      kaizen: null,
+      testLines: TEST_LINES_METRICS,
+      config,
+      now: NOW,
+    });
     expect(body).toContain("直す候補: 0 件");
     expect(body).not.toContain("| 指標 |");
     expect(body).not.toContain("readers に書いた");
@@ -884,7 +978,10 @@ describe("追跡 Issue の本文", () => {
 
   test("前回と比べ、継続と解消を書く（件数が変わっても同じ識別子）", () => {
     const previous = ["empty-list a.json", "fix-heavy lefthook.yml"];
-    const body = formatBody({ findings, rows, context, kaizen: null, config, now: NOW }, previous);
+    const body = formatBody(
+      { findings, rows, context, kaizen: null, testLines: TEST_LINES_METRICS, config, now: NOW },
+      previous,
+    );
     expect(body).toContain("| a.json | r.ts、w.yml | 継続 |");
     expect(body).toContain("前回から解消したもの: fix-heavy lefthook.yml");
     expect(diffFindings(findings, previous).kept).toEqual(["empty-list a.json"]);
@@ -904,14 +1001,18 @@ describe("追跡 Issue の本文", () => {
 });
 
 describe("まとめて集める", () => {
-  test("5 つの指標を集める。学びのディレクトリが無ければ、数えずに null にする", async () => {
+  test("6 つの指標を集める。学びのディレクトリが無ければ、数えずに null にする", async () => {
     const root = makeTempDir("check-cost-metrics-");
     writeFiles(root, { "a.json": '{"exempt": []}', ...CONTEXT_FILES });
     const run: Runner = async (command, args) => {
       if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
     };
-    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    const result = await collect(withTestLines(run), {
+      config: parseConfig(configJson()),
+      root,
+      now: NOW,
+    });
     expect(result.findings).toEqual([{ kind: "empty-list", target: "a.json", detail: "r.ts" }]);
     expect(result.rows).toEqual([]);
     expect(result.context).toEqual([{ path: "CLAUDE.md", bytes: 9, hops: 0 }]);
@@ -948,7 +1049,11 @@ describe("まとめて集める", () => {
       if (args.includes("rev-parse")) return "false\n";
       return args.includes(".kaizen") ? kaizenLog : "";
     };
-    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    const result = await collect(withTestLines(run), {
+      config: parseConfig(configJson()),
+      root,
+      now: NOW,
+    });
     expect(result.kaizen?.counts.pending).toBe(2);
     expect(result.findings).toEqual([
       { kind: "kaizen-pending", target: ".kaizen", detail: "pending の学び 2 件（上限 1 件）" },
@@ -967,7 +1072,11 @@ describe("まとめて集める", () => {
       if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
       return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
     };
-    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    const result = await collect(withTestLines(run), {
+      config: parseConfig(configJson()),
+      root,
+      now: NOW,
+    });
     expect(result.findings).toEqual([
       {
         kind: "context-size",
@@ -986,7 +1095,7 @@ describe("まとめて集める", () => {
       return "";
     };
     await expect(
-      collect(run, { config: parseConfig(configJson()), root, now: NOW }),
+      collect(withTestLines(run), { config: parseConfig(configJson()), root, now: NOW }),
     ).rejects.toThrow("読み込むファイルが無い: CLAUDE.md");
     expect(calls).toEqual([]);
   });
@@ -1003,18 +1112,46 @@ describe("まとめて集める", () => {
       if (args[2] === "ls-files") return "a.json\nb.ts\n";
       return log;
     };
-    const result = await collect(run, { config: parseConfig(configJson()), root, now: NOW });
+    const result = await collect(withTestLines(run), {
+      config: parseConfig(configJson()),
+      root,
+      now: NOW,
+    });
     expect(result.findings).toEqual([
       { kind: "fix-heavy", target: "b.ts", detail: "直近 28 日の fix の PR: 3 件" },
     ]);
   });
+
+  test("テスト ÷ 実装の比の上昇率が上限を超えたら候補に挙げ、行数の表を本文に書く", async () => {
+    const root = makeTempDir("check-cost-metrics-");
+    writeFiles(root, { "a.json": '{"exempt": [1]}', ...CONTEXT_FILES });
+    const run: Runner = async (command, args) => {
+      if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
+      return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
+    };
+    const lines = { [HEAD]: { test: 120, impl: 105 }, [BASE]: { test: 100, impl: 100 } };
+    const config = parseConfig(configJson());
+    const result = await collect(withTestLines(run, lines), { config, root, now: NOW });
+    expect(result.findings).toEqual([
+      {
+        kind: "test-growth",
+        target: "**/*.test.ts",
+        detail:
+          "直近 7 日でテスト +20 行（+20.0%）、実装 +5 行（+5.0%）、テスト ÷ 実装の比 +14.3%（上限 +5%）",
+      },
+    ]);
+    const body = formatBody(result);
+    expect(body).toContain("| 行数の増えすぎたテスト | **/*.test.ts |");
+    expect(body).toContain("| テスト | 120 | 100 | +20 | +20.0% |");
+    expect(previousKeys(body)).toEqual(["test-growth **/*.test.ts"]);
+  });
 });
 
 describe("CLI", () => {
-  const okRun: Runner = async (command, args) => {
+  const okRun: Runner = withTestLines(async (command, args) => {
     if (command === "git") return args[2] === "rev-parse" ? "false\n" : "";
     return JSON.stringify([{ total_count: 0, workflow_runs: [] }]);
-  };
+  });
 
   test.each([
     ["引数なし", []],
