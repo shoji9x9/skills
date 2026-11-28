@@ -1,0 +1,12 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+pr:1158,pr,2026-11-28T05:28:14.413Z,p-cdee4961,github,,,,2026-11-27T22:51:32.000Z,2026-11-28T04:02:53.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,pr=1158;author=shoji9x9;state=merged,
+ci:46105696094:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-28T04:02:56.000Z,2026-11-28T04:03:18.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:46105696098:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-28T04:02:56.000Z,2026-11-28T04:05:18.000Z,Asia/Tokyo,main,,,,,,,,,,,CodeQL;push;success,
+ci:46084573685:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-27T23:49:09.000Z,2026-11-27T23:51:29.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,CodeQL;pull_request;success,
+ci:46084573805:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-27T23:49:09.000Z,2026-11-27T23:55:05.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,CI;pull_request;success,
+ci:46084573658:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-27T23:49:09.000Z,2026-11-27T23:49:10.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,Claude review PR #1158 33b198d4f054b0159a14c0f7ee5e903e73945fc5;pull_request;skipped,
+ci:46084573690:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-27T23:49:09.000Z,2026-11-27T23:49:09.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:46084573678:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-27T23:49:09.000Z,2026-11-27T23:49:18.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,Dependency Review;pull_request;success,
+ci:46084059487:1,ci,2026-11-28T05:28:14.413Z,p-cdee4961,github-actions,,,,2026-11-27T23:43:22.000Z,2026-11-27T23:48:24.000Z,Asia/Tokyo,feature/1155-scroll-before-fullpage-shot,1155,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-11-26T23:47:56.505Z:2026-11-28T05:28:14.413Z,coverage,2026-11-28T05:28:14.413Z,p-cdee4961,,,,,2026-11-26T23:47:56.505Z,2026-11-28T05:28:14.413Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-27T05:28:14.413Z:2026-11-28T05:31:26.624Z,coverage,2026-11-28T05:31:26.624Z,p-cdee4961,,,,,2026-11-27T05:28:14.413Z,2026-11-28T05:31:26.624Z,Asia/Tokyo,,,,,,,,,,,,ok,
