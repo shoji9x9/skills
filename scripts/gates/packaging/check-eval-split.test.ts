@@ -8,11 +8,9 @@
 // | 件数               | 0 件 / 1 件 / 同じスキルの複数のファイル / 複数のスキル                                    |
 // | evals.json         | judge あり / improve だけ / split なし / 無い / JSON でない / evals が配列でない           |
 // | index と作業ツリー | 同じ / stage していない変更がある / index から外して作業ツリーに残す                      |
-// | スキルのディレクトリ | ある / 消した                                                                           |
+// | スキルのディレクトリ | ある / 消した / index から外して作業ツリーに残す                                         |
 // | identical-copies   | 正しい / 読めない（形の検査は check-identical-copies.ts の parseGroups が持つ）          |
 // | 引数               | ファイル / 無い / --changed-since <ref> / --changed-since=<ref> / ref が無い / ファイルと併用 / 差分を取れない |
-import { rmSync } from "node:fs";
-import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -134,8 +132,14 @@ describe("evals.json に判定に使うケースがあるか", () => {
 
   test("スキルを消した変更は通す", () => {
     const root = makeRoot({ a: improveOnly });
-    rmSync(join(root, "skills", "a"), { recursive: true });
+    git(root, "rm", "-rqf", "skills/a");
     expect(splitViolation(root, "a")).toBeUndefined();
+  });
+
+  test("index から外して作業ツリーに残したスキルは、消したスキルとして通す（CI の checkout と同じ判定）", () => {
+    const root = makeRoot({ a: improveOnly });
+    git(root, "rm", "-rq", "--cached", "skills/a");
+    expect(main(["skills/a/SKILL.md"], root)).toBe(0);
   });
 });
 

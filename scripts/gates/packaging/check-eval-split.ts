@@ -16,7 +16,6 @@
 // pre-commit は変えたファイルを `check-eval-split.ts <path>...` で渡す。
 // CI は `check-eval-split.ts --changed-since <ref>` で、<ref>...HEAD の差分を渡す。
 // 終了コードは、0 が違反なし、1 が違反あり、2 が入力を決められない（引数が無い・差分を取れない・共通のコピーの台帳か evals.json を読めない）である。
-import { statSync } from "node:fs";
 import { join } from "node:path";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
@@ -60,9 +59,10 @@ export function skillsToCheck(paths: readonly string[], copies: ReadonlySet<stri
 
 /**
  * 1 つのスキルの evals.json を読み、判定に使うケースが無ければ違反の文を返す。
- * index の内容だけを読み、作業ツリーは読まない（`blobs` は `indexBlobs` の結果。省くとこの 1 件を index から取得する）。
- * pre-commit で、stage していない judge で通さないためと、index に無いファイル（`git rm --cached` したものなど）を
- * 作業ツリーから読んで、そのファイルを持たない commit を見る CI と違う判定をしないためである。
+ * スキルがあるかも evals.json の中身も index だけで決め、作業ツリーは読まない
+ * （`blobs` は `indexPaths` の結果。省くとこのスキルの分を index から取得する）。
+ * pre-commit で、stage していない judge で通さないためと、index に無いもの（`git rm --cached` したものなど）を
+ * 作業ツリーから読んで、それを持たない commit を見る CI と違う判定をしないためである。
  * evals.json を読めないときは、judge が無いとは判定できないので、違反にせず例外にする（main が exit 2 にする）。
  */
 export function splitViolation(
@@ -70,14 +70,14 @@ export function splitViolation(
   name: string,
   blobs?: ReadonlyMap<string, string>,
 ): string | undefined {
-  // スキルを消した変更（ディレクトリが無い）は、分ける対象が無いので通す。
-  if (!statSync(join(root, "skills", name), { throwIfNoEntry: false })?.isDirectory()) {
-    return undefined;
-  }
+  const index = blobs ?? indexBlobs(root, indexPaths([name]));
+  // スキルを消した変更（index に skills/<name>/ の下のファイルが無い）は、分ける対象が無いので通す。
+  const dir = `skills/${name}/`;
+  if (![...index.keys()].some((path) => path.startsWith(dir))) return undefined;
   const file = join("evals", name, "evals.json");
   let parsed: unknown;
   try {
-    const blob = (blobs ?? indexBlobs(root, [file])).get(file);
+    const blob = index.get(file);
     if (blob === undefined) throw new Error("index に無い");
     parsed = JSON.parse(readBlob(root, blob, file));
   } catch (error) {
@@ -113,6 +113,11 @@ function changedPaths(root: string, argv: readonly string[]): string[] {
   return out.split("\0").filter(Boolean);
 }
 
+/** スキルの判定に要る index のパス（スキルのディレクトリと evals.json）。 */
+function indexPaths(names: readonly string[]): string[] {
+  return names.flatMap((name) => [`skills/${name}/`, join("evals", name, "evals.json")]);
+}
+
 export function main(argv: readonly string[], root = process.cwd()): number {
   let names: string[];
   let violations: string[];
@@ -121,12 +126,7 @@ export function main(argv: readonly string[], root = process.cwd()): number {
     names = skillsToCheck(changedPaths(root, argv), copies);
     // パスを渡さない ls-files は index のすべてを返すので、変えたスキルが 0 件なら呼ばない。
     const blobs =
-      names.length > 0
-        ? indexBlobs(
-            root,
-            names.map((name) => join("evals", name, "evals.json")),
-          )
-        : new Map<string, string>();
+      names.length > 0 ? indexBlobs(root, indexPaths(names)) : new Map<string, string>();
     violations = names.flatMap((name) => splitViolation(root, name, blobs) ?? []);
   } catch (error) {
     console.error(`eval-split: 実行できない: ${errorMessage(error)}`);
