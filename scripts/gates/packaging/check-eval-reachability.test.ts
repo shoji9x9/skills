@@ -9,6 +9,7 @@
 // | eval           | オブジェクト / null                                                               |
 // | id             | 数値 / 文字列 / 欠落 / ":" を含む / 重複                                          |
 // | prompt         | 正常 / 空 / 行為を禁じる字面（しないで・せず・しない。先頭・途中・末尾、backlog の eval も） |
+// | split          | 無い / improve / judge / 語彙に無い文字列 / 文字列でない / null（backlog の eval も）  |
 // | assertions     | 正常 / 空配列 / 空要素 / テキスト重複                                             |
 // | reachability   | 無い（免除あり / 免除なし） / ある                                               |
 // | reachability[] | 正常 / 非オブジェクト / assertion 不在 / assertion 重複 / quote 空 / quote 非部分文字列 |
@@ -105,6 +106,32 @@ test.each([
   ["何も変更しない", "ファイルは何も変更しないで。"],
 ])("誤検知しないことの確認: 行為の字面でない prompt（%s）は通す", (_label, tail) => {
   expect(check(file({}, { prompt: `${PROMPT}${tail}` }))).toEqual([]);
+});
+
+test.each([
+  ["無い", {}],
+  ["improve", { split: "improve" }],
+  ["judge", { split: "judge" }],
+])("誤検知しないことの確認: split が %s なら通す", (_label, overrides) => {
+  expect(check(file({}, overrides))).toEqual([]);
+});
+
+test.each([
+  ["綴りの誤り", "judeg"],
+  ["大文字", "Judge"],
+  ["空文字", ""],
+  ["文字列でない", 1],
+  ["null", null],
+])("split が語彙に無い値（%s）なら落とす", (_label, split) => {
+  const v = check(file({}, { split }));
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain(`split が improve か judge でない: ${JSON.stringify(split)}`);
+});
+
+test("backlog に載る eval でも、split の値を確かめる", () => {
+  const v = check(file({}, { split: "holdout", reachability: undefined }), ["demo:1"]);
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain("split が");
 });
 
 test("reachability が無く免除も無ければ落とす（足す eval の id を添えて案内する）", () => {

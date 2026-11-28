@@ -16,6 +16,8 @@ import { isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
 import { parseArgs } from "../../lib/cli/args.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
+import { evalSplitOf, invalidSplitMessage } from "../../lib/eval-split.ts";
+import { showValue } from "../../lib/show-value.ts";
 
 const SCHEMA_VERSION = 1;
 
@@ -1669,7 +1671,28 @@ function atomicWrite(path: string, contents: string): void {
 }
 
 // One entry of evals.json, as far as this reads it.
-type SourceEval = { id?: unknown; name?: string; assertions?: unknown; expectations?: unknown };
+type SourceEval = {
+  id?: unknown;
+  name?: string;
+  assertions?: unknown;
+  expectations?: unknown;
+  split?: unknown;
+};
+
+/**
+ * eval_metadata.json に書く split。evals.json を渡されなかった run は、宣言を読めないので書かない。
+ * 語彙に無い値は、判定のケースを改善のケースとして記録しないよう、書かずに止める。
+ */
+export function metadataSplitOf(sourceEval: SourceEval | null): { split?: string } {
+  if (sourceEval === null) return {};
+  const split = evalSplitOf(sourceEval);
+  if (split === null) {
+    throw new Error(
+      `eval id ${showValue(sourceEval.id)} の ${invalidSplitMessage(sourceEval.split)}`,
+    );
+  }
+  return { split };
+}
 
 function writeEvalMetadata(args: Record<string, string>): void {
   if (!args["eval-metadata"] || !args["eval-id"] || !args.prompt) {
@@ -1692,6 +1715,7 @@ function writeEvalMetadata(args: Record<string, string>): void {
     eval_name: args["eval-name"] || sourceEval?.name || `eval-${args["eval-id"]}`,
     prompt: args.prompt,
     assertions: sourceEval?.assertions ?? sourceEval?.expectations ?? [],
+    ...metadataSplitOf(sourceEval),
   };
   const encoded = `${JSON.stringify(metadata, null, 2)}\n`;
   atomicWrite(args["eval-metadata"], encoded);

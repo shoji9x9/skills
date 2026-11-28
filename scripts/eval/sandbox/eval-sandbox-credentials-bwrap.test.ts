@@ -1,4 +1,5 @@
 // eval-sandbox.sh が、ホームの認証情報を run から隠すことを、本物の bwrap で確かめる（Issue #1008）。
+// run が採点のスクリプト・eval の宣言・記録を書き換えられないことも、同じ bwrap で確かめる（Issue #1126）。
 // bwrap が無ければ飛ばす。スタブで確かめるテストは eval-sandbox-credentials.test.ts にある。
 // 使い捨ての $HOME は /tmp の外（/var/tmp）に置く。eval-sandbox.sh は /tmp を tmpfs で隠すので、
 // /tmp の下の $HOME では、$HOME の扱いを変えても目印が見えなくなり、検出できない。
@@ -6,12 +7,13 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -133,6 +135,53 @@ echo "script=$script marker=$marker"
       "own environ readable",
       "script=0 marker=0",
     ]);
+  });
+
+  test("run の中から、採点のスクリプト・eval の宣言・記録を書き換えられず、使い捨てのプロジェクトには書ける（Issue #1126）", () => {
+    // 判定のケースで退行が無いかを確かめるには、eval の中のエージェントが採点の側に手を出せないことが前提になる。
+    // 本物のリポジトリのファイルに書き込みを試すので、sandbox が隠せていなかったときに備えて、元の中身を保存して戻す。
+    const repo = resolve(dirname(sourceScript), "..", "..", "..");
+    // 記録は、改善に使うケースと判定に使うケースを分けて実行した writing-style の iteration を使う。
+    const record = "writing-style/iteration-12/benchmark.json";
+    const existing = [
+      "scripts/eval/benchmark/build-skill-eval-benchmark.ts",
+      "scripts/eval/run/run-skill-eval.sh",
+      "scripts/eval/run/normalize-skill-eval-result.ts",
+      "evals/writing-style/evals.json",
+      `tests/${record}`,
+    ].map((p) => join(repo, p));
+    const probes = ["tests", "evals", "scripts/eval"].map((d) =>
+      join(repo, d, `.tamper-probe-1126-${process.pid}`, "grading.json"),
+    );
+    const before = existing.map((p) => ({ p, content: readFileSync(p) }));
+    const body = `#!/usr/bin/env bash
+for p in ${[...existing, ...probes].map(shellQuote).join(" ")}; do
+  if mkdir -p "$(dirname "$p")" 2>/dev/null && printf '{"tampered":true}\n' >>"$p" 2>/dev/null; then
+    echo "write ran inside the sandbox"
+  else
+    echo "write refused inside the sandbox"
+  fi
+done
+if printf 'x\n' >"$PWD/written-by-run.txt"; then echo "project writable"; else echo "PROJECT READ-ONLY"; fi
+echo "cwd=$PWD"
+`;
+    try {
+      const result = runCli("tamper", body);
+      expect(result.status, result.stderr).toBe(0);
+      // 書き込みが sandbox の中で受け付けられても（tmpfs の上）、ホストのファイルは変わらない。
+      for (const { p, content } of before) expect(readFileSync(p).equals(content), p).toBe(true);
+      for (const p of probes) expect(existsSync(dirname(p)), p).toBe(false);
+      // 検出されることの確認: 書き込みの処理そのものは機能していて、使い捨てのプロジェクトにはホストまで届く。
+      expect(result.stdout).toContain("project writable");
+      const cwd = /^cwd=(.+)$/mu.exec(result.stdout)?.[1] ?? "";
+      expect(cwd).not.toBe("");
+      expect(readFileSync(join(cwd, "written-by-run.txt"), "utf8")).toBe("x\n");
+    } finally {
+      for (const { p, content } of before) {
+        if (!readFileSync(p).equals(content)) writeFileSync(p, content);
+      }
+      for (const p of probes) rmSync(dirname(p), { recursive: true, force: true });
+    }
   });
 
   test("--verify の stage 5 は、使い捨ての $HOME で 5 つとも ok を出し、stage 6 はホストのプロセスが見えないことを示す", () => {

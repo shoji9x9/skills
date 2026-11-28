@@ -40,6 +40,7 @@ import { errorMessage } from "../../lib/errors.ts";
 import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/text/textlint-word-rule.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 import { proseScope } from "./prose-scope.ts";
+import { splitChangedSince } from "../../lib/cli/changed-since.ts";
 
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
@@ -174,32 +175,6 @@ export async function lintProse({
     byPath.set(rel, await lintSource(linter, { root, rel }));
   }
   return { checked: targets.length, violations: formatViolations(targets, byPath) };
-}
-
-/**
- * 引数から `--changed-since <ref>`（`--changed-since=<ref>` も）を取り出し、残りの引数と分ける。
- * 2 回書いたときと、ref が無いときは例外にする（どちらの ref で選んだかが分からない・ファイル名として扱われて 0 件で通る）。
- */
-function splitChangedSince(args: string[]): { ref?: string; rest: string[] } {
-  const refs: string[] = [];
-  const rest: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg.startsWith("--changed-since=")) {
-      refs.push(arg.slice("--changed-since=".length));
-    } else if (arg === "--changed-since") {
-      refs.push(args[i + 1] ?? "");
-      i++;
-    } else {
-      rest.push(arg);
-    }
-  }
-  if (refs.length > 1) throw new Error("--changed-since を 2 回書いている");
-  const [ref] = refs;
-  if (ref !== undefined && (ref === "" || ref.startsWith("-"))) {
-    throw new Error("--changed-since に ref がない");
-  }
-  return { ref, rest };
 }
 
 /**

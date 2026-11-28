@@ -117,7 +117,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         raw_trace: `raw/${rawName}`,
       });
       expect(timing.total_tokens).toBe(totalTokens);
-      expect(metadata).toMatchObject({ eval_id: 1, prompt: "EXPECT_WITH_SKILL" });
+      expect(metadata).toMatchObject({ eval_id: 1, prompt: "EXPECT_WITH_SKILL", split: "improve" });
       expect(readFileSync(join(output, "outputs", "response.md"), "utf8")).toBe(`${response}\n`);
       expect(readJson(join(output, "eval_metadata.json"))).toEqual(metadata);
       expect(metrics.files_created).toEqual([]);

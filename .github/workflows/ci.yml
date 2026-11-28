@@ -111,6 +111,13 @@ jobs:
         run: node scripts/gates/code/check-control-chars.ts
       - name: Eval assertion reachability
         run: node scripts/gates/packaging/check-eval-reachability.ts
+      # PR のベースとの差分で変えた配布スキルだけを見る。差分を取るので、checkout の fetch-depth: 0 が要る。
+      # Dependabot の PR は依存の更新でスキルを直す変更ではないので外す（docs/skill-development.md「改善に使うケースと判定に使うケース」）。
+      - name: Eval split (changed skills have a judge case)
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/gates/packaging/check-eval-split.ts --changed-since "origin/${BASE_REF}"
       - name: SKILL.md frontmatter (YAML valid, description <=1024B, name format)
         run: node scripts/gates/packaging/check-skill-frontmatter.ts
       - name: Identical copies (scripts/gates/packaging/copies/identical-copies.json)

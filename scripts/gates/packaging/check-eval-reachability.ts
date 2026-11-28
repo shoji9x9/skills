@@ -9,12 +9,13 @@
 // 残す場所も、書いていないことを検出する仕組みも無かった。到達できない assertion を抱えたまま実行し、
 // 6 run・9 run をやり直した記録が 3 度ある（実行の回数が 1.75〜2.5 倍になった）。
 //
-// チェックするのは、機械的に判定できる次の 5 点だけである。
+// チェックするのは、機械的に判定できる次の 6 点だけである。
 //   1. assertion ごとに対応要素があるか
 //   2. `prompt_quote` が空でないか
 //   3. `prompt_quote` がその eval の prompt の部分文字列か
 //   4. `assertion` がその eval の assertions に実在するか（位置ではなくテキストで対応づける）
 //   5. prompt が「何も実行しない／何も実行せず」で行為を禁じていないか（backlog の eval も対象にする）
+//   6. `split` を書いた eval で、値が improve か judge か（backlog の eval も対象にする）
 // 「1 assertion 1 主張」「選択肢が両方立つ材料があるか」等はレビュー観点として rule に残す
 // （機械検査は部分文字列の実在までしか見ない）。
 //
@@ -27,6 +28,7 @@ import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { showValue } from "../../lib/show-value.ts";
 import { isArray } from "../../lib/is-array.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
+import { evalSplitOf, invalidSplitMessage } from "../../lib/eval-split.ts";
 
 export const BACKLOG_PATH = "scripts/gates/packaging/eval-reachability-backlog.json";
 
@@ -110,6 +112,15 @@ function promptWordingViolations({ where, prompt }: EvalShape): string[] {
     `${where}: prompt が「${m[0]}」で行為を禁じている。禁じる対象を副作用（GitHub への書き込み・ファイルの変更）で書き、` +
       "スキルの文書の読み取りと読み取りだけのコマンドの実行は許すと書く",
   ];
+}
+
+/**
+ * `split` を書いた eval で、値が語彙（improve・judge）に入るかを確かめる。
+ * 綴りを誤った値を improve として扱うと、判定のケースのつもりの eval が改善に使われても気付けない。
+ */
+function splitViolations({ where, ev }: EvalShape): string[] {
+  if (evalSplitOf(ev) !== null) return [];
+  return [`${where}: ${invalidSplitMessage(ev.split)}`];
 }
 
 /**
@@ -243,6 +254,7 @@ export function checkEvalFile({
       continue;
     }
     violations.push(...promptWordingViolations(shape));
+    violations.push(...splitViolations(shape));
     const key = backlogKey(skill, shape.id);
     keys.push(key);
     const hasReachability = Object.hasOwn(shape.ev, "reachability");

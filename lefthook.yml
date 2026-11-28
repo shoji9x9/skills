@@ -306,6 +306,10 @@ pre-commit:
             # eval の assertion に、それを引き出す prompt の文（reachability）が併記されているか。
             glob: "evals/*/evals.json"
             run: node scripts/gates/packaging/check-eval-reachability.ts {staged_files}
+          - name: eval-split
+            # 変えた配布スキルの evals.json に、判定に使うケース（split: judge）があるか。変えていないスキルは見ない。
+            glob: "{skills/**,evals/*/evals.json}"
+            run: node scripts/gates/packaging/check-eval-split.ts {staged_files}
           - name: skill-frontmatter
             # SKILL.md frontmatter を検査（YAML 妥当性・description<=1024B・name 形式）。
             # 配布スキル（skills/*/SKILL.md）に加え private skill（.agents/skills/*/SKILL.md）も
