@@ -9,7 +9,7 @@
 // | evals.json         | judge あり / improve だけ / split なし / 無い / JSON でない / evals が配列でない           |
 // | index と作業ツリー | 同じ / stage していない変更がある / index から外して作業ツリーに残す                      |
 // | スキルのディレクトリ | ある / 消した / index から外して作業ツリーに残す                                         |
-// | identical-copies   | 正しい / 読めない（形の検査は check-identical-copies.ts の parseGroups が持つ）          |
+// | identical-copies   | 正しい / 読めない / stage していない変更がある（形の検査は check-identical-copies.ts の parseGroups が持つ）          |
 // | 引数               | ファイル / 無い / --changed-since <ref> / --changed-since=<ref> / ref が無い / ファイルと併用 / 差分を取れない |
 import { spawnSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
@@ -162,6 +162,14 @@ describe("CLI", () => {
     ["差分を取れない", ["--changed-since=no-such-ref"]],
   ])("%s なら exit 2", (_label, argv) => {
     expect(main(argv, makeRoot({ a: withJudge }))).toBe(2);
+  });
+
+  test("共通のコピーの台帳も stage した内容で読み、stage していない台帳の変更で除外を変えない", () => {
+    const root = makeRoot({ a: improveOnly });
+    write(root, DECLARATION_PATH, JSON.stringify({ groups: [COPIES.groups[1]] }));
+    expect(main(["skills/a/references/shared.md"], root)).toBe(0);
+    git(root, "add", DECLARATION_PATH);
+    expect(main(["skills/a/references/shared.md"], root)).toBe(1);
   });
 
   test("identical-copies.json を読めなければ exit 2", () => {

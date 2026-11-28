@@ -24,7 +24,7 @@ import { indexBlobs, readBlob, runGit } from "../../lib/git.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 import { splitChangedSince } from "../../lib/cli/changed-since.ts";
 import { evalSplitOf } from "../../lib/eval-split.ts";
-import { type CopyGroup, loadGroups } from "./copies/check-identical-copies.ts";
+import { type CopyGroup, DECLARATION_PATH, parseGroups } from "./copies/check-identical-copies.ts";
 
 /**
  * スキルの中で、複数のスキルが同じ中身を持つディレクトリ（`skills/<name>/` からの相対パスの接頭辞）。
@@ -113,6 +113,16 @@ function changedPaths(root: string, argv: readonly string[]): string[] {
   return out.split("\0").filter(Boolean);
 }
 
+/**
+ * 共通のコピーの台帳を index から読む。evals.json と同じく、作業ツリーの台帳で除外を決めると、
+ * stage していない台帳の変更で除外が変わり、commit の中身を見る CI と判定が食い違う。
+ */
+function stagedGroups(root: string): CopyGroup[] {
+  const blob = indexBlobs(root, [DECLARATION_PATH]).get(DECLARATION_PATH);
+  if (blob === undefined) throw new Error(`${DECLARATION_PATH} が index に無い`);
+  return parseGroups(JSON.parse(readBlob(root, blob, DECLARATION_PATH)));
+}
+
 /** スキルの判定に要る index のパス（スキルのディレクトリと evals.json）。 */
 function indexPaths(names: readonly string[]): string[] {
   return names.flatMap((name) => [`skills/${name}/`, join("evals", name, "evals.json")]);
@@ -122,7 +132,7 @@ export function main(argv: readonly string[], root = process.cwd()): number {
   let names: string[];
   let violations: string[];
   try {
-    const copies = wholeFileCopies(loadGroups(root));
+    const copies = wholeFileCopies(stagedGroups(root));
     names = skillsToCheck(changedPaths(root, argv), copies);
     // パスを渡さない ls-files は index のすべてを返すので、変えたスキルが 0 件なら呼ばない。
     const blobs =
