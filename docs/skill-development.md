@@ -331,6 +331,7 @@ eval の失敗を読まずに直す変更（Issue を起点にした修正、文
 合否が下がったときに回帰とするかは「前回の記録との比べ方」で決める（1 run どうしでは決めない）。回帰なら、直すか戻す。token だけが増えたときは、増えた量と理由を `benchmark.md` と PR の本文に書き、増えた分に見合うかは依頼者が決める。
 
 集計スクリプトは、各 run の `eval_metadata.json` の `split` から、`benchmark.json` の `metadata.evals_by_split` に、split ごとの eval の id を書く。
+同じ iteration に両方の split の eval があるときは、`run_summary` が両方の run を合わせた統計になる。判定に使うケースの token は、split ごとの統計の `run_summary_by_split.judge` で比べる。
 同じ eval の run が違う `split` を記録していると exit 2 で止まる。`split` を足す前の記録は `split` を持たないので、同じ eval のほかの run の値に従い、どの run にも無ければ `improve` として扱う。
 再利用した baseline（`baseline-reuse.json` を持つ run）は、元の run を実行したときの `split` を持つので、記録した値を使わず、同じくほかの run の値に従う。
 `split` は run の入力を変えないので、fingerprint に含めない。`split` を変えても、baseline の再利用は拒否されない。

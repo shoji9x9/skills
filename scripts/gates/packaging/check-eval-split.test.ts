@@ -16,7 +16,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { REPO_ROOT, write } from "../../lib/testing/repo-file.ts";
+import { gitInit, REPO_ROOT, write } from "../../lib/testing/repo-file.ts";
 import { main, skillsToCheck, splitViolation, wholeFileCopies } from "./check-eval-split.ts";
 import { DECLARATION_PATH, parseGroups } from "./copies/check-identical-copies.ts";
 
@@ -34,6 +34,8 @@ const COPIES = {
 /** 使い捨てのリポジトリに、スキルと evals.json と identical-copies.json を置く。 */
 function makeRoot(evalsBySkill: Record<string, unknown>, copies: unknown = COPIES) {
   const root = makeTempDir("eval-split-");
+  // index から読む処理を通すので、git のリポジトリにする（何も stage しなければ作業ツリーから読む）。
+  gitInit(root);
   const text = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
   for (const [name, evals] of Object.entries(evalsBySkill)) {
     write(root, `skills/${name}/SKILL.md`, "# s\n");
@@ -108,6 +110,17 @@ describe("evals.json に判定に使うケースがあるか", () => {
     },
   );
 
+  test("pre-commit では、stage した evals.json で判定する（stage していない judge では通さない）", () => {
+    const root = makeRoot({ a: improveOnly });
+    const git = (...args: string[]) =>
+      expect(spawnSync("git", args, { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
+    git("add", "evals/a/evals.json");
+    write(root, "evals/a/evals.json", JSON.stringify(withJudge));
+    expect(main(["skills/a/SKILL.md"], root)).toBe(1);
+    git("add", "evals/a/evals.json");
+    expect(main(["skills/a/SKILL.md"], root)).toBe(0);
+  });
+
   test("スキルを消した変更は通す", () => {
     const root = makeRoot({ a: improveOnly });
     rmSync(join(root, "skills", "a"), { recursive: true });
@@ -158,7 +171,8 @@ describe("CLI", () => {
       });
       expect(res.status, res.stderr).toBe(0);
     };
-    git("init", "-q", "-b", "main");
+    // makeRoot が git init 済みなので、ブランチの名前だけを決める。
+    git("switch", "-qc", "main");
     git("add", ".");
     git("commit", "-qm", "base");
     git("switch", "-qc", "topic");

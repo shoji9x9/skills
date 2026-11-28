@@ -873,6 +873,7 @@ function buildBenchmark(
 ) {
   const runs = loaded.map((r) => r.run);
   const evalsRun = [...new Set(runs.map((r) => r.eval_id))].sort((a, b) => a - b);
+  const bySplit = evalsBySplit(loaded);
   return {
     metadata: {
       skill_name: opts.skillName,
@@ -881,11 +882,16 @@ function buildBenchmark(
       analyzer_model: opts.analyzerModel,
       timestamp: opts.timestamp ?? `${new Date().toISOString().slice(0, 19)}Z`,
       evals_run: evalsRun,
-      evals_by_split: evalsBySplit(loaded),
+      evals_by_split: bySplit,
       runs_per_configuration: runsPerConfiguration,
     },
     runs,
     run_summary: summarizeRuns(runs),
+    // 判定に使うケースの退行は、改善に使うケースの run を混ぜずに比べる。eval が無い split は空のオブジェクトになる。
+    run_summary_by_split: {
+      improve: summarizeRuns(runs.filter((r) => bySplit.improve.includes(r.eval_id))),
+      judge: summarizeRuns(runs.filter((r) => bySplit.judge.includes(r.eval_id))),
+    },
     notes,
   };
 }

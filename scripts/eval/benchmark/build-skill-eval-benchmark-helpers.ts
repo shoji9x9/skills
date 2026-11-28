@@ -28,6 +28,7 @@ export type Benchmark = {
     notes: unknown;
   }[];
   run_summary: Record<string, Record<string, Record<string, number>>>;
+  run_summary_by_split: Record<string, Record<string, Record<string, Record<string, number>>>>;
   notes: unknown;
 };
 

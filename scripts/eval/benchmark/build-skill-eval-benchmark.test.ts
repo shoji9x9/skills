@@ -824,6 +824,28 @@ describe.concurrent("split（改善に使うケースと判定に使うケース
     });
   });
 
+  test("run_summary_by_split は、判定に使うケースの統計に改善に使うケースの run を混ぜない", async () => {
+    const root = makeIteration();
+    for (const configuration of ["with_skill", "without_skill"]) {
+      // eval 1（improve）はすべて落ち、eval 2（judge）はすべて通る。
+      writeRun(root, {
+        evalDir: "eval-1",
+        evalId: 1,
+        configuration,
+        split: "improve",
+        passed: ASSERTIONS.map(() => false),
+      });
+      writeRun(root, { evalDir: "eval-2", evalId: 2, configuration, split: "judge" });
+    }
+    const res = await run(root);
+    expect(res.status, res.out).toBe(0);
+    const b = parseJsonAs<Benchmark>(res.stdout);
+    expect(b.run_summary.with_skill.pass_rate.mean).toBe(0.5);
+    expect(b.run_summary_by_split.judge.with_skill.pass_rate.mean).toBe(1);
+    expect(b.run_summary_by_split.judge.without_skill.pass_rate.mean).toBe(1);
+    expect(b.run_summary_by_split.improve.with_skill.pass_rate.mean).toBe(0);
+  });
+
   test("同じ eval の run が違う split を記録していれば落とす", async () => {
     const root = iterationWithSplits({ "2/with_skill": "judge", "2/without_skill": "improve" });
     const res = await run(root);
