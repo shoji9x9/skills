@@ -99,9 +99,14 @@ describe("evals.json に判定に使うケースがあるか", () => {
     ["evals.json が無い", undefined, "読めないので"],
     ["JSON でない", "{", "読めないので"],
     ["evals が配列でない", { skill_name: "a", evals: {} }, "evals が配列でない"],
-  ])("%s なら、確かめられないとして落とす", (_label, evals, message) => {
-    expect(splitViolation(makeRoot({ a: evals }), "a")).toContain(message);
-  });
+  ])(
+    "%s なら、judge が無いとは判定せず例外にし、CLI は exit 2 にする",
+    (_label, evals, message) => {
+      const root = makeRoot({ a: evals });
+      expect(() => splitViolation(root, "a")).toThrow(message);
+      expect(main(["skills/a/SKILL.md"], root)).toBe(2);
+    },
+  );
 
   test("スキルを消した変更は通す", () => {
     const root = makeRoot({ a: improveOnly });

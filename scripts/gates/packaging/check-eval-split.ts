@@ -15,7 +15,7 @@
 //
 // pre-commit は変えたファイルを `check-eval-split.ts <path>...` で渡す。
 // CI は `check-eval-split.ts --changed-since <ref>` で、<ref>...HEAD の差分を渡す。
-// 終了コードは、0 が違反なし、1 が違反あり、2 が入力を決められない（引数が無い・差分を取れない・宣言を読めない）である。
+// 終了コードは、0 が違反なし、1 が違反あり、2 が入力を決められない（引数が無い・差分を取れない・共通のコピーの台帳か evals.json を読めない）である。
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { errorMessage } from "../../lib/errors.ts";
@@ -58,7 +58,10 @@ export function skillsToCheck(paths: readonly string[], copies: ReadonlySet<stri
   return [...names].sort();
 }
 
-/** 1 つのスキルの evals.json を読み、判定に使うケースが無ければ違反の文を返す。 */
+/**
+ * 1 つのスキルの evals.json を読み、判定に使うケースが無ければ違反の文を返す。
+ * evals.json を読めないときは、judge が無いとは判定できないので、違反にせず例外にする（main が exit 2 にする）。
+ */
 export function splitViolation(root: string, name: string): string | undefined {
   // スキルを消した変更（ディレクトリが無い）は、分ける対象が無いので通す。
   if (!statSync(join(root, "skills", name), { throwIfNoEntry: false })?.isDirectory()) {
@@ -69,10 +72,12 @@ export function splitViolation(root: string, name: string): string | undefined {
   try {
     parsed = JSON.parse(readFileSync(join(root, file), "utf8"));
   } catch (error) {
-    return `${file}: 読めないので、判定に使うケースがあるかを確かめられない: ${errorMessage(error)}`;
+    throw new Error(
+      `${file}: 読めないので、判定に使うケースがあるかを確かめられない: ${errorMessage(error)}`,
+    );
   }
   if (!isRecord(parsed) || !isArray(parsed.evals)) {
-    return `${file}: evals が配列でないので、判定に使うケースがあるかを確かめられない`;
+    throw new Error(`${file}: evals が配列でないので、判定に使うケースがあるかを確かめられない`);
   }
   if (parsed.evals.some((ev) => isRecord(ev) && evalSplitOf(ev) === "judge")) return undefined;
   return (
@@ -101,14 +106,15 @@ function changedPaths(root: string, argv: readonly string[]): string[] {
 
 export function main(argv: readonly string[], root = process.cwd()): number {
   let names: string[];
+  let violations: string[];
   try {
     const copies = wholeFileCopies(loadGroups(root));
     names = skillsToCheck(changedPaths(root, argv), copies);
+    violations = names.flatMap((name) => splitViolation(root, name) ?? []);
   } catch (error) {
     console.error(`eval-split: 実行できない: ${errorMessage(error)}`);
     return 2;
   }
-  const violations = names.flatMap((name) => splitViolation(root, name) ?? []);
   if (violations.length > 0) {
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
