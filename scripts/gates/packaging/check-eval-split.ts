@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
-import { indexBlobs, readStagedOrWorking, runGit } from "../../lib/git.ts";
+import { indexBlobs, readBlob, runGit } from "../../lib/git.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 import { splitChangedSince } from "../../lib/cli/changed-since.ts";
 import { evalSplitOf } from "../../lib/eval-split.ts";
@@ -60,13 +60,15 @@ export function skillsToCheck(paths: readonly string[], copies: ReadonlySet<stri
 
 /**
  * 1 つのスキルの evals.json を読み、判定に使うケースが無ければ違反の文を返す。
- * index にあれば staged の内容を読む（`blobs` は `indexBlobs` の結果）。pre-commit で、stage していない judge で通さないためである。
+ * index の内容だけを読み、作業ツリーは読まない（`blobs` は `indexBlobs` の結果。省くとこの 1 件を index から取得する）。
+ * pre-commit で、stage していない judge で通さないためと、index に無いファイル（`git rm --cached` したものなど）を
+ * 作業ツリーから読んで、そのファイルを持たない commit を見る CI と違う判定をしないためである。
  * evals.json を読めないときは、judge が無いとは判定できないので、違反にせず例外にする（main が exit 2 にする）。
  */
 export function splitViolation(
   root: string,
   name: string,
-  blobs: ReadonlyMap<string, string> = new Map(),
+  blobs?: ReadonlyMap<string, string>,
 ): string | undefined {
   // スキルを消した変更（ディレクトリが無い）は、分ける対象が無いので通す。
   if (!statSync(join(root, "skills", name), { throwIfNoEntry: false })?.isDirectory()) {
@@ -75,9 +77,9 @@ export function splitViolation(
   const file = join("evals", name, "evals.json");
   let parsed: unknown;
   try {
-    const source = readStagedOrWorking(root, file, blobs);
-    if (source === null) throw new Error("index にも作業ツリーにも無い");
-    parsed = JSON.parse(source);
+    const blob = (blobs ?? indexBlobs(root, [file])).get(file);
+    if (blob === undefined) throw new Error("index に無い");
+    parsed = JSON.parse(readBlob(root, blob, file));
   } catch (error) {
     throw new Error(
       `${file}: 読めないので、判定に使うケースがあるかを確かめられない: ${errorMessage(error)}`,

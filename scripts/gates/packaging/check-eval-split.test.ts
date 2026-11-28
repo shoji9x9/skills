@@ -7,6 +7,7 @@
 // | 変えたファイル     | SKILL.md / references / scripts / evals.json / fixture / skill-config / vendor / 全体のコピー / region のコピー / インストール済みのコピー / skills の直下 |
 // | 件数               | 0 件 / 1 件 / 同じスキルの複数のファイル / 複数のスキル                                    |
 // | evals.json         | judge あり / improve だけ / split なし / 無い / JSON でない / evals が配列でない           |
+// | index と作業ツリー | 同じ / stage していない変更がある / index から外して作業ツリーに残す                      |
 // | スキルのディレクトリ | ある / 消した                                                                           |
 // | identical-copies   | 正しい / 読めない（形の検査は check-identical-copies.ts の parseGroups が持つ）          |
 // | 引数               | ファイル / 無い / --changed-since <ref> / --changed-since=<ref> / ref が無い / ファイルと併用 / 差分を取れない |
@@ -31,10 +32,10 @@ const COPIES = {
   ],
 };
 
-/** 使い捨てのリポジトリに、スキルと evals.json と identical-copies.json を置く。 */
+/** 使い捨てのリポジトリに、スキルと evals.json と identical-copies.json を置き、すべてを stage する。 */
 function makeRoot(evalsBySkill: Record<string, unknown>, copies: unknown = COPIES) {
   const root = makeTempDir("eval-split-");
-  // index から読む処理を通すので、git のリポジトリにする（何も stage しなければ作業ツリーから読む）。
+  // チェックは evals.json を index からだけ読むので、git のリポジトリにする。
   gitInit(root);
   const text = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value));
   for (const [name, evals] of Object.entries(evalsBySkill)) {
@@ -42,7 +43,13 @@ function makeRoot(evalsBySkill: Record<string, unknown>, copies: unknown = COPIE
     if (evals !== undefined) write(root, `evals/${name}/evals.json`, text(evals));
   }
   write(root, DECLARATION_PATH, text(copies));
+  git(root, "add", ".");
   return root;
+}
+
+function git(root: string, ...args: string[]) {
+  const r = spawnSync("git", args, { cwd: root, timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
+  expect(r.status, r.stderr).toBe(0);
 }
 
 const withJudge = { skill_name: "a", evals: [{ id: 1 }, { id: 2, split: "judge" }] };
@@ -112,13 +119,17 @@ describe("evals.json に判定に使うケースがあるか", () => {
 
   test("pre-commit では、stage した evals.json で判定する（stage していない judge では通さない）", () => {
     const root = makeRoot({ a: improveOnly });
-    const git = (...args: string[]) =>
-      expect(spawnSync("git", args, { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
-    git("add", "evals/a/evals.json");
     write(root, "evals/a/evals.json", JSON.stringify(withJudge));
     expect(main(["skills/a/SKILL.md"], root)).toBe(1);
-    git("add", "evals/a/evals.json");
+    git(root, "add", "evals/a/evals.json");
     expect(main(["skills/a/SKILL.md"], root)).toBe(0);
+  });
+
+  test("index から外して作業ツリーに残した evals.json は、作業ツリーの judge で通さず exit 2 にする（CI の checkout と同じ判定）", () => {
+    const root = makeRoot({ a: withJudge });
+    git(root, "rm", "-q", "--cached", "evals/a/evals.json");
+    expect(() => splitViolation(root, "a")).toThrow("index に無い");
+    expect(main(["skills/a/SKILL.md", "evals/a/evals.json"], root)).toBe(2);
   });
 
   test("スキルを消した変更は通す", () => {
