@@ -71,3 +71,4 @@ ci:46117504448:1,ci,2026-11-28T06:45:27.893Z,p-cdee4961,github-actions,,,,2026-1
 ci:46117504539:1,ci,2026-11-28T06:45:27.893Z,p-cdee4961,github-actions,,,,2026-11-28T06:37:59.000Z,2026-11-28T06:39:34.000Z,Asia/Tokyo,feature/1126-split-eval-cases-improve-judge,1126,,,,,,,,,,CodeQL;pull_request;success,
 ci:46117504450:1,ci,2026-11-28T06:45:27.893Z,p-cdee4961,github-actions,,,,2026-11-28T06:37:59.000Z,2026-11-28T06:43:30.000Z,Asia/Tokyo,feature/1126-split-eval-cases-improve-judge,1126,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-11-27T06:36:44.620Z:2026-11-28T06:45:27.893Z,coverage,2026-11-28T06:45:27.893Z,p-cdee4961,,,,,2026-11-27T06:36:44.620Z,2026-11-28T06:45:27.893Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-11-27T06:45:27.893Z:2026-11-28T06:46:17.429Z,coverage,2026-11-28T06:46:17.429Z,p-cdee4961,,,,,2026-11-27T06:45:27.893Z,2026-11-28T06:46:17.429Z,Asia/Tokyo,,,,,,,,,,,,ok,

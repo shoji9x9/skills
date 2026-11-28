@@ -183,6 +183,56 @@
       "tokens": "+15560"
     }
   },
+  "run_summary_by_split": {
+    "improve": {},
+    "judge": {
+      "with_skill": {
+        "pass_rate": {
+          "mean": 1,
+          "stddev": 0,
+          "min": 1,
+          "max": 1
+        },
+        "time_seconds": {
+          "mean": 22.02,
+          "stddev": 3.957,
+          "min": 19.222,
+          "max": 24.818
+        },
+        "tokens": {
+          "mean": 92769,
+          "stddev": 37113.2065,
+          "min": 66526,
+          "max": 119012
+        }
+      },
+      "without_skill": {
+        "pass_rate": {
+          "mean": 0.5,
+          "stddev": 0.7071,
+          "min": 0,
+          "max": 1
+        },
+        "time_seconds": {
+          "mean": 21.6775,
+          "stddev": 6.4792,
+          "min": 17.096,
+          "max": 26.259
+        },
+        "tokens": {
+          "mean": 77209,
+          "stddev": 18142.9458,
+          "min": 64380,
+          "max": 90038
+        }
+      },
+      "delta": {
+        "pass_rate": "+0.50",
+        "time_seconds": "+0.3",
+        "tokens": "+15560"
+      }
+    }
+  },
   "notes": [
     "Issue #1126 の取り決めに沿った実行。eval 2 と 4 を判定に使うケース（split: judge）にし、スキルは変えずに 1 run ずつ実行した（変更確認と同じ数）。",
     "比べる記録は、eval 2 が iteration-10（with_skill だけ）、eval 4 が iteration-11。executor は claude-code・opus・medium で同じ。CLI のバージョンは 2.1.303 から 2.1.332 に変わった。"
