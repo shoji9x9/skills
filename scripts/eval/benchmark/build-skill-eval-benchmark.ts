@@ -11,6 +11,9 @@
 //     `evals.json` から採ると、後から assertion を変えたときに過去の記録のテキストがずれる。
 //   - 判定（`grading.json`）はテキストをキーにして突き合わせる。**位置配列は受理しない。**
 //   - キー集合の不一致・件数の不一致・採点内訳と summary の食い違いは exit 2。
+//   - eval ごとの split（改善に使うケースか、判定に使うケースか）も `eval_metadata.json` から採り、
+//     `metadata.evals_by_split` に書く。split を記録していない run（split を足す前の記録・その記録を再利用した baseline）は、
+//     同じ eval のほかの run の値に従い、どの run にも無ければ improve として扱う。
 //
 // 使い方:
 //   node scripts/eval/benchmark/build-skill-eval-benchmark.ts <iteration-dir> \
@@ -26,6 +29,12 @@ import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { isArray } from "../../lib/is-array.ts";
+import {
+  DEFAULT_EVAL_SPLIT,
+  type EvalSplit,
+  invalidSplitMessage,
+  isEvalSplit,
+} from "../../lib/eval-split.ts";
 
 const CONFIGURATIONS = ["with_skill", "without_skill"] as const;
 
@@ -441,6 +450,20 @@ function measurementsOf(runDir: string, timing: JsonObject, timingPath: string) 
   return { seconds, tokens, metrics };
 }
 
+/**
+ * run の split を読む。記録していなければ null、語彙に無い値なら落とす。
+ * 再利用した baseline（baseline-reuse.json を持つ run）の split は、元の run を実行したときの値で、
+ * この iteration の宣言ではない。split は fingerprint に含めないので、split を変えた後も再利用は受け付けられる。
+ * そのため、値の形だけを確かめて null を返し、記録していない run と同じに、同じ eval のほかの run の値に従わせる。
+ */
+function splitOf(runDir: string, meta: JsonObject, metaPath: string): EvalSplit | null {
+  if (!Object.hasOwn(meta, "split")) return null;
+  if (!isEvalSplit(meta.split)) {
+    die(`${metaPath}: ${invalidSplitMessage(meta.split)}`);
+  }
+  return existsSync(join(runDir, "baseline-reuse.json")) ? null : meta.split;
+}
+
 /** run 1 件を読み、集計に使う形へ正規化する。 */
 function loadRun(runDir: string, configuration: string, evalDir: string) {
   const metaPath = join(runDir, "eval_metadata.json");
@@ -455,6 +478,7 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
 
   const evalId = evalIdOf(meta, metaPath, evalDir);
   const assertions = assertionsOf(meta, metaPath);
+  const split = splitOf(runDir, meta, metaPath);
   const expectations = expectationsOf({ assertions, grading, gradingPath, metaPath });
   const { passed, failed, computedRate } = tallyGrading(grading, gradingPath, expectations);
   const { seconds, tokens, metrics } = measurementsOf(runDir, timing, timingPath);
@@ -462,6 +486,7 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   return {
     runDir,
     assertions,
+    split,
     executor: executorMeta(timing.executor),
     run: {
       eval_id: evalId,
@@ -737,6 +762,30 @@ function checkAssertionSets(loaded: LoadedRun[]): void {
   }
 }
 
+/**
+ * eval を split ごとに分ける。同じ eval の run が違う split を記録していたら落とす。
+ * run の合間に split を変えると、判定のケースの記録に、改善のケースとして実行した run も含まれるからである。
+ */
+function evalsBySplit(loaded: LoadedRun[]): Record<EvalSplit, number[]> {
+  const recorded = new Map<number, Set<EvalSplit>>();
+  for (const r of loaded) {
+    const splits = recorded.get(r.run.eval_id) ?? new Set<EvalSplit>();
+    if (r.split !== null) splits.add(r.split);
+    recorded.set(r.run.eval_id, splits);
+  }
+  // Record<EvalSplit, ...> なので、語彙を足すとこの初期値が型の検査で落ちる。
+  const bySplit: Record<EvalSplit, number[]> = { improve: [], judge: [] };
+  for (const [evalId, splits] of [...recorded].sort(([a], [b]) => a - b)) {
+    if (splits.size > 1) {
+      die(
+        `eval ${evalId} の run が違う split（${[...splits].join(" と ")}）を記録している。run の合間に split を変えた iteration は分ける`,
+      );
+    }
+    bySplit[[...splits][0] ?? DEFAULT_EVAL_SPLIT].push(evalId);
+  }
+  return bySplit;
+}
+
 /** configuration ごとの統計と、両方の configuration があるときの Delta を作る。 */
 function summarizeRuns(runs: LoadedRun["run"][]): RunSummary {
   const runSummary: RunSummary = {};
@@ -824,6 +873,7 @@ function buildBenchmark(
 ) {
   const runs = loaded.map((r) => r.run);
   const evalsRun = [...new Set(runs.map((r) => r.eval_id))].sort((a, b) => a - b);
+  const bySplit = evalsBySplit(loaded);
   return {
     metadata: {
       skill_name: opts.skillName,
@@ -832,10 +882,16 @@ function buildBenchmark(
       analyzer_model: opts.analyzerModel,
       timestamp: opts.timestamp ?? `${new Date().toISOString().slice(0, 19)}Z`,
       evals_run: evalsRun,
+      evals_by_split: bySplit,
       runs_per_configuration: runsPerConfiguration,
     },
     runs,
     run_summary: summarizeRuns(runs),
+    // 判定に使うケースの退行は、改善に使うケースの run を混ぜずに比べる。eval が無い split は空のオブジェクトになる。
+    run_summary_by_split: {
+      improve: summarizeRuns(runs.filter((r) => bySplit.improve.includes(r.eval_id))),
+      judge: summarizeRuns(runs.filter((r) => bySplit.judge.includes(r.eval_id))),
+    },
     notes,
   };
 }

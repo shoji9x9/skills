@@ -4,6 +4,8 @@
  * 失敗（0 以外の終了・打ち切り・起動の失敗）は、何を読もうとしたかと終わり方（spawnEnd）を書いて投げる。
  */
 import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { spawnEnd } from "./errors.ts";
 
 /** git が応答しないときに、待ち続けないよう打ち切る時間。 */
@@ -90,4 +92,20 @@ export function indexBlobs(root: string, paths: readonly string[]): Map<string, 
 /** blob の中身。`path` は失敗のメッセージに書く、その blob のファイルのパス。 */
 export function readBlob(root: string, blob: string, path: string): string {
   return runGit(root, ["cat-file", "blob", blob], { what: `${path}: staged の中身を読めない` });
+}
+
+/**
+ * ファイルの中身。index にあれば staged の blob、無ければ作業ツリーから読む。どちらにも無ければ null。
+ * pre-commit のチェックが、stage していない作業ツリーの変更で判定しないために使う。
+ * `blobs` は `indexBlobs` の結果である。
+ */
+export function readStagedOrWorking(
+  root: string,
+  path: string,
+  blobs: ReadonlyMap<string, string>,
+): string | null {
+  const blob = blobs.get(path);
+  if (blob) return readBlob(root, blob, path);
+  const abs = join(root, path);
+  return existsSync(abs) ? readFileSync(abs, "utf8") : null;
 }

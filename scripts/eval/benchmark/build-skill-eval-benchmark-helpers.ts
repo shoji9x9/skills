@@ -28,6 +28,7 @@ export type Benchmark = {
     notes: unknown;
   }[];
   run_summary: Record<string, Record<string, Record<string, number>>>;
+  run_summary_by_split: Record<string, Record<string, Record<string, Record<string, number>>>>;
   notes: unknown;
 };
 
@@ -45,6 +46,8 @@ export type RunSpec = {
   omitGrading?: boolean;
   omitTiming?: boolean;
   executor?: unknown;
+  /** 書くと eval_metadata.json に split を置く。書かなければ置かない（split を足す前の記録の形）。 */
+  split?: unknown;
 };
 
 export function makeIteration() {
@@ -86,13 +89,21 @@ export function writeRun(
     omitGrading = false,
     omitTiming = false,
     executor = { name: "claude-code", model: "opus", reasoning_effort: null },
+    split,
   }: RunSpec,
 ) {
   const dir = join(root, evalDir, configuration, `run-${runNumber}`);
   mkdirSync(join(dir, "outputs"), { recursive: true });
   writeFileSync(
     join(dir, "eval_metadata.json"),
-    JSON.stringify({ eval_id: evalId, eval_name: evalDir, prompt: "p", assertions }),
+    JSON.stringify({
+      eval_id: evalId,
+      eval_name: evalDir,
+      prompt: "p",
+      assertions,
+      // undefined の split は JSON.stringify が書かないので、split を足す前の記録の形になる。
+      split,
+    }),
   );
   if (!omitTiming) {
     writeFileSync(

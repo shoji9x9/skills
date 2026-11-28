@@ -19,12 +19,10 @@
 // pre-commit では commit に入る中身を、CI では commit の中身（作業ツリーと同じ）を見る。作業ツリーから消して
 // stage したままのファイルも、index から読む。
 // 走査したファイルが 0 件・git が失敗した・中身を読めないときは、判定できないので exit 2 にする。
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { indexBlobs, listFiles, readBlob, repoRoot } from "../../lib/git.ts";
+import { indexBlobs, listFiles, readStagedOrWorking, repoRoot } from "../../lib/git.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
@@ -106,21 +104,13 @@ export function directiveCommentRanges(
     .map((r) => ({ pos: r.pos, end: r.end }));
 }
 
-/** ファイルの中身。index にあれば staged の blob、無ければ作業ツリーから読む。どちらにも無ければ null。 */
-function readSource(root: string, path: string, blobs: Map<string, string>): string | null {
-  const blob = blobs.get(path);
-  if (blob) return readBlob(root, blob, path);
-  const abs = join(root, path);
-  return existsSync(abs) ? readFileSync(abs, "utf8") : null;
-}
-
 /** 違反の一覧（`パス:行番号: 内容`）。 */
 export function findViolations(root: string, skillFiles: readonly string[]): string[] {
   const out: string[] = [];
   const code = skillFiles.filter((p) => CODE_EXT_RE.test(p));
   const blobs = indexBlobs(root, code);
   for (const path of code) {
-    const source = readSource(root, path, blobs);
+    const source = readStagedOrWorking(root, path, blobs);
     if (source === null) throw new Error(`${path}: index にも作業ツリーにも無い`);
     for (const v of findDirectives(source, path)) {
       out.push(`${path}:${v}（このリポジトリの設定を前提にした抑止。設定の overrides で外す）`);

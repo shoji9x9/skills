@@ -183,6 +183,7 @@ jscpd は 3 か所以上の重複を 2 つずつの組で報告するので、1 
 | `packaging/copies/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`skills/writing-style/references/rules.md` と `docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
+| `packaging/check-eval-split.ts` | 変えた配布スキルの eval に、判定に使うケースがあるか。変えたファイルだけを見るので、変えたスキルが 0 件なら成功にする |
 | `packaging/copies/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`） |

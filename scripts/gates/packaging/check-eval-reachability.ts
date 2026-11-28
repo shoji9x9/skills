@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // eval の assertion と、それを引き出す prompt の文の対応（到達性）を決定論的に検査する
-// （lefthook pre-commit はステージした evals.json、CI の Lint ジョブは全スキル）。
+// （lefthook pre-commit はステージした evals.json を index から読み、CI の Lint ジョブは全スキルを作業ツリーから読む）。
 // eval は配布物に含めないため `skills/<name>/` ではなく `evals/<name>/evals.json` に置く
 // （全走査では `skills/<name>/evals/` の残存も違反にする）。
 //
@@ -9,12 +9,13 @@
 // 残す場所も、書いていないことを検出する仕組みも無かった。到達できない assertion を抱えたまま実行し、
 // 6 run・9 run をやり直した記録が 3 度ある（実行の回数が 1.75〜2.5 倍になった）。
 //
-// チェックするのは、機械的に判定できる次の 5 点だけである。
+// チェックするのは、機械的に判定できる次の 6 点だけである。
 //   1. assertion ごとに対応要素があるか
 //   2. `prompt_quote` が空でないか
 //   3. `prompt_quote` がその eval の prompt の部分文字列か
 //   4. `assertion` がその eval の assertions に実在するか（位置ではなくテキストで対応づける）
 //   5. prompt が「何も実行しない／何も実行せず」で行為を禁じていないか（backlog の eval も対象にする）
+//   6. `split` を書いた eval で、値が improve か judge か（backlog の eval も対象にする）
 // 「1 assertion 1 主張」「選択肢が両方立つ材料があるか」等はレビュー観点として rule に残す
 // （機械検査は部分文字列の実在までしか見ない）。
 //
@@ -27,6 +28,8 @@ import { isNonBlankString, isRecord } from "../../lib/guards.ts";
 import { showValue } from "../../lib/show-value.ts";
 import { isArray } from "../../lib/is-array.ts";
 import { isCliEntry } from "../../lib/cli/entry.ts";
+import { evalSplitOf, invalidSplitMessage } from "../../lib/eval-split.ts";
+import { indexBlobs, readBlob } from "../../lib/git.ts";
 
 export const BACKLOG_PATH = "scripts/gates/packaging/eval-reachability-backlog.json";
 
@@ -110,6 +113,15 @@ function promptWordingViolations({ where, prompt }: EvalShape): string[] {
     `${where}: prompt が「${m[0]}」で行為を禁じている。禁じる対象を副作用（GitHub への書き込み・ファイルの変更）で書き、` +
       "スキルの文書の読み取りと読み取りだけのコマンドの実行は許すと書く",
   ];
+}
+
+/**
+ * `split` を書いた eval で、値が語彙（improve・judge）に入るかを確かめる。
+ * 綴りを誤った値を improve として扱うと、判定のケースのつもりの eval が改善に使われても気付けない。
+ */
+function splitViolations({ where, ev }: EvalShape): string[] {
+  if (evalSplitOf(ev) !== null) return [];
+  return [`${where}: ${invalidSplitMessage(ev.split)}`];
 }
 
 /**
@@ -243,6 +255,7 @@ export function checkEvalFile({
       continue;
     }
     violations.push(...promptWordingViolations(shape));
+    violations.push(...splitViolations(shape));
     const key = backlogKey(skill, shape.id);
     keys.push(key);
     const hasReachability = Object.hasOwn(shape.ev, "reachability");
@@ -255,19 +268,47 @@ export function checkEvalFile({
   return { evals: evals.length, violations, keys };
 }
 
-function loadBacklog(root: string): {
+/** ファイルの中身。無ければ null、読めなければ例外。 */
+type Reader = (path: string) => string | null;
+
+/** 作業ツリーから読む（全走査。CI は checkout した作業ツリーを読む）。 */
+const readWorking: Reader = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
+
+/**
+ * index から読む（ファイルを渡す pre-commit）。作業ツリーから読むと、stage していない変更で判定が変わり、
+ * commit に入る内容（不正な split など）を検査しない。index に無いファイルは無いものとして扱う。
+ */
+function stagedReader(root: string, files: readonly string[]): Reader {
+  const blobs = indexBlobs(root, [...files.map((f) => relative(root, f)), BACKLOG_PATH]);
+  return (path) => {
+    const rel = relative(root, path);
+    const blob = blobs.get(rel);
+    return blob === undefined ? null : readBlob(root, blob, rel);
+  };
+}
+
+function loadBacklog(
+  root: string,
+  read: Reader,
+): {
   exempt: Set<string>;
   missing: boolean;
   error?: string;
 } {
   const path = join(root, BACKLOG_PATH);
-  if (!existsSync(path)) return { exempt: new Set(), missing: true };
+  let source: string | null;
+  try {
+    source = read(path);
+  } catch (error) {
+    return { exempt: new Set(), missing: false, error: errorMessage(error) };
+  }
+  if (source === null) return { exempt: new Set(), missing: true };
   // 不在を違反として扱う以上、形式が不正な場合も違反にする。素の JSON.parse だと、
   // （merge 衝突の残骸などで）スタックトレースを出してチェックが止まる。すると pre-commit / CI が、
   // 「チェックした結果」ではなくクラッシュで落ちる。
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
+    parsed = JSON.parse(source);
   } catch (error) {
     return { exempt: new Set(), missing: false, error: errorMessage(error) };
   }
@@ -289,30 +330,52 @@ function loadBacklog(root: string): {
   return { exempt: ids, missing: false };
 }
 
+/** readAndCheck が読む場所と免除。 */
+type ReadContext = {
+  root: string;
+  read: Reader;
+  staged: boolean;
+  backlog: ReadonlySet<string>;
+};
+
+/**
+ * 1 つの evals.json を読んで検査する。読めない入力は違反として報告する（check-control-chars.ts と同じ扱い）。
+ * 例外のまま返すと、消えたファイル・リンク先の無い symlink で、スタックトレースを出して終わる。
+ * すると「チェックした結果」ではなく、クラッシュで pre-commit / CI が落ちる。
+ */
+function readAndCheck(
+  file: string,
+  { root, read, staged, backlog }: ReadContext,
+): { evals: number; violations: string[]; keys: string[] } {
+  const label = relative(root, file) || file;
+  let source;
+  try {
+    source = read(file);
+    if (source === null) throw new Error(staged ? "index に無い" : "ファイルが無い");
+  } catch (error) {
+    return {
+      evals: 0,
+      violations: [`${label}: 読めないため検査できていない: ${errorCodeOrMessage(error)}`],
+      keys: [],
+    };
+  }
+  return checkEvalFile({ path: file, source, backlog, label });
+}
+
 export function checkAll(
   root: string,
   files: string[],
-  { fullScan = true }: { fullScan?: boolean } = {},
+  { fullScan = true, staged = false }: { fullScan?: boolean; staged?: boolean } = {},
 ) {
-  const { exempt, missing, error } = loadBacklog(root);
+  const read = staged ? stagedReader(root, files) : readWorking;
+  const { exempt, missing, error } = loadBacklog(root, read);
   const violations: string[] = [];
   if (missing) violations.push(`${BACKLOG_PATH}: 宣言ファイルが無い（免除の原本が読めない）`);
   else if (error) violations.push(`${BACKLOG_PATH}: 宣言ファイルを読めない: ${error}`);
   let evals = 0;
   const keys: string[] = [];
   for (const file of files) {
-    const label = relative(root, file) || file;
-    // 読めない入力は違反として報告する（check-control-chars.ts と同じ扱い）。
-    // 素の readFileSync だと、消えたファイル・リンク先の無い symlink で、スタックトレースを出して終わる。
-    // すると「チェックした結果」ではなく、クラッシュで pre-commit / CI が落ちる。
-    let source;
-    try {
-      source = readFileSync(file, "utf8");
-    } catch (error) {
-      violations.push(`${label}: 読めないため検査できていない: ${errorCodeOrMessage(error)}`);
-      continue;
-    }
-    const r = checkEvalFile({ path: file, source, backlog: exempt, label });
+    const r = readAndCheck(file, { root, read, staged, backlog: exempt });
     evals += r.evals;
     violations.push(...r.violations);
     keys.push(...r.keys);
@@ -346,7 +409,11 @@ function main(argv: string[]) {
     return 1;
   }
 
-  const { evals, violations } = checkAll(root, files, { fullScan: args.length === 0 });
+  // ファイルを渡すのは pre-commit なので、stage した内容を読む。
+  const { evals, violations } = checkAll(root, files, {
+    fullScan: args.length === 0,
+    staged: args.length > 0,
+  });
   if (violations.length) {
     console.error(
       `eval-reachability: ${files.length} ファイル・${evals} eval を走査し、${violations.length} 件:`,

@@ -37,6 +37,8 @@ describe.concurrent("集計（揃った iteration）", () => {
       timestamp: "2026-09-22T00:00:00Z",
       // 数値順（ディレクトリ名の辞書順ではない）。
       evals_run: [2, 10],
+      // split を記録していない run だけの eval は improve として扱う。
+      evals_by_split: { improve: [2, 10], judge: [] },
       // 成果物から数える（ハードコードした 3 を人が直す運用に戻さない）。
       runs_per_configuration: 1,
     });
@@ -765,5 +767,96 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     const res = await spawnAsync("node", argv, { timeout: CHILD_TIMEOUT_MS, cwd: repoRoot });
     expect(res.status, res.stderr).toBe(2);
     expect(res.stderr).toContain(message);
+  });
+});
+
+describe.concurrent("split（改善に使うケースと判定に使うケース）", () => {
+  /** eval 1 と eval 2 の run を、configuration ごとに 1 件ずつ置く。splits は [eval, configuration] ごとの split。 */
+  function iterationWithSplits(splits: Record<string, unknown>) {
+    const root = makeIteration();
+    for (const evalId of [1, 2]) {
+      for (const configuration of ["with_skill", "without_skill"]) {
+        const key = `${evalId}/${configuration}`;
+        writeRun(root, {
+          evalDir: `eval-${evalId}`,
+          evalId,
+          configuration,
+          split: splits[key],
+        });
+      }
+    }
+    return root;
+  }
+
+  test("eval ごとの split を evals_by_split に書く", async () => {
+    const root = iterationWithSplits({
+      "1/with_skill": "improve",
+      "1/without_skill": "improve",
+      "2/with_skill": "judge",
+      "2/without_skill": "judge",
+    });
+    const res = await run(root);
+    expect(res.status, res.out).toBe(0);
+    expect(parseJsonAs<Benchmark>(res.stdout).metadata.evals_by_split).toStrictEqual({
+      improve: [1],
+      judge: [2],
+    });
+  });
+
+  test("split を記録していない run（split を足す前の記録を再利用した baseline）は、同じ eval のほかの run に従う", async () => {
+    const root = iterationWithSplits({ "2/with_skill": "judge" });
+    const res = await run(root);
+    expect(res.status, res.out).toBe(0);
+    expect(parseJsonAs<Benchmark>(res.stdout).metadata.evals_by_split).toStrictEqual({
+      improve: [1],
+      judge: [2],
+    });
+  });
+
+  test("再利用した baseline が split を変える前の値を記録していても、この iteration の run の値に従う", async () => {
+    const root = iterationWithSplits({ "2/with_skill": "improve", "2/without_skill": "judge" });
+    writeFileSync(join(root, "eval-2", "without_skill", "run-1", "baseline-reuse.json"), "{}\n");
+    const res = await run(root);
+    expect(res.status, res.out).toBe(0);
+    expect(parseJsonAs<Benchmark>(res.stdout).metadata.evals_by_split).toStrictEqual({
+      improve: [1, 2],
+      judge: [],
+    });
+  });
+
+  test("run_summary_by_split は、判定に使うケースの統計に改善に使うケースの run を混ぜない", async () => {
+    const root = makeIteration();
+    for (const configuration of ["with_skill", "without_skill"]) {
+      // eval 1（improve）はすべて落ち、eval 2（judge）はすべて通る。
+      writeRun(root, {
+        evalDir: "eval-1",
+        evalId: 1,
+        configuration,
+        split: "improve",
+        passed: ASSERTIONS.map(() => false),
+      });
+      writeRun(root, { evalDir: "eval-2", evalId: 2, configuration, split: "judge" });
+    }
+    const res = await run(root);
+    expect(res.status, res.out).toBe(0);
+    const b = parseJsonAs<Benchmark>(res.stdout);
+    expect(b.run_summary.with_skill.pass_rate.mean).toBe(0.5);
+    expect(b.run_summary_by_split.judge.with_skill.pass_rate.mean).toBe(1);
+    expect(b.run_summary_by_split.judge.without_skill.pass_rate.mean).toBe(1);
+    expect(b.run_summary_by_split.improve.with_skill.pass_rate.mean).toBe(0);
+  });
+
+  test("同じ eval の run が違う split を記録していれば落とす", async () => {
+    const root = iterationWithSplits({ "2/with_skill": "judge", "2/without_skill": "improve" });
+    const res = await run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("eval 2 の run が違う split（judge と improve）を記録している");
+  });
+
+  test.each([["holdout"], [null], [""]])("split が語彙に無い値（%j）なら落とす", async (split) => {
+    const root = iterationWithSplits({ "1/with_skill": split });
+    const res = await run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain(`split が improve か judge でない: ${JSON.stringify(split)}`);
   });
 });

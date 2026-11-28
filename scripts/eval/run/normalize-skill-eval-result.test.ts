@@ -10,6 +10,7 @@ import {
   buildSkillUsage,
   codexContaminationSurface,
   loadSkillContentIndex,
+  metadataSplitOf,
   normalizeTrace,
   parseClaudeTrace,
   parseCodexTrace,
@@ -1548,6 +1549,26 @@ describe("codex contamination surface", () => {
 
     expect(codexContaminationSurface(`${events.join("\n")}\n`)).toBe(
       `${[events[0], events[3], events[4]].join("\n")}\n`,
+    );
+  });
+});
+
+describe("eval_metadata.json に書く split", () => {
+  test.each([
+    ["書いていない eval は improve", { id: 1 }, { split: "improve" }],
+    ["improve", { id: 1, split: "improve" }, { split: "improve" }],
+    ["judge", { id: 1, split: "judge" }, { split: "judge" }],
+  ])("%s", (_label, sourceEval, expected) => {
+    expect(metadataSplitOf(sourceEval)).toEqual(expected);
+  });
+
+  test("evals.json を渡されなかった run には書かない（宣言を読めない）", () => {
+    expect(metadataSplitOf(null)).toEqual({});
+  });
+
+  test.each([["holdout"], [""], [null], [1]])("語彙に無い値（%j）は書かずに止める", (split) => {
+    expect(() => metadataSplitOf({ id: 3, split })).toThrow(
+      /eval id 3 の split が improve か judge でない/u,
     );
   });
 });

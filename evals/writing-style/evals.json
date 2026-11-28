@@ -41,6 +41,7 @@
     },
     {
       "id": 2,
+      "split": "judge",
       "prompt": "writing-style で、この PR のタイトルを読み直して。直す必要が無ければそう言って。\nfeat(issue-create): 起票の前に、Issue のタイトルと本文を読み直す",
       "assertions": [
         "読み直しの 3 つの問い（「〜を」の係り先・名詞句の指す対象・総称の例）をタイトルに当てた結果を述べている",
@@ -83,6 +84,7 @@
     },
     {
       "id": 4,
+      "split": "judge",
       "prompt": "writing-style で notes/release-notes.txt を読み直して、ファイルを直して。直した内容と、何で確かめたかを 1 つの報告にまとめて。",
       "fixture": "fixtures/lint-skips-file",
       "assertions": [

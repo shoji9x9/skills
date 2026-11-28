@@ -9,12 +9,14 @@
 // | eval           | オブジェクト / null                                                               |
 // | id             | 数値 / 文字列 / 欠落 / ":" を含む / 重複                                          |
 // | prompt         | 正常 / 空 / 行為を禁じる字面（しないで・せず・しない。先頭・途中・末尾、backlog の eval も） |
+// | split          | 無い / improve / judge / 語彙に無い文字列 / 文字列でない / null（backlog の eval も）  |
 // | assertions     | 正常 / 空配列 / 空要素 / テキスト重複                                             |
 // | reachability   | 無い（免除あり / 免除なし） / ある                                               |
 // | reachability[] | 正常 / 非オブジェクト / assertion 不在 / assertion 重複 / quote 空 / quote 非部分文字列 |
 // | 網羅           | 全 assertion に対応あり / 対応の無い assertion が残る                             |
 // | backlog        | 存在 / 不在 / 不正な形 / id の重複 / 孤児キー / reachability 済みなのに残存       |
 // | 走査モード     | 全走査（孤児を見る） / 部分走査（見ない）                                          |
+// | 読む内容       | 作業ツリー（全走査） / index（ファイルを渡す pre-commit。stage していない変更 / index に無い） |
 //
 // 誤検知しないことの確認（通さねばならない入力）は 2 つある。(1) reachability を正しく書いた eval。
 // (2) 実リポジトリ全体（backlog に載る eval が、reachability が無くても通ること）。
@@ -27,6 +29,7 @@ import { BACKLOG_PATH, checkAll, checkEvalFile, listEvalFiles } from "./check-ev
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { gitInit } from "../../lib/testing/repo-file.ts";
 
 /** evals.json の 1 件（テストが読む欄だけ）。 */
 type EvalEntry = { id: number; prompt: string; assertions?: unknown; reachability?: unknown };
@@ -105,6 +108,32 @@ test.each([
   ["何も変更しない", "ファイルは何も変更しないで。"],
 ])("誤検知しないことの確認: 行為の字面でない prompt（%s）は通す", (_label, tail) => {
   expect(check(file({}, { prompt: `${PROMPT}${tail}` }))).toEqual([]);
+});
+
+test.each([
+  ["無い", {}],
+  ["improve", { split: "improve" }],
+  ["judge", { split: "judge" }],
+])("誤検知しないことの確認: split が %s なら通す", (_label, overrides) => {
+  expect(check(file({}, overrides))).toEqual([]);
+});
+
+test.each([
+  ["綴りの誤り", "judeg"],
+  ["大文字", "Judge"],
+  ["空文字", ""],
+  ["文字列でない", 1],
+  ["null", null],
+])("split が語彙に無い値（%s）なら落とす", (_label, split) => {
+  const v = check(file({}, { split }));
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain(`split が improve か judge でない: ${JSON.stringify(split)}`);
+});
+
+test("backlog に載る eval でも、split の値を確かめる", () => {
+  const v = check(file({}, { split: "holdout", reachability: undefined }), ["demo:1"]);
+  expect(v).toHaveLength(1);
+  expect(v[0]).toContain("split が");
 });
 
 test("reachability が無く免除も無ければ落とす（足す eval の id を添えて案内する）", () => {
@@ -343,4 +372,37 @@ test("CLI: 実リポジトリの全走査は exit 0 で件数を出す", () => {
   });
   expect(r.status).toBe(0);
   expect(r.stdout).toMatch(/eval-reachability: OK（\d+ ファイル・\d+ eval）/);
+});
+
+test("pre-commit（ファイルを渡す）では、evals.json と backlog を stage した内容で読む", () => {
+  const root = makeTempDir("eval-reach-");
+  gitInit(root);
+  mkdirSync(join(root, "evals/demo"), { recursive: true });
+  mkdirSync(join(root, "scripts/gates/packaging"), { recursive: true });
+  const evalsPath = join(root, "evals/demo/evals.json");
+  const backlogPath = join(root, BACKLOG_PATH);
+  const git = (...args: string[]) => {
+    const r = spawnSync("git", args, { cwd: root, timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
+    expect(r.status, r.stderr).toBe(0);
+  };
+  // stage した内容は不正な split で、作業ツリーだけ正しい値に戻した形。
+  writeFileSync(evalsPath, file({}, { split: "holdout" }));
+  writeFileSync(backlogPath, JSON.stringify({ exempt: [] }));
+  git("add", ".");
+  writeFileSync(evalsPath, file({}, { split: "judge" }));
+  const staged = checkAll(root, [evalsPath], { fullScan: false, staged: true }).violations;
+  expect(staged).toHaveLength(1);
+  expect(staged[0]).toContain("split が improve か judge でない");
+  // 全走査（CI）は checkout した作業ツリーを読む。
+  expect(checkAll(root, [evalsPath], { fullScan: false }).violations).toEqual([]);
+  // stage していない backlog の変更でも、免除を変えない。
+  writeFileSync(backlogPath, "{");
+  git("add", evalsPath);
+  expect(checkAll(root, [evalsPath], { fullScan: false, staged: true }).violations).toEqual([]);
+  // index に無い evals.json は、作業ツリーにあっても読めないものとして違反にする。
+  git("rm", "-q", "--cached", "evals/demo/evals.json");
+  expect(checkAll(root, [evalsPath], { fullScan: false, staged: true }).violations).toEqual([
+    "evals/demo/evals.json: 読めないため検査できていない: index に無い",
+  ]);
+  rmSync(root, { recursive: true, force: true });
 });

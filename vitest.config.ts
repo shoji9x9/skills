@@ -6,7 +6,12 @@ import { configDefaults, defineConfig } from "vitest/config";
 // それを読む兄弟テスト（`mutation-proof-shards.test.ts` / `mutations-declaration.test.ts`）と並ぶと、
 // 変異中の中間状態を読んで**無関係に赤くなる**。
 // `MUTATION_PROOF_LOCK` は別のミューテーションテストを排除するだけで、兄弟テストには機能しない。
-const ISOLATED: string[] = ["scripts/mutation/check-mutation-proof.test.ts"];
+// `eval-sandbox-credentials-bwrap.test.ts` は、sandbox の中から tracked ファイル（採点のスクリプト・evals.json・記録）に
+// 書き込みを試す。sandbox が隠せていなければ書き換わり、テストの最後に戻すまで、並べた兄弟テストが中間状態を読む。
+const ISOLATED: string[] = [
+  "scripts/mutation/check-mutation-proof.test.ts",
+  "scripts/eval/sandbox/eval-sandbox-credentials-bwrap.test.ts",
+];
 
 export default defineConfig({
   test: {
