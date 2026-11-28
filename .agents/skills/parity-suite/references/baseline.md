@@ -528,6 +528,72 @@ export async function waitForStableRect(target: Locator): Promise<void> {
 }
 ```
 
+### 全画面を撮る前に末尾までスクロールする
+
+Playwright の全画面の撮影（`fullPage: true`）は、スクロールせずにビューポートの外まで描画させる。
+そのため、スクロールで表示が始まる内容（`loading="lazy"` の画像・`IntersectionObserver` で表示を始める要素）は、表示が始まる前の状態のまま画像になる。
+新旧が同じ実装なら両方の画像で空白になり、その部分の差は差分ツールに出ない。片方だけが遅延読み込みなら、実装と関係の無い差分が出る。
+
+`capture_conditions.full_page` が `true` なら、同梱の [`../scripts/scroll-settle.mjs`](../scripts/scroll-settle.mjs) の `settleByScrolling` を、表示の軸を当てた後、状態へ移す前（`applyState` の前）に呼ぶ。
+`settleByScrolling` は、文書の末尾まで 1 画面ずつスクロールし、各位置で見えている画像の読み込み（成功か失敗）を上限付きで待ち、始めの位置に戻す。
+trait-capture.mjs と同じく、プロジェクトの `vendor/` へコピーして使う。ページで実行する [`../scripts/page/scroll-settle.page.mjs`](../scripts/page/scroll-settle.page.mjs) も、同じバージョンから `vendor/page/` へコピーする。
+`parity-diff` の新側の採取の雛形は、`full_page` に関わらずこのコピーを import する。そのため、全画面で撮らない機能でもコピーを置く。置かないと、雛形を読み込む時点で import が失敗する。
+`parity-diff` の新側の採取の雛形も、同じコピーを同じ位置で呼ぶ。現側と新側で待ち方が違うと、その違いが差分になるので、現側の採取のスペックも自分で書いた待ち方に替えない。
+雛形は、現側の同じ組の `scroll-settle.json`（下の記録）から上限を読み、同じ上限でスクロールする。
+現側の組に `scroll-settle.json` が無ければ、スクロールせずに撮って警告を出す。その組は、画面の外の遅延読み込みの内容を両側とも読み込まずに比べている。
+`scroll-settle.json` を持たない既存の成果物は、この処理を入れる前に全画面で撮ったものである。
+撮り直すか、当てないかを決め、手順・観点の変更の台帳 `.replace/procedure-changes.md` に記録する（手順の改訂 10）。
+
+- 状態へ移した後にスクロールしない。スクロールで閉じるポップアップ（メニューなど）が閉じた画面を、その状態として撮ってしまうからである。
+  そのため、状態へ移して初めて表示される遅延読み込みの内容（開いたタブの中の画面の外の画像など）は、この処理では読み込まれない。
+- 上限は、1 つの位置で画像を待つ時間（`stepTimeoutMs`、デフォルト 2 秒）、全体の時間（`totalTimeoutMs`、デフォルト 20 秒）、スクロールする位置の数（`maxSteps`、デフォルト 50）である。
+  上限に達しても撮影は止めない。読み込みを待ち切れなかった画像と、末尾まで届かずに止めた理由を、記録に残す。
+  上限を変えるなら、現側の採取のスペックで `settleByScrolling` に渡す。新側の雛形は、現側の記録から同じ値を読む。
+- 始めの位置に戻せなかったら（`scroll-snap` など）、例外にして撮らない。戻さずに撮ると、`mask-rects.json` と `traits.json` の座標の基準が変わる。
+- 時間は `setTimeout` で測るので、時刻を固定した後（`applyDeterminism`）に呼んでも上限で止まる。
+- 対象にしないものは、ビューポートの中だけの撮影（スクロールは要らない）、文書の中のスクロールする箱（`overflow: auto` の一覧など）の中身、CSS の背景画像の読み込みである。
+- フォントの読み込みは待たない。`page.screenshot` が、撮る前に `document.fonts.ready` を待つからである。
+
+`content-visibility: auto` の要素は、スクロールの前に `visible` に上書きする。
+Chrome 156 と Playwright 1.65 で、高さ 3000px の要素の下に置いた auto の要素を測った。
+末尾までスクロールしても、始めの位置に戻すと再び描画を省かれ、全画面の画像では空白になった。
+上書きすると描画され、`contain-intrinsic-size` と中身の寸法が同じページでは文書の高さも変わらなかった。
+
+- 上書きは要素の style 属性に `!important` で書き、外さない。撮影・マスクの矩形・特性・aria を、同じ配置で採るためである。
+  `contain-intrinsic-size` と中身の寸法が違うページでは、上書きで文書の高さが変わる。上書きした後に採るので、現側と新側で座標の基準は揃う。
+- 上書きするのは、呼んだ時点で主文書にある auto の要素だけである。`content-visibility: hidden` の要素は、ページが意図して隠しているので触らない。
+  shadow DOM の中の要素と、呼んだ後に足された要素も上書きしない。
+- 上書きした要素の数を記録に残す。
+
+記録は、撮影の組ごとに `scroll-settle.json` に書く。置き場所は、その組の `traits.json` の隣である。ビューポートの中だけを撮る組では書かない。
+
+| キー | 値 |
+| --- | --- |
+| `version` | `scroll-settle.mjs` の `VERSION` |
+| `limits` | 使った上限（`step_timeout_ms`・`total_timeout_ms`・`max_steps`） |
+| `steps` | スクロールした位置の数 |
+| `scroll_height`・`viewport_height` | 戻した後の文書の高さと、ビューポートの高さ（CSS の px） |
+| `stopped` | 末尾まで届かずに止めた理由。届いたなら `null`。`max_steps`（位置の数の上限）・`total_timeout`（全体の時間の上限）・`not_scrolled`（スクロールしても前の位置から進めなかった。スクロールのたびに位置を戻すページなど） |
+| `timed_out_images` | 上限で待つのを打ち切った画像の URL（クエリとフラグメントを外す。`data:` と `blob:` は方式だけ）と、そのときのスクロールの位置 `y` |
+| `content_visibility_overridden` | `visible` に上書きした `content-visibility: auto` の要素の数 |
+
+- `stopped` が `null` でない組と、`timed_out_images` が空でない組は、利用者に報告する。その部分の画像は、遅延読み込みの前の状態を含みうる。
+  採取のスペックは、記録を `incompleteSettle` に渡し、`null` でなければその 1 行を警告に出す。新側の雛形も同じ関数で警告を出すので、現側も同じ関数を使う。
+- `artifact_health` を宣言した成果物では、`scroll-settle.json` も `entries` に `kind: captured` で宣言する。どのスペックも読まないので、`read_by` を空にし、`unread_reason` にそのことを書く。
+- 前の回の記録を、撮影の前に消す。撮影の後で失敗したときに、新しい画像の隣に古い記録を残さないためである。
+
+```ts
+// 表示の軸を当てた後、状態へ移す前に呼ぶ（fullPage は capture_conditions.full_page）
+const scrollRecord = fullPage === true ? await settleByScrolling(page) : null;
+const incomplete = scrollRecord === null ? null : incompleteSettle(scrollRecord);
+if (incomplete !== null) console.warn(incomplete);
+await applyState(page, state);
+// ...撮影の前に、前の回の記録を消す
+rmSync(join(outDir, "scroll-settle.json"), { force: true });
+// ...撮影し、マスクの矩形を書いた後
+if (scrollRecord !== null) writeFileSync(join(outDir, "scroll-settle.json"), `${JSON.stringify(scrollRecord, null, 2)}\n`);
+```
+
 ### 寸法の決まり方（窓への追従）
 
 3 つの比較方法（画素・特性の照合・aria）は、`capture_conditions.viewports` に宣言した点でしか比べない。
@@ -1081,6 +1147,8 @@ if (capturing) {
   `--diff` を渡すと、`strict_only_pixels`（しきい値の内側に隠れたぶん）も出る。渡さなければ `null` になる（0 と区別する）。
   `pngjs` に依存する。無ければ、入れてよいかをユーザーに確かめる（このスキルは勝手にインストールしない）。
   `parity-diff` の `scripts/pixel-crops.mjs` にも同じ数え方があるが、インストール先が別なので、互いを import しない（規則を変えたら両方を直す）。
+- 2 回目も、1 回目と同じ待ち方で撮る。全画面で撮るなら、上の「全画面を撮る前に末尾までスクロールする」も同じ位置で同じ上限で呼ぶ。
+  片方の回だけスクロールすると、遅延読み込みの有無がノイズとして記録される。
 - 2 回目の書き出し先は `.replace/parity/<slug>/noise-pass2/` にする。1 回目（`baseline/`）と対称のレイアウトで、同じ場所に撮ると 1 回目を上書きして、比べる相手が消える。
 - 2 つの標本が一致しても、採取が決定論的であることの証明にはならない。2 つの値のどちらかになる採取は、1/2 の確率で「ノイズ 0」になる。
   上の「撮る対象が動かなくなるまで待つ」を、1 回目と 2 回目の両方で満たしたうえで測る（標本を増やしても、待たずに撮る限り、揺れる採取は残る）。

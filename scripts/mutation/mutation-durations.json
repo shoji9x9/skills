@@ -111,6 +111,7 @@
     "scripts/skills/pnpm-audit-alert-issue/compare-dependabot-alerts.mutations.json": 1.5,
     "scripts/lib/text/tracking-diff.property.mutations.json": 1.2,
     "scripts/skills/browser-test/feature-check.mutations.json": 28.7,
-    "scripts/weekly/cost-metrics/test-lines.mutations.json": 1.7
+    "scripts/weekly/cost-metrics/test-lines.mutations.json": 1.7,
+    "scripts/skills/parity-suite/visual/scroll-settle.mutations.json": 6.2
   }
 }

@@ -310,6 +310,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   特性照合と応答ヘッダーの正規化は、`parity-suite` で確定した取り決めに従い、プロジェクトの側のコピー（`trait-capture.mjs`・`trait-compare.mjs`・`header-normalize.mjs`）を使う。
   `trait-capture.mjs` は、隣の `page/trait-capture.page.mjs` のコピーと一緒に使う（コピーの手順の原本は `parity-suite` の `references/baseline.md`）。
   新側の採取の雛形は、時刻と乱数を固定するために、同じコピーの `determinism.mjs` と隣の `page/determinism.page.mjs` も使う。
+  全画面で撮る組では、撮る前に末尾までスクロールするために、同じコピーの `scroll-settle.mjs` と隣の `page/scroll-settle.page.mjs` も使う。雛形は撮り方に関わらずこのコピーを import するので、全画面で撮らない機能でもコピーが要る。
 
 ## 姉妹スキルとの連携
 

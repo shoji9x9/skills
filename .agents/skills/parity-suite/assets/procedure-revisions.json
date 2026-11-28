@@ -1,7 +1,7 @@
 {
   "_note": "parity-suite の手順の改訂一覧（原本）。確かめる軸（網羅表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）を手順に足したら、revision を 1 上げて changes へ 1 要素を追記する（既存の要素は書き換えない）。parity-suite は .replace/parity/<slug>/metadata.json の run.procedure_revision に採取時のこの revision を書き、replace-strategy の scripts/procedure-staleness-check.mjs が、成果物の改訂番号より新しい改訂の affects に当たる機能を「旧手順で特性化した機能」として列挙する。revision 1 は本機構の導入点で、それより前の成果物（run.procedure_revision が無い）は、どの軸で閉じたかを記録していないため全件が対象になる。軸を足さない変更（文言・検査の修正・誤りの訂正で、閉じた機能に測り直しが要らないもの）では上げない。",
   "skill": "parity-suite",
-  "revision": 9,
+  "revision": 10,
   "changes": [
     {
       "revision": 1,
@@ -65,6 +65,13 @@
       "axis": "撮影の時刻と乱数の固定と、2 回撮りで揺れた要素のマスクの候補",
       "affects": ["feature"],
       "summary": "feature モードで、時刻を固定するか（fixed_time）と乱数を seed 付きにするか（random_seed）を metadata.json の capture_conditions.determinism に記録し、同梱の scripts/determinism.mjs（プロジェクト側コピー）で撮る前に当てて確かめる。ノイズ基準値の 2 回撮りで差が出た組は、同梱の scripts/noise-masks.mjs で差の領域を覆う要素を探し、noise_baseline[].mask_candidates に記録する（references/baseline.md「時刻と乱数を固定する」「揺れた要素からマスクの候補を出す」）。parity-diff は determinism を持たない成果物では新側を撮らずに止まる。改訂 8 以前に閉じた feature 機能は determinism を持たないので、撮り直して固定するか、固定せずに撮った事実（fixed_time: null と理由・random_seed: null）を記録するかを機能ごとに .replace/procedure-changes.md へ記録する（事実を記録するだけなら特性化のやり直しではないので、run.finished_at と run.procedure_revision は書き換えない）"
+    },
+    {
+      "revision": 10,
+      "added_at": "2026-11-27",
+      "axis": "全画面の撮影の前に末尾までスクロールして読み込ませる遅延読み込みの内容",
+      "affects": ["feature"],
+      "summary": "feature モードで capture_conditions.full_page が true なら、表示の軸を当てた後、状態へ移す前に、同梱の scripts/scroll-settle.mjs（プロジェクト側コピー）の settleByScrolling で文書の末尾まで 1 画面ずつスクロールし、見えている画像の読み込みを上限付きで待ってから撮る。content-visibility: auto の要素は visible に上書きする。組ごとに scroll-settle.json を traits.json の隣に書く（references/baseline.md「全画面を撮る前に末尾までスクロールする」）。parity-diff の新側の採取の雛形は、現側の組に scroll-settle.json があるときだけ同じ上限でスクロールし、無い組はスクロールせずに撮る。改訂 9 以前に全画面で撮った feature 機能は、画面の外の遅延読み込みの内容を読み込まずに撮っているので、撮り直すか当てないかを機能ごとに .replace/procedure-changes.md へ記録する（当てないなら特性化のやり直しではないので、run.finished_at と run.procedure_revision は書き換えない）"
     }
   ]
 }
